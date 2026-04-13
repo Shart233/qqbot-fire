@@ -168,6 +168,21 @@ public class MyHandler implements EventHandler {
 - [NapLink](https://github.com/aspect-build/naplink) — WebSocket SDK 架构参考
 - [OneBot 11](https://github.com/botuniverse/onebot-11) — 标准化 Bot 协议
 
+## 未来计划
+
+- [ ] **NapCat 隐匿模式** — 反检测机制，让 Bot 行为更接近真人，躲避 NapCat 风控识别
+  - 消息发送随机延迟（模拟打字速度）
+  - 心跳与在线状态伪装
+  - 请求频率自适应限流
+  - UA / 设备指纹模拟
+- [ ] **多协议适配** — 除 NapCat 外支持 Lagrange、LLOneBot 等后端
+- [ ] **插件系统** — 热加载 `.jar` 插件，运行时启停
+- [ ] **权限管理** — 基于角色的命令权限控制
+- [ ] **持久化升级** — SQLite 存储消息记录与调度任务
+- [ ] **Web 管理面板** — 浏览器端配置与监控 Dashboard
+- [ ] **群管工具集** — 自动审批、关键词过滤、违规计数
+- [ ] **AI 对话集成** — 接入 LLM 实现智能聊天
+
 ## License
 
 MIT

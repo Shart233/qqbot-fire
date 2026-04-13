@@ -162,10 +162,6 @@ public class MyHandler implements EventHandler {
 }
 ```
 
-## 计划
-
-- **NapCat 多账号切换 / 多开** — 支持控制 NapCat 实例的账号切换与多开管理，实现单客户端同时操控多个 QQ Bot
-
 ## 致谢
 
 - [NapCat](https://napneko.github.io/) — QQ Bot 框架

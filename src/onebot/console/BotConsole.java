@@ -46,6 +46,10 @@ public class BotConsole {
     // NapCat 进程管理
     private final NapCatLauncher napCatLauncher = new NapCatLauncher();
 
+    // 日志流 attach/detach 状态
+    private volatile boolean attached = false;
+    private volatile String attachedInstance = null;
+
     public void start() {
         printBanner();
         loadConfig();
@@ -62,6 +66,18 @@ public class BotConsole {
                     line = scanner.nextLine().trim();
                 } catch (Exception e) {
                     break;
+                }
+
+                // attach 模式: 日志实时流占据控制台
+                if (attached) {
+                    // 检查进程是否已退出 (readerDone)
+                    checkAttachState();
+                    if (line.isEmpty() || "/detach".equalsIgnoreCase(line)) {
+                        doDetach();
+                    } else {
+                        System.out.println("(输入 /detach 或按回车退出日志流)");
+                    }
+                    continue;
                 }
 
                 if (line.isEmpty()) continue;
@@ -108,6 +124,7 @@ public class BotConsole {
 
     /** 构建带 Bot 名称的命令提示符 */
     private String buildPrompt() {
+        if (attached) return ""; // attach 模式不显示提示符
         var bot = activeBot();
         if (bot == null) return "> ";
         if (bot.isConnected() && bot.getUserId() > 0) {
@@ -767,7 +784,12 @@ public class BotConsole {
                     return;
                 }
                 String name = parts[2].trim();
+                // 如果正在 attach 被停止的实例，先 detach
+                if (attached && name.equals(attachedInstance)) {
+                    doDetach();
+                }
                 if ("all".equalsIgnoreCase(name)) {
+                    if (attached) doDetach();
                     napCatLauncher.stopAll();
                     System.out.println("已停止所有 NapCat 实例");
                 } else if (napCatLauncher.stop(name)) {
@@ -798,24 +820,126 @@ public class BotConsole {
                 var instances = napCatLauncher.listInstances();
                 for (var inst : instances) {
                     if (inst.name.equals(name)) {
-                        System.out.println("日志文件: " + inst.logFile);
-                        try {
-                            var lines = java.nio.file.Files.readAllLines(java.nio.file.Path.of(inst.logFile));
-                            int start = Math.max(0, lines.size() - 30);
-                            System.out.println("--- 最后 " + Math.min(30, lines.size()) + " 行 ---");
-                            for (int i = start; i < lines.size(); i++) {
-                                System.out.println(lines.get(i));
+                        // 优先从内存环形缓冲区读取
+                        if (inst.outputReader != null) {
+                            var lines = inst.outputReader.getRecentLines(Integer.MAX_VALUE);
+                            System.out.println("--- 共 " + lines.size() + " 行 (实时缓冲) ---");
+                            for (var l : lines) {
+                                System.out.println(l);
                             }
-                        } catch (Exception e) {
-                            System.out.println("读取日志失败: " + e.getMessage());
+                            System.out.println("--- 使用 /napcat attach " + name + " 查看实时日志流 ---");
+                        } else {
+                            // 回退: 从文件读取
+                            try {
+                                var lines = java.nio.file.Files.readAllLines(java.nio.file.Path.of(inst.logFile));
+                                System.out.println("--- 共 " + lines.size() + " 行 ---");
+                                for (var l : lines) {
+                                    System.out.println(l);
+                                }
+                            } catch (Exception e) {
+                                System.out.println("读取日志失败: " + e.getMessage());
+                            }
                         }
                         return;
                     }
                 }
                 System.out.println("实例 '" + name + "' 不存在");
             }
+            case "attach", "a" -> {
+                if (parts.length < 3 || parts[2].isBlank()) {
+                    System.out.println("用法: /napcat attach <名称>");
+                    return;
+                }
+                doAttach(parts[2].trim());
+            }
+            case "detach", "d" -> doDetach();
             default -> printNapCatHelp();
         }
+    }
+
+    // ==================== 日志流 attach/detach ====================
+
+    private void doAttach(String name) {
+        // 查找实例
+        NapCatLauncher.NapCatProcess target = null;
+        for (var inst : napCatLauncher.listInstances()) {
+            if (inst.name.equals(name)) {
+                target = inst;
+                break;
+            }
+        }
+        if (target == null || target.outputReader == null) {
+            System.out.println("实例 '" + name + "' 不存在或未运行");
+            return;
+        }
+        if (target.outputReader.isDone()) {
+            System.out.println("实例 '" + name + "' 的进程已退出");
+            return;
+        }
+
+        // 如果已 attach 另一个实例，先 detach
+        if (attached) {
+            doDetach();
+        }
+
+        // 回放最近30行历史
+        var recent = target.outputReader.getRecentLines(Integer.MAX_VALUE);
+        if (!recent.isEmpty()) {
+            System.out.println("--- 共 " + recent.size() + " 行历史 ---");
+            for (var line : recent) {
+                System.out.println(line);
+            }
+        }
+
+        // 设置实时监听器
+        target.outputReader.setListener(line -> {
+            if (line != null) {
+                System.out.println(line);
+            } else {
+                // 进程退出，标记
+                System.out.println("--- 进程 " + name + " 已退出 ---");
+            }
+        });
+
+        attached = true;
+        attachedInstance = name;
+        System.out.println("--- 已连接到 " + name + " 的日志流 (输入 /detach 或按回车退出) ---");
+    }
+
+    private void doDetach() {
+        if (!attached || attachedInstance == null) {
+            System.out.println("当前未连接任何日志流");
+            return;
+        }
+
+        // 清除监听器
+        for (var inst : napCatLauncher.listInstances()) {
+            if (inst.name.equals(attachedInstance) && inst.outputReader != null) {
+                inst.outputReader.setListener(null);
+                break;
+            }
+        }
+
+        String name = attachedInstance;
+        attached = false;
+        attachedInstance = null;
+        System.out.println("--- 已断开 " + name + " 的日志流 ---");
+    }
+
+    /** 检查 attach 状态: 如果进程已退出则自动 detach */
+    private void checkAttachState() {
+        if (!attached || attachedInstance == null) return;
+        for (var inst : napCatLauncher.listInstances()) {
+            if (inst.name.equals(attachedInstance)) {
+                if (inst.outputReader != null && inst.outputReader.isDone()) {
+                    doDetach();
+                }
+                return;
+            }
+        }
+        // 实例已不在列表中
+        attached = false;
+        attachedInstance = null;
     }
 
     private void printNapCatHelp() {
@@ -827,6 +951,8 @@ public class BotConsole {
         System.out.println("  stop <名称|all>      停止 NapCat 实例");
         System.out.println("  list                 查看运行中的实例");
         System.out.println("  log <名称>           查看实例日志 (最后30行)");
+        System.out.println("  attach <名称>        连接实时日志流 (屏幕切换)");
+        System.out.println("  detach               断开日志流");
         System.out.println();
         System.out.println("示例:");
         System.out.println("  /napcat dir C:\\Users\\Lenovo\\Desktop\\NapCat.Shell");
@@ -850,6 +976,8 @@ public class BotConsole {
 
     private void handleQuit() {
         System.out.println("正在退出...");
+        // 如果正在 attach，先 detach
+        if (attached) doDetach();
         // 停止所有 Bot 连接
         for (var inst : bots.values()) {
             if (inst.isConnected()) {
@@ -1027,6 +1155,8 @@ public class BotConsole {
         System.out.println("  │ /napcat stop <名称> 停止 NapCat 实例  │");
         System.out.println("  │ /napcat list       查看运行中的实例   │");
         System.out.println("  │ /napcat log <名称> 查看实例日志       │");
+        System.out.println("  │ /napcat attach <名称> 实时日志流      │");
+        System.out.println("  │ /napcat detach   断开日志流           │");
         System.out.println("  ├─ 其他 ────────────────────────────────┤");
         System.out.println("  │ /quit              退出程序           │");
         System.out.println("  │ /help              显示此帮助         │");

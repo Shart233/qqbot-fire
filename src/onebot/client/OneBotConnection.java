@@ -2,6 +2,7 @@ package onebot.client;
 
 import onebot.event.OneBotEvent;
 import onebot.handler.EventDispatcher;
+import onebot.util.ConvertUtil;
 import onebot.util.JsonUtil;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -155,15 +156,30 @@ public class OneBotConnection implements ApiProvider {
     // ==================== API 调用 (通过 WebSocket) ====================
 
     /**
-     * 调用 OneBot API
-     * 通过 WebSocket 发送 {action, params, echo} 并等待匹配的响应
-     *
-     * @param action API 动作名 (如 "get_login_info")
-     * @param params 参数 Map
-     * @return 响应的 data 字段
+     * 调用 OneBot API，返回 data 字段 (包装为 Map)
      */
     @SuppressWarnings("unchecked")
     public Map<String, Object> callApi(String action, Map<String, Object> params) {
+        Object data = doApiCall(action, params);
+        if (data instanceof Map) {
+            return (Map<String, Object>) data;
+        }
+        var wrapper = new java.util.LinkedHashMap<String, Object>();
+        wrapper.put("data", data);
+        return wrapper;
+    }
+
+    /**
+     * 调用 API 并返回原始 data (可能是 Map、List 或 null)
+     */
+    public Object callApiRaw(String action, Map<String, Object> params) {
+        return doApiCall(action, params);
+    }
+
+    /**
+     * 通用 API 调用: 构建请求、发送、等待响应、检查状态，返回 data 字段
+     */
+    private Object doApiCall(String action, Map<String, Object> params) {
         var ws = wsRef.get();
         if (ws == null || ws.isOutputClosed()) {
             throw new OneBotException("WebSocket 未连接，请先 /connect");
@@ -171,7 +187,6 @@ public class OneBotConnection implements ApiProvider {
 
         String echo = "req_" + requestIdCounter.incrementAndGet() + "_" + System.currentTimeMillis();
 
-        // 构建请求
         var request = new java.util.LinkedHashMap<String, Object>();
         request.put("action", action);
         request.put("params", params != null ? params : Map.of());
@@ -180,31 +195,19 @@ public class OneBotConnection implements ApiProvider {
         String payload = JsonUtil.toJson(request);
         logger.debug("发送 API 请求: {} echo={}", action, echo);
 
-        // 注册 Future
         var future = new CompletableFuture<Map<String, Object>>();
         pendingRequests.put(echo, future);
 
         try {
-            // 发送
             ws.sendText(payload, true).join();
-
-            // 等待响应
             Map<String, Object> response = future.get(apiTimeout, TimeUnit.SECONDS);
 
-            // 检查状态
             String status = (String) response.get("status");
-            int retcode = toInt(response.get("retcode"));
+            int retcode = ConvertUtil.toInt(response.get("retcode"));
 
             if ("ok".equals(status) || retcode == 0) {
-                Object data = response.get("data");
-                if (data instanceof Map) {
-                    logger.debug("API 成功: {}", action);
-                    return (Map<String, Object>) data;
-                }
-                // data 可能是 List 或 null，包装一下
-                var wrapper = new java.util.LinkedHashMap<String, Object>();
-                wrapper.put("data", data);
-                return wrapper;
+                logger.debug("API 成功: {}", action);
+                return response.get("data");
             } else {
                 String message = (String) response.get("message");
                 String wording = (String) response.get("wording");
@@ -212,58 +215,7 @@ public class OneBotConnection implements ApiProvider {
                 throw new OneBotException("API error [" + retcode + "]: " + message + " (" + wording + ")");
             }
         } catch (TimeoutException e) {
-            pendingRequests.remove(echo);
             throw new OneBotException("API 调用超时: " + action + " (" + apiTimeout + "秒)");
-        } catch (OneBotException e) {
-            throw e;
-        } catch (Exception e) {
-            pendingRequests.remove(echo);
-            throw new OneBotException("API 调用失败: " + action, e);
-        } finally {
-            pendingRequests.remove(echo);
-        }
-    }
-
-    /**
-     * 调用 API 并返回原始响应 (包含 data 为 List 的场景)
-     */
-    @SuppressWarnings("unchecked")
-    public Object callApiRaw(String action, Map<String, Object> params) {
-        var ws = wsRef.get();
-        if (ws == null || ws.isOutputClosed()) {
-            throw new OneBotException("WebSocket 未连接，请先 /connect");
-        }
-
-        String echo = "req_" + requestIdCounter.incrementAndGet() + "_" + System.currentTimeMillis();
-
-        var request = new java.util.LinkedHashMap<String, Object>();
-        request.put("action", action);
-        request.put("params", params != null ? params : Map.of());
-        request.put("echo", echo);
-
-        String payload = JsonUtil.toJson(request);
-        logger.debug("发送 API 请求: {} echo={}", action, echo);
-
-        var future = new CompletableFuture<Map<String, Object>>();
-        pendingRequests.put(echo, future);
-
-        try {
-            ws.sendText(payload, true).join();
-            Map<String, Object> response = future.get(apiTimeout, TimeUnit.SECONDS);
-
-            String status = (String) response.get("status");
-            int retcode = toInt(response.get("retcode"));
-
-            if ("ok".equals(status) || retcode == 0) {
-                logger.debug("API 成功: {}", action);
-                return response.get("data"); // 可能是 Map、List 或 null
-            } else {
-                String message = (String) response.get("message");
-                String wording = (String) response.get("wording");
-                throw new OneBotException("API error [" + retcode + "]: " + message + " (" + wording + ")");
-            }
-        } catch (TimeoutException e) {
-            throw new OneBotException("API 调用超时: " + action);
         } catch (OneBotException e) {
             throw e;
         } catch (Exception e) {
@@ -381,11 +333,4 @@ public class OneBotConnection implements ApiProvider {
         }
     }
 
-    private static int toInt(Object obj) {
-        if (obj instanceof Number n) return n.intValue();
-        if (obj instanceof String s && !s.isEmpty()) {
-            try { return Integer.parseInt(s); } catch (NumberFormatException e) { return 0; }
-        }
-        return 0;
-    }
 }

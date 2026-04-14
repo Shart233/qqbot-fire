@@ -1,5 +1,7 @@
 package onebot.message;
 
+import onebot.util.JsonUtil;
+
 import java.util.LinkedHashMap;
 import java.util.Map;
 
@@ -162,33 +164,10 @@ public class MessageSegment {
 
     /** 转为 JSON 字符串 */
     public String toJson() {
-        var sb = new StringBuilder();
-        sb.append("{\"type\":\"").append(escapeJson(type)).append("\",\"data\":{");
-        var first = true;
-        for (var entry : data.entrySet()) {
-            if (!first) sb.append(",");
-            first = false;
-            sb.append("\"").append(escapeJson(entry.getKey())).append("\":");
-            var val = entry.getValue();
-            if (val instanceof Number) {
-                sb.append(val);
-            } else if (val instanceof Boolean) {
-                sb.append(val);
-            } else {
-                sb.append("\"").append(escapeJson(String.valueOf(val))).append("\"");
-            }
-        }
-        sb.append("}}");
-        return sb.toString();
-    }
-
-    private static String escapeJson(String s) {
-        if (s == null) return "";
-        return s.replace("\\", "\\\\")
-                .replace("\"", "\\\"")
-                .replace("\n", "\\n")
-                .replace("\r", "\\r")
-                .replace("\t", "\\t");
+        var map = new LinkedHashMap<String, Object>();
+        map.put("type", type);
+        map.put("data", data);
+        return JsonUtil.toJson(map);
     }
 
     @Override

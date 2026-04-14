@@ -1,5 +1,6 @@
 package onebot.client;
 
+import onebot.util.ConvertUtil;
 import onebot.util.JsonUtil;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -168,7 +169,7 @@ public class OneBotHttpConnection implements ApiProvider {
         Map<String, Object> result = JsonUtil.parseObject(responseBody);
 
         String status = (String) result.get("status");
-        int retcode = toInt(result.get("retcode"));
+        int retcode = ConvertUtil.toInt(result.get("retcode"));
 
         if ("ok".equals(status) || retcode == 0) {
             return result.get("data");
@@ -239,11 +240,4 @@ public class OneBotHttpConnection implements ApiProvider {
         logger.info("HTTP 连接已关闭");
     }
 
-    private static int toInt(Object obj) {
-        if (obj instanceof Number n) return n.intValue();
-        if (obj instanceof String s && !s.isEmpty()) {
-            try { return Integer.parseInt(s); } catch (NumberFormatException e) { return 0; }
-        }
-        return 0;
-    }
 }

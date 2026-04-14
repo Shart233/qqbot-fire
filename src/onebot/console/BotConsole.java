@@ -400,7 +400,11 @@ public class BotConsole {
             for (var inst : bots.values()) {
                 if (inst.isConnected()) {
                     System.out.println("正在断开 " + inst.getName() + "...");
-                    try { inst.disconnect(); } catch (Exception ignored) {}
+                    try {
+                        inst.getScheduler().stop();
+                        if (inst.getProvider() != null) inst.getProvider().close();
+                        inst.setConnected(false);
+                    } catch (Exception ignored) {}
                 }
             }
             bots.clear();
@@ -716,7 +720,7 @@ public class BotConsole {
                 String[] qqStrs = args[2].split(",");
                 String message = args[3];
 
-                var targets = new java.util.ArrayList<Long>();
+                var targets = new ArrayList<Long>();
                 for (String qq : qqStrs) {
                     try { targets.add(Long.parseLong(qq.trim())); }
                     catch (NumberFormatException e) { System.out.println("无效 QQ 号: " + qq); return; }
@@ -835,33 +839,35 @@ public class BotConsole {
                     }
                 }
 
-                // 从 NapCat 配置自动读取 WS/HTTP 端口
-                // 优先从实例工作目录读取 (精确匹配 QQ 号)，避免多开时读到其他 QQ 的配置
+                // 从 NapCat 配置自动读取 WS/HTTP 端口和 Token
+                // 共享目录有正确 token，工作目录有端口但 token 可能为空，需要合并
                 int wsPort = 0, httpPort = 0;
                 String wsToken = "", httpToken = "";
                 try {
-                    NapCatConfigDiscovery.BotConfig matched = null;
+                    // 1) 从共享配置目录按 QQ 号精确读取 (通常有正确 token)
+                    java.nio.file.Path sharedConfigDir = Path.of(napCatLauncher.getNapCatDir(), "config");
+                    NapCatConfigDiscovery.BotConfig matched = NapCatConfigDiscovery.discoverByQQ(sharedConfigDir, qqUin);
 
-                    // 1) 优先: 从实例工作目录 {workRoot}/{name}/config/onebot11_{QQ}.json 精确读取
+                    // 2) 从实例工作目录读取并合并 (端口可能不同，token 可能为空)
                     String wr = napCatLauncher.getWorkRoot();
                     if (wr == null || wr.isEmpty()) {
                         wr = napCatLauncher.getNapCatDir() + "/instances";
                     }
-                    java.nio.file.Path instanceConfigDir = java.nio.file.Path.of(wr, name, "config");
-                    matched = NapCatConfigDiscovery.discoverByQQ(instanceConfigDir, qqUin);
+                    java.nio.file.Path instanceConfigDir = Path.of(wr, name, "config");
+                    NapCatConfigDiscovery.BotConfig instanceCfg = NapCatConfigDiscovery.discoverByQQ(instanceConfigDir, qqUin);
 
-                    // 2) 回退: 从 NapCat 共享配置目录按 QQ 号精确读取
-                    if (matched == null) {
-                        java.nio.file.Path sharedConfigDir = java.nio.file.Path.of(napCatLauncher.getNapCatDir(), "config");
-                        matched = NapCatConfigDiscovery.discoverByQQ(sharedConfigDir, qqUin);
+                    if (matched != null && instanceCfg != null) {
+                        NapCatConfigDiscovery.mergeConfig(matched, instanceCfg);
+                    } else if (matched == null) {
+                        matched = instanceCfg;
                     }
 
                     if (matched != null) {
-                        if (matched.wsEnabled) {
+                        if (matched.wsPort > 0) {
                             wsPort = matched.wsPort;
                             wsToken = matched.wsToken;
                         }
-                        if (matched.httpEnabled) {
+                        if (matched.httpPort > 0) {
                             httpPort = matched.httpPort;
                             httpToken = matched.httpToken;
                         }
@@ -892,10 +898,11 @@ public class BotConsole {
                         inst.setMode("ws");
                         inst.setWsUrl("ws://127.0.0.1:" + wsPort);
                         inst.setWsToken(wsToken);
-                    } else if (httpPort > 0) {
-                        inst.setMode("http");
+                    }
+                    if (httpPort > 0) {
                         inst.setHttpUrl("http://127.0.0.1:" + httpPort);
                         inst.setHttpToken(httpToken);
+                        if (wsPort == 0) inst.setMode("http");
                     }
                     saveConfig();
                     System.out.println("  Bot '" + botName + "' 已自动配置，使用 /connect 连接");
@@ -956,7 +963,7 @@ public class BotConsole {
                         } else {
                             // 回退: 从文件读取
                             try {
-                                var lines = java.nio.file.Files.readAllLines(java.nio.file.Path.of(inst.logFile));
+                                var lines = Files.readAllLines(Path.of(inst.logFile));
                                 System.out.println("--- 共 " + lines.size() + " 行 ---");
                                 for (var l : lines) {
                                     System.out.println(l);
@@ -1080,25 +1087,31 @@ public class BotConsole {
         }
 
         try {
-            // 先从多实例工作目录扫描，再从共享配置目录补充 (按 QQ 号去重)
-            var configs = new java.util.ArrayList<NapCatConfigDiscovery.BotConfig>();
-            var seenQQ = new java.util.HashSet<String>();
+            // 先从共享配置目录扫描 (通常有正确的 token)，
+            // 再从实例工作目录补充端口信息 (工作目录的 token 可能是空的)
+            var configMap = new LinkedHashMap<String, NapCatConfigDiscovery.BotConfig>();
 
-            // 1) 扫描实例工作目录
+            // 1) 共享配置目录 (NapCat 实际使用的配置，token 通常在这里)
+            for (var cfg : NapCatConfigDiscovery.discover(dir)) {
+                configMap.put(cfg.qqUin, cfg);
+            }
+
+            // 2) 实例工作目录 (自动生成的配置，token 可能为空)
+            //    合并策略: 工作目录的非空字段覆盖共享目录，空字段保留共享目录的值
             String wr = napCatLauncher.getWorkRoot();
             if (wr != null && !wr.isEmpty()) {
-                for (var cfg : NapCatConfigDiscovery.discoverFromWorkRoot(wr)) {
-                    configs.add(cfg);
-                    seenQQ.add(cfg.qqUin);
+                for (var wCfg : NapCatConfigDiscovery.discoverFromWorkRoot(wr)) {
+                    var existing = configMap.get(wCfg.qqUin);
+                    if (existing == null) {
+                        configMap.put(wCfg.qqUin, wCfg);
+                    } else {
+                        // 合并: 工作目录有非空值则覆盖，否则保留共享目录的
+                        NapCatConfigDiscovery.mergeConfig(existing, wCfg);
+                    }
                 }
             }
 
-            // 2) 补充: 共享配置目录 (跳过已在工作目录发现的 QQ)
-            for (var cfg : NapCatConfigDiscovery.discover(dir)) {
-                if (!seenQQ.contains(cfg.qqUin)) {
-                    configs.add(cfg);
-                }
-            }
+            var configs = new ArrayList<>(configMap.values());
 
             if (configs.isEmpty()) {
                 System.out.println("未发现任何已启用 WS/HTTP 服务的 QQ Bot 配置");
@@ -1140,11 +1153,12 @@ public class BotConsole {
     /** 将发现的 NapCat 配置应用到 BotInstance */
     private void applyDiscoveredConfig(BotInstance inst, NapCatConfigDiscovery.BotConfig cfg) {
         inst.setMode(cfg.recommendedMode());
-        if (cfg.wsEnabled) {
+        // 不管 enable 与否，只要有端口/token 就写入
+        if (cfg.wsPort > 0) {
             inst.setWsUrl(cfg.wsUrl());
             inst.setWsToken(cfg.wsToken);
         }
-        if (cfg.httpEnabled) {
+        if (cfg.httpPort > 0) {
             inst.setHttpUrl(cfg.httpUrl());
             inst.setHttpToken(cfg.httpToken);
         }

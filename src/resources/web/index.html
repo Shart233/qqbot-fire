@@ -1,0 +1,284 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>QQBot-Fire 控制台</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <!-- ===== 侧边栏 ===== -->
+    <aside class="sidebar">
+        <div class="sidebar-header">
+            <span class="logo">🔥</span>
+            <span class="logo-text">QQBot-Fire</span>
+        </div>
+        <nav class="nav">
+            <a class="nav-item active" data-page="dashboard">📊 仪表盘</a>
+            <a class="nav-item" data-page="bots">🤖 Bot 管理</a>
+            <a class="nav-item" data-page="messages">✉️ 消息发送</a>
+            <a class="nav-item" data-page="contacts">👥 好友与群</a>
+            <a class="nav-item" data-page="schedules">⏰ 定时任务</a>
+            <a class="nav-item" data-page="napcat">🖥️ NapCat 管理</a>
+            <a class="nav-item" data-page="logs">📜 日志</a>
+        </nav>
+        <div class="sidebar-footer">
+            <span class="version">v1.0</span>
+        </div>
+    </aside>
+
+    <!-- ===== 顶部栏 ===== -->
+    <header class="topbar">
+        <div class="topbar-left">
+            <button class="menu-toggle" id="menuToggle">☰</button>
+            <h1 class="page-title" id="pageTitle">仪表盘</h1>
+        </div>
+        <div class="topbar-right">
+            <span class="status-indicator" id="statusIndicator">
+                <span class="status-dot" id="statusDot"></span>
+                <span id="statusText">加载中...</span>
+            </span>
+        </div>
+    </header>
+
+    <!-- ===== 主内容区 ===== -->
+    <main class="content">
+
+        <!-- ===== 仪表盘 ===== -->
+        <section class="page active" data-page="dashboard">
+            <div class="quick-actions">
+                <button class="btn btn-success" onclick="connectAll()">⚡ 全部连接</button>
+                <button class="btn btn-danger" onclick="disconnectAll()">🔌 全部断开</button>
+                <button class="btn btn-primary" onclick="napcatDiscover()">🔍 发现 NapCat</button>
+                <button class="btn" onclick="loadDashboard()">🔄 刷新</button>
+            </div>
+            <div class="card-grid" id="botCards">
+                <div class="empty-state">加载中...</div>
+            </div>
+        </section>
+
+        <!-- ===== Bot 管理 ===== -->
+        <section class="page" data-page="bots">
+            <div class="section-header">
+                <h2>Bot 实例管理</h2>
+            </div>
+            <div class="form-row">
+                <input type="text" id="addBotName" placeholder="Bot 名称" class="input">
+                <button class="btn btn-primary" onclick="addBot()">➕ 添加 Bot</button>
+            </div>
+            <div class="table-container">
+                <table class="table">
+                    <thead>
+                        <tr>
+                            <th>名称</th>
+                            <th>模式</th>
+                            <th>连接地址</th>
+                            <th>状态</th>
+                            <th>操作</th>
+                        </tr>
+                    </thead>
+                    <tbody id="botTable"></tbody>
+                </table>
+            </div>
+        </section>
+
+        <!-- ===== 消息发送 ===== -->
+        <section class="page" data-page="messages">
+            <div class="section-header">
+                <h2>发送消息</h2>
+            </div>
+            <div class="form-card">
+                <div class="form-group">
+                    <label>选择 Bot</label>
+                    <select id="msgBotSelect" class="input"></select>
+                </div>
+                <div class="form-group">
+                    <label>消息类型</label>
+                    <div class="radio-group">
+                        <label><input type="radio" name="msgType" value="group" checked> 群消息</label>
+                        <label><input type="radio" name="msgType" value="private"> 私聊消息</label>
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label>目标 <span class="hint" id="targetHint">(群号)</span></label>
+                    <div class="input-with-history">
+                        <input type="number" id="msgTarget" placeholder="输入群号或 QQ 号" class="input" autocomplete="off">
+                        <button class="btn btn-sm history-btn" type="button" onclick="toggleHistory('msgTarget')" title="历史记录">▼</button>
+                        <div class="history-dropdown" id="msgTarget-history"></div>
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label>消息内容</label>
+                    <textarea id="msgContent" placeholder="输入消息内容..." class="input textarea" rows="4"></textarea>
+                </div>
+                <button class="btn btn-primary" onclick="sendMessage()">📤 发送</button>
+            </div>
+        </section>
+
+        <!-- ===== 好友与群 ===== -->
+        <section class="page" data-page="contacts">
+            <div class="section-header">
+                <h2>好友与群</h2>
+            </div>
+            <div class="form-row">
+                <select id="contactBotSelect" class="input" onchange="loadContacts()"></select>
+                <div class="tab-group">
+                    <button class="tab-btn active" data-tab="friends" onclick="switchContactTab('friends')">👤 好友</button>
+                    <button class="tab-btn" data-tab="groups" onclick="switchContactTab('groups')">👥 群组</button>
+                </div>
+            </div>
+            <div class="table-container">
+                <table class="table">
+                    <thead id="contactTableHead"></thead>
+                    <tbody id="contactTable"></tbody>
+                </table>
+            </div>
+            <!-- 群成员子表 -->
+            <div id="memberSection" style="display:none">
+                <div class="section-header">
+                    <h3 id="memberTitle">群成员</h3>
+                    <button class="btn btn-sm" onclick="closeMemberSection()">✕ 关闭</button>
+                </div>
+                <div class="table-container">
+                    <table class="table">
+                        <thead>
+                            <tr><th>QQ</th><th>昵称</th><th>群名片</th><th>角色</th></tr>
+                        </thead>
+                        <tbody id="memberTable"></tbody>
+                    </table>
+                </div>
+            </div>
+        </section>
+
+        <!-- ===== 定时任务 ===== -->
+        <section class="page" data-page="schedules">
+            <div class="section-header">
+                <h2>定时任务</h2>
+            </div>
+            <div class="form-row">
+                <select id="scheduleBotSelect" class="input" onchange="loadSchedules()"></select>
+            </div>
+            <div class="table-container">
+                <table class="table">
+                    <thead>
+                        <tr>
+                            <th>名称</th>
+                            <th>时间</th>
+                            <th>目标</th>
+                            <th>消息</th>
+                            <th>状态</th>
+                            <th>操作</th>
+                        </tr>
+                    </thead>
+                    <tbody id="scheduleTable"></tbody>
+                </table>
+            </div>
+            <div class="form-card" style="margin-top:16px">
+                <h3>添加定时任务</h3>
+                <div class="form-row">
+                    <input type="text" id="schedName" placeholder="任务名称" class="input">
+                    <input type="time" id="schedTime" class="input">
+                </div>
+                <div class="form-group">
+                    <label>目标 QQ (逗号分隔)</label>
+                    <input type="text" id="schedTargets" placeholder="123456,789012" class="input">
+                </div>
+                <div class="form-group">
+                    <label>消息内容</label>
+                    <input type="text" id="schedMessage" placeholder="定时发送的消息" class="input">
+                </div>
+                <button class="btn btn-primary" onclick="addSchedule()">➕ 添加任务</button>
+            </div>
+        </section>
+
+        <!-- ===== NapCat 管理 ===== -->
+        <section class="page" data-page="napcat">
+            <div class="section-header">
+                <h2>NapCat 进程管理</h2>
+            </div>
+            <!-- 配置 -->
+            <div class="form-card">
+                <h3>🔧 基础配置</h3>
+                <div class="form-group">
+                    <label>NapCat 目录</label>
+                    <input type="text" id="napCatDir" placeholder="NapCat.Shell 目录路径" class="input">
+                </div>
+                <div class="form-group">
+                    <label>工作根目录</label>
+                    <input type="text" id="napCatWorkRoot" placeholder="留空使用默认" class="input">
+                </div>
+                <button class="btn btn-primary" onclick="saveNapCatConfig()">💾 保存配置</button>
+                <button class="btn btn-success" onclick="napcatDiscover()">🔍 自动发现</button>
+            </div>
+            <!-- 运行实例 -->
+            <div class="form-card" style="margin-top:16px">
+                <div class="section-header">
+                    <h3>🚀 运行中的实例</h3>
+                    <button class="btn btn-danger btn-sm" onclick="stopAllNapCat()">停止全部</button>
+                </div>
+                <div class="table-container">
+                    <table class="table">
+                        <thead>
+                            <tr><th>名称</th><th>QQ</th><th>WS端口</th><th>HTTP端口</th><th>PID</th><th>操作</th></tr>
+                        </thead>
+                        <tbody id="napCatInstances"></tbody>
+                    </table>
+                </div>
+            </div>
+            <!-- 启动新实例 -->
+            <div class="form-card" style="margin-top:16px">
+                <h3>➕ 启动新实例</h3>
+                <div class="form-row">
+                    <input type="text" id="ncName" placeholder="实例名称" class="input">
+                    <div class="input-with-history" style="flex:1">
+                        <input type="text" id="ncQQ" placeholder="QQ 号" class="input" autocomplete="off">
+                        <button class="btn btn-sm history-btn" type="button" onclick="toggleHistory('ncQQ')" title="历史记录">▼</button>
+                        <div class="history-dropdown" id="ncQQ-history"></div>
+                    </div>
+                    <input type="number" id="ncWebUIPort" placeholder="WebUI端口 (默认6099)" class="input">
+                    <button class="btn btn-success" onclick="startNapCat()">🚀 启动</button>
+                </div>
+            </div>
+            <!-- 日志查看 -->
+            <div class="form-card" style="margin-top:16px">
+                <div class="section-header">
+                    <h3>📋 实例日志</h3>
+                    <select id="ncLogSelect" class="input input-sm" onchange="loadNapCatLog()"></select>
+                </div>
+                <div class="log-viewer" id="napCatLogViewer">
+                    <pre id="napCatLogContent">选择实例查看日志...</pre>
+                </div>
+            </div>
+        </section>
+
+        <!-- ===== 日志 ===== -->
+        <section class="page" data-page="logs">
+            <div class="section-header">
+                <h2>系统日志</h2>
+                <button class="btn btn-sm" onclick="clearLogs()">🗑️ 清除</button>
+            </div>
+            <div class="log-viewer">
+                <pre id="logContent">等待日志...</pre>
+            </div>
+        </section>
+
+    </main>
+
+    <!-- ===== 模态框 ===== -->
+    <div class="modal-overlay" id="modalOverlay" onclick="hideModal()">
+        <div class="modal" onclick="event.stopPropagation()">
+            <div class="modal-header">
+                <h3 id="modalTitle">标题</h3>
+                <button class="modal-close" onclick="hideModal()">✕</button>
+            </div>
+            <div class="modal-body" id="modalBody"></div>
+            <div class="modal-footer" id="modalFooter"></div>
+        </div>
+    </div>
+
+    <!-- ===== Toast 通知 ===== -->
+    <div class="toast-container" id="toastContainer"></div>
+
+    <script src="app.js"></script>
+</body>
+</html>

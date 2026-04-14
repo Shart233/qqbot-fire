@@ -15,7 +15,9 @@
 - **NTP 精确定时** — 基于网络时间的定时消息调度器
 - **安全存储** — RSA 2048 加密 Token，配置持久化
 - **消息构建器** — 链式 API，支持 20+ 消息段类型
-- **跨平台** — Windows + Linux，零框架依赖（纯 JDK 24 + Log4j2）
+- **Web 管理控制台** — 暗色主题 SPA，浏览器端完整管理（零额外依赖，JDK 内置 HttpServer）
+- **结构化日志** — Log4j2 分级日志，按天滚动，主日志/错误日志/Web API 日志分离
+- **跨平台** — Windows + Linux 全面支持，零框架依赖（纯 JDK 24 + Log4j2）
 
 ## 快速开始
 
@@ -36,11 +38,39 @@ java -cp "out;lib/*;src/resources" Main
 # Linux
 java -cp "out:lib/*:src/resources" Main
 
-# Linux 后台运行
-nohup java -cp "out:lib/*:src/resources" Main > qqbot.log 2>&1 &
+# Linux 后台运行 (日志自动写入 logs/ 目录)
+nohup java -cp "out:lib/*:src/resources" Main &
+
+# 查看实时日志
+tail -f logs/qqbot-fire.log
 ```
 
 也可以直接用 IntelliJ IDEA 打开项目，运行 `Main.java`。
+
+### Linux 部署说明
+
+```bash
+# 1. 上传项目到服务器
+scp -r qqbot-fire/ user@server:/opt/qqbot-fire/
+
+# 2. 确认 JDK 24+
+java -version
+
+# 3. 编译
+cd /opt/qqbot-fire
+javac -cp "lib/*" -d out -sourcepath src src/Main.java
+
+# 4. 启动
+java -cp "out:lib/*:src/resources" Main
+
+# 5. 后台运行 (推荐用 screen 或 tmux)
+screen -S qqbot
+java -cp "out:lib/*:src/resources" Main
+# Ctrl+A D 脱离 screen，screen -r qqbot 恢复
+
+# 6. 浏览器访问 Web 控制台
+http://服务器IP:8080
+```
 
 ### 场景一：已有 NapCat 实例，直接连接
 
@@ -182,6 +212,14 @@ NapCat 实例已启动: bot1 QQ=1234567890
 | `/schedule on/off <名称>` | 启用/禁用任务 |
 | `/schedule test <名称>` | 立即测试执行 |
 
+### Web 控制台
+
+| 命令 | 说明 |
+|---|---|
+| `/web` | 查看 Web 控制台状态 |
+| `/web start [端口]` | 启动 Web 控制台（默认 8080） |
+| `/web stop` | 停止 Web 控制台 |
+
 ### 其他
 
 | 命令 | 说明 |
@@ -189,6 +227,40 @@ NapCat 实例已启动: bot1 QQ=1234567890
 | `/logout` | 退出 QQ 登录 |
 | `/quit` | 退出程序（自动停止所有连接和 NapCat 实例） |
 | `/help` | 显示帮助 |
+
+## Web 管理控制台
+
+启动后自动在 http://127.0.0.1:8080 提供 Web 管理界面，功能与控制台命令完全对应。
+
+### 功能
+
+- **仪表盘** — Bot 状态卡片一览，快速连接/断开，5 秒自动刷新
+- **Bot 管理** — 添加/删除/配置 Bot，编辑连接信息
+- **消息发送** — 选择 Bot → 选择群/好友 → 发消息（QQ 号历史记忆）
+- **好友与群** — 好友列表、群列表、点击查看群成员
+- **定时任务** — 每个 Bot 的定时任务 CRUD + 开关 + 立即测试
+- **NapCat 管理** — 启动/停止实例，自动发现配置，查看实时日志
+- **日志** — 实时操作日志
+- **状态记忆** — 页面、选择器、Tab 等状态自动保存（localStorage）
+
+### 技术栈
+
+- 后端：JDK 内置 `HttpServer`（零额外依赖）
+- 前端：纯 HTML + CSS + JS 单页应用（暗色主题）
+- 通过 REST API 与后端通信
+
+### 使用
+
+```
+# 启动程序后自动启动 Web 控制台 (默认端口 8080)
+# 浏览器访问:
+http://127.0.0.1:8080
+
+# 手动控制:
+> /web start 9090    # 指定端口启动
+> /web stop          # 停止
+> /web               # 查看状态
+```
 
 ## NapCat 多开
 
@@ -324,6 +396,33 @@ WS 和 HTTP 的 Token 独立配置（NapCat 中两者可以不同）。
 - `default` Bot → `schedules.json`
 - 其他 Bot → `schedules_<名称>.json`
 
+### 日志文件
+
+运行时自动创建 `logs/` 目录，包含以下日志文件：
+
+| 文件 | 内容 | 级别 |
+|------|------|------|
+| `logs/qqbot-fire.log` | 主日志（所有模块） | DEBUG 及以上 |
+| `logs/qqbot-fire-error.log` | 错误日志（单独提取） | WARN 及以上 |
+| `logs/web-api.log` | Web API 请求日志 | DEBUG 及以上 |
+
+日志按天自动滚动归档（`.log.gz`），主日志保留 30 天，超过 50MB 也会滚动。
+
+```bash
+# 实时查看主日志
+tail -f logs/qqbot-fire.log
+
+# 只看错误
+tail -f logs/qqbot-fire-error.log
+
+# 只看 Web API 请求
+tail -f logs/web-api.log
+
+# 搜索关键词
+grep "NapCat" logs/qqbot-fire.log
+grep "ERROR" logs/qqbot-fire-error.log
+```
+
 ## 项目结构
 
 ```
@@ -357,11 +456,24 @@ src/
 │   ├── model/                         # 数据模型 (10 个)
 │   ├── scheduler/
 │   │   └── ScheduleManager.java       # NTP 精确定时调度器 (per-bot)
+│   ├── web/
+│   │   ├── WebConsoleServer.java      # 内嵌 HTTP 服务器 (JDK HttpServer)
+│   │   └── WebApiHandler.java         # REST API 处理器 (30+ 端点)
 │   └── util/
 │       ├── JsonUtil.java              # 轻量 JSON 序列化/反序列化
 │       ├── ConvertUtil.java           # 通用类型转换工具
 │       ├── CryptoUtil.java            # RSA 加解密 (线程安全)
 │       └── NtpUtil.java               # NTP 时间同步
+resources/
+├── log4j2.xml                         # 日志配置 (分级输出 + 按天滚动)
+└── web/
+    ├── index.html                     # Web 控制台前端 (SPA)
+    ├── style.css                      # 暗色主题样式
+    └── app.js                         # 前端逻辑
+logs/                                      # 运行时自动创建
+├── qqbot-fire.log                     # 主日志
+├── qqbot-fire-error.log               # 错误日志
+└── web-api.log                        # Web API 日志
 scripts/
 ├── napcat-instance.bat                # NapCat 单实例启动 (Windows)
 ├── napcat-instance.sh                 # NapCat 单实例启动 (Linux)
@@ -380,12 +492,17 @@ lib/
                     │    (交互式控制台, 多实例)      │
                     └────────┬────────────────────┘
                              │
-          ┌──────────────────┼──────────────────┐
-          │                  │                  │
- ┌────────▼──────┐  ┌───────▼────────┐  ┌──────▼───────────┐
- │ BotInstance[] │  │ NapCatLauncher │  │ ScheduleManager[]│
- │ (多个 Bot)    │  │ (NapCat 进程)  │  │ (per-bot 定时)   │
- └────────┬──────┘  └────────────────┘  └──────────────────┘
+     ┌───────────────────────┼──────────────────────┐
+     │                       │                      │
+ ┌───▼───────────┐  ┌───────▼────────┐  ┌──────────▼──────┐
+ │WebConsoleServer│  │ NapCatLauncher │  │ ScheduleManager │
+ │(HTTP/REST API) │  │ (NapCat 进程)  │  │ (per-bot 定时)  │
+ └───────────────┘  └────────────────┘  └─────────────────┘
+         │
+ ┌───────▼────────┐
+ │ BotInstance[]  │
+ │ (多个 Bot)     │
+ └────────┬───────┘
           │
  ┌────────▼───────┐
  │ OneBotClient   │
@@ -439,7 +556,7 @@ public class MyHandler implements EventHandler {
 - [ ] **插件系统** — 热加载 `.jar` 插件，运行时启停
 - [ ] **权限管理** — 基于角色的命令权限控制
 - [ ] **持久化升级** — SQLite 存储消息记录与调度任务
-- [ ] **Web 管理面板** — 浏览器端配置与监控 Dashboard
+- [x] **Web 管理面板** — 浏览器端配置与监控 Dashboard（已完成）
 - [ ] **群管工具集** — 自动审批、关键词过滤、违规计数
 - [ ] **AI 对话集成** — 接入 LLM 实现智能聊天
 

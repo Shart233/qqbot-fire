@@ -38,6 +38,7 @@ public class BotConsole {
     private static final Logger logger = LogManager.getLogger(BotConsole.class);
     private static final String CONFIG_FILE = "config.json";
     private static final String DEFAULT_BOT_NAME = "default";
+    private static final boolean IS_WINDOWS = System.getProperty("os.name", "").toLowerCase().contains("win");
 
     // 多实例管理
     private final Map<String, BotInstance> bots = new LinkedHashMap<>();
@@ -47,13 +48,57 @@ public class BotConsole {
     // NapCat 进程管理
     private final NapCatLauncher napCatLauncher = new NapCatLauncher();
 
+    // Web 控制台
+    private onebot.web.WebConsoleServer webServer;
+
     // 日志流 attach/detach 状态
     private volatile boolean attached = false;
     private volatile String attachedInstance = null;
 
+    // ==================== Web 层访问接口 ====================
+
+    public Map<String, BotInstance> getBots() { return bots; }
+    public String getActiveBotName() { return activeBotName; }
+    public void setActiveBotName(String name) { this.activeBotName = name; }
+    public NapCatLauncher getNapCatLauncher() { return napCatLauncher; }
+
+    /** 连接指定 Bot（Web 层调用） */
+    public void connectInstance(BotInstance inst) {
+        if ("ws".equals(inst.getMode())) {
+            connectWebSocket(inst);
+        } else {
+            connectHttp(inst);
+        }
+    }
+
+    /** 断开指定 Bot（Web 层调用） */
+    public void disconnectInstance(BotInstance inst) {
+        if (!inst.isConnected()) return;
+        inst.getScheduler().stop();
+        if (inst.getProvider() != null) {
+            inst.getProvider().close();
+        }
+        inst.setWsConnection(null);
+        inst.setProvider(null);
+        inst.setClient(null);
+        inst.setDispatcher(null);
+        inst.setConnected(false);
+        inst.setUserId(0);
+        inst.setNickname("");
+    }
+
     public void start() {
         printBanner();
         loadConfig();
+
+        // 启动 Web 控制台
+        try {
+            webServer = new onebot.web.WebConsoleServer(this);
+            webServer.start();
+        } catch (Exception e) {
+            logger.warn("Web 控制台启动失败: {}", e.getMessage());
+        }
+
         System.out.println("输入 /help 查看命令列表，输入 /connect 连接 Bot\n");
         showConfig();
         System.out.println();
@@ -110,6 +155,7 @@ public class BotConsole {
                         case "members" -> handleMembers(parts);
                         case "schedule", "sch" -> handleSchedule(parts);
                         case "napcat", "nc" -> handleNapCat(parts);
+                        case "web" -> handleWeb(parts);
                         case "logout" -> handleLogout();
                         case "quit", "exit", "q" -> {
                             handleQuit();
@@ -427,14 +473,6 @@ public class BotConsole {
         connectInstance(inst);
     }
 
-    private void connectInstance(BotInstance inst) {
-        if ("ws".equals(inst.getMode())) {
-            connectWebSocket(inst);
-        } else {
-            connectHttp(inst);
-        }
-    }
-
     private void connectWebSocket(BotInstance inst) {
         System.out.println("[" + inst.getName() + "] 正在通过 WebSocket 连接...");
 
@@ -503,24 +541,6 @@ public class BotConsole {
         disconnectInstance(inst);
     }
 
-    private void disconnectInstance(BotInstance inst) {
-        if (!inst.isConnected()) {
-            System.out.println("[" + inst.getName() + "] 当前未连接");
-            return;
-        }
-        inst.getScheduler().stop();
-        if (inst.getProvider() != null) {
-            inst.getProvider().close();
-        }
-        inst.setWsConnection(null);
-        inst.setProvider(null);
-        inst.setClient(null);
-        inst.setDispatcher(null);
-        inst.setConnected(false);
-        inst.setUserId(0);
-        inst.setNickname("");
-        System.out.println("[" + inst.getName() + "] 已断开连接");
-    }
 
     private void handleReconnect() {
         var inst = requireActiveBot();
@@ -1178,7 +1198,9 @@ public class BotConsole {
         System.out.println("  discover             自动发现 NapCat 配置并创建 Bot");
         System.out.println();
         System.out.println("示例:");
-        System.out.println("  /napcat dir C:\\Users\\Lenovo\\Desktop\\NapCat.Shell");
+        System.out.println(IS_WINDOWS
+                ? "  /napcat dir C:\\Users\\Lenovo\\Desktop\\NapCat.Shell"
+                : "  /napcat dir /opt/NapCat.Shell");
         System.out.println("  /napcat start bot1 2838453502 3001 3003 6101");
         System.out.println("  /napcat start bot2 3149003262 3002 3004 6102");
         System.out.println("  /napcat list");
@@ -1197,10 +1219,58 @@ public class BotConsole {
         }
     }
 
+    private void handleWeb(String[] parts) {
+        if (parts.length >= 2) {
+            String sub = parts[1].toLowerCase();
+            switch (sub) {
+                case "start" -> {
+                    if (webServer != null) {
+                        System.out.println("Web 控制台已在运行");
+                        return;
+                    }
+                    int port = 8080;
+                    if (parts.length >= 3) {
+                        try { port = Integer.parseInt(parts[2].trim()); } catch (NumberFormatException e) {
+                            System.out.println("端口号无效");
+                            return;
+                        }
+                    }
+                    try {
+                        webServer = new onebot.web.WebConsoleServer(this, port);
+                        webServer.start();
+                    } catch (Exception e) {
+                        System.out.println("启动失败: " + e.getMessage());
+                    }
+                }
+                case "stop" -> {
+                    if (webServer != null) {
+                        webServer.stop();
+                        webServer = null;
+                        System.out.println("Web 控制台已停止");
+                    } else {
+                        System.out.println("Web 控制台未运行");
+                    }
+                }
+                default -> System.out.println("用法: /web start [端口] | /web stop");
+            }
+        } else {
+            if (webServer != null) {
+                System.out.println("Web 控制台运行中: http://127.0.0.1:8080");
+            } else {
+                System.out.println("Web 控制台未运行，使用 /web start [端口] 启动");
+            }
+        }
+    }
+
     private void handleQuit() {
         System.out.println("正在退出...");
         // 如果正在 attach，先 detach
         if (attached) doDetach();
+        // 停止 Web 控制台
+        if (webServer != null) {
+            webServer.stop();
+            webServer = null;
+        }
         // 停止所有 Bot 连接
         for (var inst : bots.values()) {
             if (inst.isConnected()) {
@@ -1210,11 +1280,9 @@ public class BotConsole {
                 }
             }
         }
-        // 停止所有 NapCat 实例
-        if (!napCatLauncher.listInstances().isEmpty()) {
-            System.out.println("正在停止 NapCat 实例...");
-            napCatLauncher.stopAll();
-        }
+        // 停止所有 NapCat 实例 (Windows: taskkill QQ.exe, Linux: pkill napcat)
+        System.out.println("正在停止 NapCat 实例...");
+        napCatLauncher.stopAll();
         System.out.println("再见!");
     }
 
@@ -1298,7 +1366,7 @@ public class BotConsole {
         }
     }
 
-    private void saveConfig() {
+    public void saveConfig() {
         try {
             var botsMap = new LinkedHashMap<String, Object>();
             for (var inst : bots.values()) {

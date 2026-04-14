@@ -1,16 +1,77 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <Configuration status="WARN">
+    <Properties>
+        <Property name="LOG_DIR">logs</Property>
+        <Property name="LOG_PATTERN">%d{yyyy-MM-dd HH:mm:ss} [%t] %-5level %logger{36} - %msg%n</Property>
+    </Properties>
+
     <Appenders>
+        <!-- 控制台输出 -->
         <Console name="Console" target="SYSTEM_OUT">
-            <PatternLayout pattern="%d{yyyy-MM-dd HH:mm:ss} [%t] %-5level %logger{36} - %msg%n"/>
+            <PatternLayout pattern="${LOG_PATTERN}"/>
         </Console>
+
+        <!-- 主日志文件: 按天滚动, 保留30天 -->
+        <RollingFile name="AllLog" fileName="${LOG_DIR}/qqbot-fire.log"
+                     filePattern="${LOG_DIR}/qqbot-fire-%d{yyyy-MM-dd}.log.gz">
+            <PatternLayout pattern="${LOG_PATTERN}"/>
+            <Policies>
+                <TimeBasedTriggeringPolicy interval="1" modulate="true"/>
+                <SizeBasedTriggeringPolicy size="50MB"/>
+            </Policies>
+            <DefaultRolloverStrategy max="30"/>
+        </RollingFile>
+
+        <!-- 错误日志: 单独记录 WARN 及以上级别 -->
+        <RollingFile name="ErrorLog" fileName="${LOG_DIR}/qqbot-fire-error.log"
+                     filePattern="${LOG_DIR}/qqbot-fire-error-%d{yyyy-MM-dd}.log.gz">
+            <PatternLayout pattern="${LOG_PATTERN}"/>
+            <ThresholdFilter level="WARN" onMatch="ACCEPT" onMismatch="DENY"/>
+            <Policies>
+                <TimeBasedTriggeringPolicy interval="1" modulate="true"/>
+                <SizeBasedTriggeringPolicy size="20MB"/>
+            </Policies>
+            <DefaultRolloverStrategy max="30"/>
+        </RollingFile>
+
+        <!-- Web API 请求日志 -->
+        <RollingFile name="WebLog" fileName="${LOG_DIR}/web-api.log"
+                     filePattern="${LOG_DIR}/web-api-%d{yyyy-MM-dd}.log.gz">
+            <PatternLayout pattern="${LOG_PATTERN}"/>
+            <Policies>
+                <TimeBasedTriggeringPolicy interval="1" modulate="true"/>
+                <SizeBasedTriggeringPolicy size="20MB"/>
+            </Policies>
+            <DefaultRolloverStrategy max="14"/>
+        </RollingFile>
     </Appenders>
+
     <Loggers>
+        <!-- 项目主日志: DEBUG 级别 -->
         <Logger name="onebot" level="DEBUG" additivity="false">
             <AppenderRef ref="Console"/>
+            <AppenderRef ref="AllLog"/>
+            <AppenderRef ref="ErrorLog"/>
         </Logger>
+
+        <!-- Web API 日志: 单独文件 -->
+        <Logger name="onebot.web" level="DEBUG" additivity="false">
+            <AppenderRef ref="Console"/>
+            <AppenderRef ref="WebLog"/>
+            <AppenderRef ref="ErrorLog"/>
+        </Logger>
+
+        <!-- NapCat 日志 -->
+        <Logger name="onebot.napcat" level="DEBUG" additivity="false">
+            <AppenderRef ref="Console"/>
+            <AppenderRef ref="AllLog"/>
+            <AppenderRef ref="ErrorLog"/>
+        </Logger>
+
         <Root level="INFO">
             <AppenderRef ref="Console"/>
+            <AppenderRef ref="AllLog"/>
+            <AppenderRef ref="ErrorLog"/>
         </Root>
     </Loggers>
 </Configuration>

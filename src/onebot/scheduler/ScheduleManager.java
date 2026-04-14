@@ -56,7 +56,6 @@ public class ScheduleManager {
      */
     public ScheduleManager(String botName) {
         this.botName = botName;
-        migrateOldFile();
         loadTasks();
     }
 

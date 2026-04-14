@@ -1,6 +1,7 @@
 package onebot.scheduler;
 
 import onebot.client.OneBotClient;
+import onebot.util.ConvertUtil;
 import onebot.util.JsonUtil;
 import onebot.util.NtpUtil;
 import org.apache.logging.log4j.LogManager;
@@ -296,16 +297,6 @@ public class ScheduleManager {
         return SCHEDULE_FILE_PREFIX + "_" + botName + ".json";
     }
 
-    /**
-     * 旧版迁移: 如果是非 default Bot 且 schedules.json 存在但 schedules_xxx.json 不存在，
-     * 不做迁移 (旧文件留给 default Bot)。
-     * 如果是 default Bot，直接使用 schedules.json，无需迁移。
-     */
-    private void migrateOldFile() {
-        // 仅当 default Bot 且旧文件存在时，旧文件自然就是它的文件，无需迁移
-        // 非 default Bot 使用各自独立文件，不抢占旧文件
-    }
-
     @SuppressWarnings("unchecked")
     private void loadTasks() {
         try {
@@ -316,9 +307,9 @@ public class ScheduleManager {
                 for (Object item : list) {
                     if (item instanceof Map map) {
                         var task = new ScheduleTask();
-                        task.name = str(map.get("name"));
-                        task.time = str(map.get("time"));
-                        task.message = str(map.get("message"));
+                        task.name = ConvertUtil.str(map.get("name"));
+                        task.time = ConvertUtil.str(map.get("time"));
+                        task.message = ConvertUtil.str(map.get("message"));
                         task.enabled = map.get("enabled") instanceof Boolean b ? b : true;
                         task.targets = new ArrayList<>();
                         if (map.get("targets") instanceof List targets) {
@@ -358,10 +349,6 @@ public class ScheduleManager {
         } catch (IOException e) {
             logger.warn("保存定时任务失败", e);
         }
-    }
-
-    private static String str(Object obj) {
-        return obj != null ? String.valueOf(obj) : "";
     }
 
     // ==================== 任务数据类 ====================

@@ -1,5 +1,6 @@
 package onebot.napcat;
 
+import onebot.util.ConvertUtil;
 import onebot.util.JsonUtil;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -136,56 +137,75 @@ public class NapCatConfigDiscovery {
         bc.qqUin = qqUin;
         bc.configFile = path.toString();
 
-        // 解析 websocketServers — 取第一个 enable=true 的
-        if (network.get("websocketServers") instanceof List wsList) {
+        // 解析 websocketServers — 优先取 enable=true 的，否则取第一个 (读取 token/port)
+        if (network.get("websocketServers") instanceof List<?> wsList) {
+            Map<String, Object> firstWs = null;
             for (var item : wsList) {
-                if (item instanceof Map wsMap) {
-                    if (Boolean.TRUE.equals(wsMap.get("enable"))) {
-                        bc.wsHost = stringOf(wsMap.get("host"), "127.0.0.1");
-                        bc.wsPort = intOf(wsMap.get("port"), 0);
-                        bc.wsToken = stringOf(wsMap.get("token"), "");
+                if (item instanceof Map<?, ?> wsMap) {
+                    @SuppressWarnings("unchecked")
+                    var ws = (Map<String, Object>) wsMap;
+                    if (firstWs == null) firstWs = ws;
+                    if (Boolean.TRUE.equals(ws.get("enable"))) {
+                        firstWs = ws;
                         bc.wsEnabled = true;
                         break;
                     }
                 }
             }
+            if (firstWs != null) {
+                bc.wsHost = ConvertUtil.stringOf(firstWs.get("host"), "127.0.0.1");
+                bc.wsPort = ConvertUtil.intOf(firstWs.get("port"), 0);
+                bc.wsToken = ConvertUtil.stringOf(firstWs.get("token"), "");
+            }
         }
 
-        // 解析 httpServers — 取第一个 enable=true 的
-        if (network.get("httpServers") instanceof List httpList) {
+        // 解析 httpServers — 优先取 enable=true 的，否则取第一个 (读取 token/port)
+        if (network.get("httpServers") instanceof List<?> httpList) {
+            Map<String, Object> firstHttp = null;
             for (var item : httpList) {
-                if (item instanceof Map httpMap) {
-                    if (Boolean.TRUE.equals(httpMap.get("enable"))) {
-                        bc.httpHost = stringOf(httpMap.get("host"), "127.0.0.1");
-                        bc.httpPort = intOf(httpMap.get("port"), 0);
-                        bc.httpToken = stringOf(httpMap.get("token"), "");
+                if (item instanceof Map<?, ?> httpMap) {
+                    @SuppressWarnings("unchecked")
+                    var http = (Map<String, Object>) httpMap;
+                    if (firstHttp == null) firstHttp = http;
+                    if (Boolean.TRUE.equals(http.get("enable"))) {
+                        firstHttp = http;
                         bc.httpEnabled = true;
                         break;
                     }
                 }
             }
+            if (firstHttp != null) {
+                bc.httpHost = ConvertUtil.stringOf(firstHttp.get("host"), "127.0.0.1");
+                bc.httpPort = ConvertUtil.intOf(firstHttp.get("port"), 0);
+                bc.httpToken = ConvertUtil.stringOf(firstHttp.get("token"), "");
+            }
         }
 
-        // 至少有一个服务启用才有意义
-        if (!bc.wsEnabled && !bc.httpEnabled) {
-            logger.debug("QQ {} 无已启用的 WS/HTTP 服务，跳过", qqUin);
+        // 至少有一个服务器配置 (不要求 enable) 才有意义
+        if (bc.wsPort == 0 && bc.httpPort == 0) {
+            logger.debug("QQ {} 无 WS/HTTP 服务器配置，跳过", qqUin);
             return null;
         }
 
         return bc;
     }
 
-    private static String stringOf(Object obj, String def) {
-        if (obj instanceof String s && !s.isEmpty()) return s;
-        return def;
-    }
 
-    private static int intOf(Object obj, int def) {
-        if (obj instanceof Number n) return n.intValue();
-        if (obj instanceof String s) {
-            try { return Integer.parseInt(s); } catch (NumberFormatException e) { return def; }
-        }
-        return def;
+    /**
+     * 合并两个 BotConfig: 将 source 中的非空字段合并到 target。
+     * 用于共享目录(有token) + 工作目录(有端口但token可能为空) 场景。
+     */
+    public static void mergeConfig(BotConfig target, BotConfig source) {
+        if (source.wsEnabled) target.wsEnabled = true;
+        if (source.httpEnabled) target.httpEnabled = true;
+
+        if (source.wsPort > 0) target.wsPort = source.wsPort;
+        if (!source.wsHost.isEmpty() && !"127.0.0.1".equals(source.wsHost)) target.wsHost = source.wsHost;
+        if (!source.wsToken.isEmpty()) target.wsToken = source.wsToken;
+
+        if (source.httpPort > 0) target.httpPort = source.httpPort;
+        if (!source.httpHost.isEmpty() && !"127.0.0.1".equals(source.httpHost)) target.httpHost = source.httpHost;
+        if (!source.httpToken.isEmpty()) target.httpToken = source.httpToken;
     }
 
     // ==================== 数据类 ====================
@@ -204,9 +224,11 @@ public class NapCatConfigDiscovery {
         public int httpPort;
         public String httpToken = "";
 
-        /** 推荐的连接模式 (ws 优先) */
+        /** 推荐的连接模式 (ws 优先，其次看哪个有端口) */
         public String recommendedMode() {
-            return wsEnabled ? "ws" : "http";
+            if (wsEnabled) return "ws";
+            if (httpEnabled) return "http";
+            return wsPort > 0 ? "ws" : "http";
         }
 
         /** WS URL */
@@ -223,12 +245,14 @@ public class NapCatConfigDiscovery {
         public String toString() {
             var sb = new StringBuilder();
             sb.append("QQ=").append(qqUin);
-            if (wsEnabled) {
+            if (wsPort > 0) {
                 sb.append(" WS=").append(wsUrl());
+                if (wsEnabled) sb.append("(ON)"); else sb.append("(OFF)");
                 if (!wsToken.isEmpty()) sb.append(" token=").append(wsToken.substring(0, Math.min(4, wsToken.length()))).append("...");
             }
-            if (httpEnabled) {
+            if (httpPort > 0) {
                 sb.append(" HTTP=").append(httpUrl());
+                if (httpEnabled) sb.append("(ON)"); else sb.append("(OFF)");
                 if (!httpToken.isEmpty()) sb.append(" token=").append(httpToken.substring(0, Math.min(4, httpToken.length()))).append("...");
             }
             return sb.toString();

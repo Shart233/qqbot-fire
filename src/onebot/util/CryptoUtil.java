@@ -25,13 +25,13 @@ public class CryptoUtil {
     private static final String RSA_PREFIX = "RSA:";
     private static final int KEY_SIZE = 2048;
 
-    private static PublicKey publicKey;
-    private static PrivateKey privateKey;
+    private static volatile PublicKey publicKey;
+    private static volatile PrivateKey privateKey;
 
     /**
      * 初始化密钥对（如果不存在则自动生成）
      */
-    public static void init() {
+    public static synchronized void init() {
         try {
             Path keyDir = Path.of(KEY_DIR);
             Path pubFile = keyDir.resolve(PUBLIC_KEY_FILE);

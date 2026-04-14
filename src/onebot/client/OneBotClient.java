@@ -3,6 +3,7 @@ package onebot.client;
 import onebot.message.MessageBuilder;
 import onebot.message.MessageSegment;
 import onebot.model.*;
+import onebot.util.ConvertUtil;
 import onebot.util.JsonUtil;
 
 import org.apache.logging.log4j.LogManager;
@@ -113,7 +114,7 @@ public class OneBotClient {
         params.put("user_id", String.valueOf(userId));
         params.put("message", segmentsToList(message));
         var data = callApi("send_private_msg", params);
-        return toLong(data.get("message_id"));
+        return ConvertUtil.toLong(data.get("message_id"));
     }
 
     /** 发送群消息 (纯文本) */
@@ -127,7 +128,7 @@ public class OneBotClient {
         params.put("group_id", String.valueOf(groupId));
         params.put("message", segmentsToList(message));
         var data = callApi("send_group_msg", params);
-        return toLong(data.get("message_id"));
+        return ConvertUtil.toLong(data.get("message_id"));
     }
 
     /** 发送消息 (自动判断类型) */
@@ -138,7 +139,7 @@ public class OneBotClient {
         if (groupId != null) params.put("group_id", String.valueOf(groupId));
         params.put("message", segmentsToList(message));
         var data = callApi("send_msg", params);
-        return toLong(data.get("message_id"));
+        return ConvertUtil.toLong(data.get("message_id"));
     }
 
     /** 撤回消息 */
@@ -376,11 +377,4 @@ public class OneBotClient {
         return list;
     }
 
-    private static long toLong(Object obj) {
-        if (obj instanceof Number n) return n.longValue();
-        if (obj instanceof String s) {
-            try { return Long.parseLong(s); } catch (NumberFormatException e) { return 0; }
-        }
-        return 0;
-    }
 }

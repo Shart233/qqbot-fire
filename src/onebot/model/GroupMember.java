@@ -17,9 +17,6 @@ public class GroupMember {
     private int qq_level;
     private String role; // owner, admin, member
     private String title;
-    private long title_expire_time;
-    private boolean unfriendly;
-    private boolean card_changeable;
     private long shut_up_timestamp;
     private boolean is_robot;
 

@@ -39,9 +39,9 @@ public class NtpUtil {
     private static final long NTP_EPOCH_OFFSET = 2208988800L; // 1900-01-01 到 1970-01-01 的秒数
 
     /** 本地时钟与 NTP 的偏移量 (毫秒)，正值表示本地时钟快 */
-    private static long clockOffset = 0;
-    private static long lastSyncTime = 0;
-    private static String lastServer = "";
+    private static volatile long clockOffset = 0;
+    private static volatile long lastSyncTime = 0;
+    private static volatile String lastServer = "";
 
     /**
      * 同步 NTP 时间

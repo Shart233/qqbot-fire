@@ -359,7 +359,8 @@ src/
 │   │   └── ScheduleManager.java       # NTP 精确定时调度器 (per-bot)
 │   └── util/
 │       ├── JsonUtil.java              # 轻量 JSON 序列化/反序列化
-│       ├── CryptoUtil.java            # RSA 加解密
+│       ├── ConvertUtil.java           # 通用类型转换工具
+│       ├── CryptoUtil.java            # RSA 加解密 (线程安全)
 │       └── NtpUtil.java               # NTP 时间同步
 scripts/
 ├── napcat-instance.bat                # NapCat 单实例启动 (Windows)

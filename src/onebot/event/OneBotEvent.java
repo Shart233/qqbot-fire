@@ -1,5 +1,7 @@
 package onebot.event;
 
+import onebot.util.ConvertUtil;
+
 import java.util.List;
 import java.util.Map;
 
@@ -124,27 +126,11 @@ public class OneBotEvent {
         return false;
     }
 
-    // ========== 工具方法 ==========
+    // ========== 工具方法 (委托 ConvertUtil) ==========
 
-    private static String str(Object obj) {
-        return obj != null ? String.valueOf(obj) : "";
-    }
-
-    private static long toLong(Object obj) {
-        if (obj instanceof Number n) return n.longValue();
-        if (obj instanceof String s && !s.isEmpty()) {
-            try { return Long.parseLong(s); } catch (NumberFormatException e) { return 0; }
-        }
-        return 0;
-    }
-
-    private static int toInt(Object obj) {
-        if (obj instanceof Number n) return n.intValue();
-        if (obj instanceof String s && !s.isEmpty()) {
-            try { return Integer.parseInt(s); } catch (NumberFormatException e) { return 0; }
-        }
-        return 0;
-    }
+    private static String str(Object obj) { return ConvertUtil.str(obj); }
+    private static long toLong(Object obj) { return ConvertUtil.toLong(obj); }
+    private static int toInt(Object obj) { return ConvertUtil.toInt(obj); }
 
     @Override
     public String toString() {

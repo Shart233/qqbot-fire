@@ -25,7 +25,7 @@ public class CommandHandler implements EventHandler {
     private final OneBotClient bot;
     private final String prefix;
     private final long startTime = System.currentTimeMillis();
-    private int processedCount = 0;
+    private final java.util.concurrent.atomic.AtomicInteger processedCount = new java.util.concurrent.atomic.AtomicInteger(0);
 
     public CommandHandler(OneBotClient bot, String prefix) {
         this.bot = bot;
@@ -62,7 +62,7 @@ public class CommandHandler implements EventHandler {
                     return false; // 未知命令，继续传递
                 }
             }
-            processedCount++;
+            processedCount.incrementAndGet();
             return true;
         } catch (Exception e) {
             logger.error("处理命令 {} 失败", command, e);
@@ -93,7 +93,7 @@ public class CommandHandler implements EventHandler {
         String statusText = String.join("\n",
                 "=== Bot 状态 ===",
                 "运行时长: " + uptimeStr,
-                "已处理命令: " + processedCount
+                "已处理命令: " + processedCount.get()
         );
         reply(event, statusText);
     }

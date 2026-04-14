@@ -134,6 +134,8 @@ NapCat 实例已启动: bot1 QQ=1234567890
 | `/set wstoken <token>` | 设置 WS Token |
 | `/set httptoken <token>` | 设置 HTTP Token |
 | `/show` | 显示所有 Bot 配置 |
+| `/config clear` | 清除所有 Bot 配置并重置为默认状态 |
+| `/config clear <名称>` | 清除指定 Bot 的连接信息（URL 和 Token 归零） |
 
 ### 连接管理
 
@@ -162,8 +164,8 @@ NapCat 实例已启动: bot1 QQ=1234567890
 |---|---|
 | `/napcat dir [路径]` | 查看/设置 NapCat.Shell 目录 |
 | `/napcat workroot [路径]` | 查看/设置实例工作根目录 |
-| `/napcat discover` | 自动发现 NapCat 配置并创建 Bot |
-| `/napcat start <名称> <QQ号> [WebUI端口]` | 启动 NapCat 实例（端口/Token 自动读取） |
+| `/napcat discover` | 自动发现 NapCat 配置并创建 Bot（优先扫描实例工作目录） |
+| `/napcat start <名称> <QQ号> [WebUI端口]` | 启动 NapCat 实例（端口/Token 按 QQ 号精确读取） |
 | `/napcat stop <名称\|all>` | 停止 NapCat 实例 |
 | `/napcat list` | 查看运行中的 NapCat 实例 |
 | `/napcat log <名称>` | 查看实例日志（缓冲区全部内容） |

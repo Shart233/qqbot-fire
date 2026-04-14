@@ -97,6 +97,7 @@ public class BotConsole {
                         case "bot", "b" -> handleBot(parts);
                         case "set" -> handleSet(parts);
                         case "show" -> showConfig();
+                        case "config" -> handleConfig(parts);
                         case "connect", "c" -> handleConnect();
                         case "disconnect", "dc" -> handleDisconnect();
                         case "reconnect", "rc" -> handleReconnect();
@@ -357,6 +358,56 @@ public class BotConsole {
                     : "未连接";
             System.out.println("│ 状态     : " + pad(statusStr, 30) + "│");
             System.out.println("└───────────────────────────────────────────┘");
+        }
+    }
+
+    // ==================== 配置管理 ====================
+
+    private void handleConfig(String[] parts) {
+        if (parts.length < 2) {
+            System.out.println("用法: /config clear [Bot名称]");
+            System.out.println("  /config clear         清除所有 Bot 配置并重置");
+            System.out.println("  /config clear <名称>  仅清除指定 Bot 的配置 (连接信息归零)");
+            return;
+        }
+        String sub = parts[1].toLowerCase();
+        if (!"clear".equals(sub)) {
+            System.out.println("未知子命令: " + sub + "，可用: clear");
+            return;
+        }
+
+        if (parts.length >= 3 && !parts[2].isBlank()) {
+            // 清除指定 Bot 的配置
+            String name = parts[2].trim();
+            var inst = bots.get(name);
+            if (inst == null) {
+                System.out.println("Bot '" + name + "' 不存在");
+                return;
+            }
+            if (inst.isConnected()) {
+                System.out.println("请先断开 Bot '" + name + "' 的连接: /bot use " + name + " 然后 /disconnect");
+                return;
+            }
+            inst.setMode("ws");
+            inst.setWsUrl("");
+            inst.setHttpUrl("");
+            inst.setWsToken("");
+            inst.setHttpToken("");
+            saveConfig();
+            System.out.println("已清除 Bot '" + name + "' 的配置 (连接地址和 Token 已归零)");
+        } else {
+            // 清除所有配置: 断开所有连接 -> 删除所有 Bot -> 重建 default
+            for (var inst : bots.values()) {
+                if (inst.isConnected()) {
+                    System.out.println("正在断开 " + inst.getName() + "...");
+                    try { inst.disconnect(); } catch (Exception ignored) {}
+                }
+            }
+            bots.clear();
+            bots.put(DEFAULT_BOT_NAME, new BotInstance(DEFAULT_BOT_NAME));
+            activeBotName = DEFAULT_BOT_NAME;
+            saveConfig();
+            System.out.println("已清除所有 Bot 配置，恢复为默认状态");
         }
     }
 
@@ -785,23 +836,36 @@ public class BotConsole {
                 }
 
                 // 从 NapCat 配置自动读取 WS/HTTP 端口
+                // 优先从实例工作目录读取 (精确匹配 QQ 号)，避免多开时读到其他 QQ 的配置
                 int wsPort = 0, httpPort = 0;
                 String wsToken = "", httpToken = "";
                 try {
-                    var configs = NapCatConfigDiscovery.discover(napCatLauncher.getNapCatDir());
-                    for (var cfg : configs) {
-                        if (cfg.qqUin.equals(qqUin)) {
-                            if (cfg.wsEnabled) {
-                                wsPort = cfg.wsPort;
-                                wsToken = cfg.wsToken;
-                            }
-                            if (cfg.httpEnabled) {
-                                httpPort = cfg.httpPort;
-                                httpToken = cfg.httpToken;
-                            }
-                            System.out.println("已从配置读取: " + cfg);
-                            break;
+                    NapCatConfigDiscovery.BotConfig matched = null;
+
+                    // 1) 优先: 从实例工作目录 {workRoot}/{name}/config/onebot11_{QQ}.json 精确读取
+                    String wr = napCatLauncher.getWorkRoot();
+                    if (wr == null || wr.isEmpty()) {
+                        wr = napCatLauncher.getNapCatDir() + "/instances";
+                    }
+                    java.nio.file.Path instanceConfigDir = java.nio.file.Path.of(wr, name, "config");
+                    matched = NapCatConfigDiscovery.discoverByQQ(instanceConfigDir, qqUin);
+
+                    // 2) 回退: 从 NapCat 共享配置目录按 QQ 号精确读取
+                    if (matched == null) {
+                        java.nio.file.Path sharedConfigDir = java.nio.file.Path.of(napCatLauncher.getNapCatDir(), "config");
+                        matched = NapCatConfigDiscovery.discoverByQQ(sharedConfigDir, qqUin);
+                    }
+
+                    if (matched != null) {
+                        if (matched.wsEnabled) {
+                            wsPort = matched.wsPort;
+                            wsToken = matched.wsToken;
                         }
+                        if (matched.httpEnabled) {
+                            httpPort = matched.httpPort;
+                            httpToken = matched.httpToken;
+                        }
+                        System.out.println("已从配置读取: " + matched);
                     }
                 } catch (Exception e) {
                     System.out.println("读取 NapCat 配置失败: " + e.getMessage());
@@ -1016,7 +1080,26 @@ public class BotConsole {
         }
 
         try {
-            var configs = NapCatConfigDiscovery.discover(dir);
+            // 先从多实例工作目录扫描，再从共享配置目录补充 (按 QQ 号去重)
+            var configs = new java.util.ArrayList<NapCatConfigDiscovery.BotConfig>();
+            var seenQQ = new java.util.HashSet<String>();
+
+            // 1) 扫描实例工作目录
+            String wr = napCatLauncher.getWorkRoot();
+            if (wr != null && !wr.isEmpty()) {
+                for (var cfg : NapCatConfigDiscovery.discoverFromWorkRoot(wr)) {
+                    configs.add(cfg);
+                    seenQQ.add(cfg.qqUin);
+                }
+            }
+
+            // 2) 补充: 共享配置目录 (跳过已在工作目录发现的 QQ)
+            for (var cfg : NapCatConfigDiscovery.discover(dir)) {
+                if (!seenQQ.contains(cfg.qqUin)) {
+                    configs.add(cfg);
+                }
+            }
+
             if (configs.isEmpty()) {
                 System.out.println("未发现任何已启用 WS/HTTP 服务的 QQ Bot 配置");
                 System.out.println("请检查 " + dir + "/config/ 下是否有 onebot11_*.json 文件");
@@ -1297,6 +1380,9 @@ public class BotConsole {
         System.out.println("  │ /napcat log <名称> 查看实例日志       │");
         System.out.println("  │ /napcat attach <名称> 实时日志流      │");
         System.out.println("  │ /napcat detach   断开日志流           │");
+        System.out.println("  ├─ 配置管理 ────────────────────────────┤");
+        System.out.println("  │ /config clear       清除所有配置重置  │");
+        System.out.println("  │ /config clear <名称> 清除指定Bot配置  │");
         System.out.println("  ├─ 其他 ────────────────────────────────┤");
         System.out.println("  │ /quit              退出程序           │");
         System.out.println("  │ /help              显示此帮助         │");

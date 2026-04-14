@@ -8,7 +8,7 @@ import onebot.scheduler.ScheduleManager;
  * 用于多开场景下管理多个并行 Bot。
  *
  * 每个 BotInstance 拥有独立的:
- *   - 连接配置 (mode, wsUrl, httpUrl, accessToken)
+ *   - 连接配置 (mode, wsUrl, httpUrl, wsToken, httpToken)
  *   - 连接对象 (ApiProvider / OneBotConnection)
  *   - 高层客户端 (OneBotClient)
  *   - 事件分发器 (WebSocket 模式)
@@ -21,7 +21,8 @@ public class BotInstance {
     private String mode = "ws";
     private String wsUrl = "ws://127.0.0.1:3001";
     private String httpUrl = "http://127.0.0.1:6099";
-    private String accessToken = "";
+    private String wsToken = "";
+    private String httpToken = "";
 
     // ---- 运行时 (不持久化) ----
     private OneBotConnection wsConnection;
@@ -54,8 +55,11 @@ public class BotInstance {
     public String getHttpUrl() { return httpUrl; }
     public void setHttpUrl(String httpUrl) { this.httpUrl = httpUrl; }
 
-    public String getAccessToken() { return accessToken; }
-    public void setAccessToken(String accessToken) { this.accessToken = accessToken; }
+    public String getWsToken() { return wsToken; }
+    public void setWsToken(String wsToken) { this.wsToken = wsToken; }
+
+    public String getHttpToken() { return httpToken; }
+    public void setHttpToken(String httpToken) { this.httpToken = httpToken; }
 
     // ==================== 运行时 ====================
 

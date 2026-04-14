@@ -4,6 +4,7 @@ import onebot.client.*;
 import onebot.handler.CommandHandler;
 import onebot.handler.EventDispatcher;
 import onebot.handler.LogHandler;
+import onebot.napcat.NapCatConfigDiscovery;
 import onebot.napcat.NapCatLauncher;
 import onebot.util.CryptoUtil;
 import onebot.util.JsonUtil;
@@ -283,7 +284,7 @@ public class BotConsole {
         if (inst == null) return;
 
         if (parts.length < 3) {
-            System.out.println("用法: /set <mode|ws|http|token> <值>");
+            System.out.println("用法: /set <mode|ws|http|wstoken|httptoken> <值>");
             return;
         }
         String key = parts[1].toLowerCase();
@@ -308,16 +309,25 @@ public class BotConsole {
                 saveConfig();
                 System.out.println("[" + inst.getName() + "] HTTP API 地址已设置: " + value);
             }
-            case "token" -> {
+            case "wstoken" -> {
                 if (value.length() >= 2 && value.startsWith("\"") && value.endsWith("\"")) {
                     value = value.substring(1, value.length() - 1);
                 }
-                inst.setAccessToken(value);
+                inst.setWsToken(value);
                 saveConfig();
-                System.out.println("[" + inst.getName() + "] Access Token 已设置"
+                System.out.println("[" + inst.getName() + "] WS Token 已设置"
                         + (value.length() > 4 ? " (" + value.substring(0, 4) + "...)" : ""));
             }
-            default -> System.out.println("未知配置项: " + key + "，可用: mode, ws, http, token");
+            case "httptoken" -> {
+                if (value.length() >= 2 && value.startsWith("\"") && value.endsWith("\"")) {
+                    value = value.substring(1, value.length() - 1);
+                }
+                inst.setHttpToken(value);
+                saveConfig();
+                System.out.println("[" + inst.getName() + "] HTTP Token 已设置"
+                        + (value.length() > 4 ? " (" + value.substring(0, 4) + "...)" : ""));
+            }
+            default -> System.out.println("未知配置项: " + key + "，可用: mode, ws, http, wstoken, httptoken");
         }
     }
 
@@ -336,9 +346,12 @@ public class BotConsole {
             } else {
                 System.out.println("│ HTTP 地址: " + pad(inst.getHttpUrl(), 30) + "│");
             }
-            String tokenDisplay = inst.getAccessToken().isEmpty() ? "(无)" :
-                    inst.getAccessToken().substring(0, Math.min(4, inst.getAccessToken().length())) + "****";
-            System.out.println("│ Token    : " + pad(tokenDisplay, 30) + "│");
+            String wsTokenDisplay = inst.getWsToken().isEmpty() ? "(无)" :
+                    inst.getWsToken().substring(0, Math.min(4, inst.getWsToken().length())) + "****";
+            String httpTokenDisplay = inst.getHttpToken().isEmpty() ? "(无)" :
+                    inst.getHttpToken().substring(0, Math.min(4, inst.getHttpToken().length())) + "****";
+            System.out.println("│ WS Token : " + pad(wsTokenDisplay, 30) + "│");
+            System.out.println("│ HTTP Token:" + pad(httpTokenDisplay, 30) + "│");
             String statusStr = inst.isConnected()
                     ? (inst.getUserId() > 0 ? "已连接 (QQ:" + inst.getUserId() + " " + inst.getNickname() + ")" : "已连接")
                     : "未连接";
@@ -373,9 +386,9 @@ public class BotConsole {
         var dispatcher = new EventDispatcher();
         dispatcher.addHandler(new LogHandler());
 
-        var wsConn = inst.getAccessToken().isEmpty()
+        var wsConn = inst.getWsToken().isEmpty()
                 ? new OneBotConnection(inst.getWsUrl(), dispatcher)
-                : new OneBotConnection(inst.getWsUrl(), inst.getAccessToken(), dispatcher);
+                : new OneBotConnection(inst.getWsUrl(), inst.getWsToken(), dispatcher);
 
         wsConn.setAutoReconnect(true);
         wsConn.setReconnectInterval(5);
@@ -401,9 +414,9 @@ public class BotConsole {
     private void connectHttp(BotInstance inst) {
         System.out.println("[" + inst.getName() + "] 正在通过 HTTP 连接...");
 
-        var httpConn = inst.getAccessToken().isEmpty()
+        var httpConn = inst.getHttpToken().isEmpty()
                 ? new OneBotHttpConnection(inst.getHttpUrl())
-                : new OneBotHttpConnection(inst.getHttpUrl(), inst.getAccessToken());
+                : new OneBotHttpConnection(inst.getHttpUrl(), inst.getHttpToken());
 
         inst.setProvider(httpConn);
         var client = new OneBotClient(httpConn);
@@ -749,31 +762,79 @@ public class BotConsole {
             }
             case "start" -> {
                 if (parts.length < 3) {
-                    System.out.println("用法: /napcat start <名称> <QQ号> <WS端口> <HTTP端口> <WebUI端口>");
-                    System.out.println("示例: /napcat start bot1 2838453502 3001 3003 6101");
+                    System.out.println("用法: /napcat start <名称> <QQ号> [WebUI端口]");
+                    System.out.println("  端口和 Token 自动从 NapCat 配置读取");
+                    System.out.println("示例: /napcat start bot1 2838453502");
+                    System.out.println("      /napcat start bot1 2838453502 6101");
                     return;
                 }
                 String[] args = parts[2].trim().split("\\s+");
-                if (args.length < 5) {
-                    System.out.println("参数不足，用法: /napcat start <名称> <QQ号> <WS端口> <HTTP端口> <WebUI端口>");
+                if (args.length < 2) {
+                    System.out.println("参数不足，用法: /napcat start <名称> <QQ号> [WebUI端口]");
                     return;
                 }
                 String name = args[0], qqUin = args[1];
-                int wsPort, httpPort, webuiPort;
-                try {
-                    wsPort = Integer.parseInt(args[2]);
-                    httpPort = Integer.parseInt(args[3]);
-                    webuiPort = Integer.parseInt(args[4]);
-                } catch (NumberFormatException e) {
-                    System.out.println("端口必须是数字");
-                    return;
+                int webuiPort = 6099; // 默认 WebUI 端口
+                if (args.length >= 3) {
+                    try {
+                        webuiPort = Integer.parseInt(args[2]);
+                    } catch (NumberFormatException e) {
+                        System.out.println("WebUI 端口必须是数字");
+                        return;
+                    }
                 }
+
+                // 从 NapCat 配置自动读取 WS/HTTP 端口
+                int wsPort = 0, httpPort = 0;
+                String wsToken = "", httpToken = "";
+                try {
+                    var configs = NapCatConfigDiscovery.discover(napCatLauncher.getNapCatDir());
+                    for (var cfg : configs) {
+                        if (cfg.qqUin.equals(qqUin)) {
+                            if (cfg.wsEnabled) {
+                                wsPort = cfg.wsPort;
+                                wsToken = cfg.wsToken;
+                            }
+                            if (cfg.httpEnabled) {
+                                httpPort = cfg.httpPort;
+                                httpToken = cfg.httpToken;
+                            }
+                            System.out.println("已从配置读取: " + cfg);
+                            break;
+                        }
+                    }
+                } catch (Exception e) {
+                    System.out.println("读取 NapCat 配置失败: " + e.getMessage());
+                }
+
                 try {
                     napCatLauncher.start(name, qqUin, wsPort, httpPort, webuiPort);
                     System.out.println("NapCat 实例已启动: " + name + " QQ=" + qqUin);
-                    System.out.println("  WS=ws://127.0.0.1:" + wsPort
-                            + " HTTP=http://127.0.0.1:" + httpPort
-                            + " WebUI=http://127.0.0.1:" + webuiPort);
+                    if (wsPort > 0)
+                        System.out.println("  WS=ws://127.0.0.1:" + wsPort);
+                    if (httpPort > 0)
+                        System.out.println("  HTTP=http://127.0.0.1:" + httpPort);
+                    System.out.println("  WebUI=http://127.0.0.1:" + webuiPort);
+
+                    // 自动创建/更新对应的 BotInstance
+                    String botName = "qq" + qqUin;
+                    var inst = bots.get(botName);
+                    if (inst == null) {
+                        inst = new BotInstance(botName);
+                        bots.put(botName, inst);
+                        if (activeBotName == null) activeBotName = botName;
+                    }
+                    if (wsPort > 0) {
+                        inst.setMode("ws");
+                        inst.setWsUrl("ws://127.0.0.1:" + wsPort);
+                        inst.setWsToken(wsToken);
+                    } else if (httpPort > 0) {
+                        inst.setMode("http");
+                        inst.setHttpUrl("http://127.0.0.1:" + httpPort);
+                        inst.setHttpToken(httpToken);
+                    }
+                    saveConfig();
+                    System.out.println("  Bot '" + botName + "' 已自动配置，使用 /connect 连接");
                 } catch (Exception e) {
                     System.out.println("启动失败: " + e.getMessage());
                 }
@@ -853,6 +914,7 @@ public class BotConsole {
                 doAttach(parts[2].trim());
             }
             case "detach", "d" -> doDetach();
+            case "discover" -> handleNapCatDiscover();
             default -> printNapCatHelp();
         }
     }
@@ -942,6 +1004,69 @@ public class BotConsole {
         attachedInstance = null;
     }
 
+    /**
+     * 自动发现 NapCat 配置目录下的 onebot11_{QQ号}.json 文件，
+     * 提取 WS/HTTP 连接信息，自动创建对应的 BotInstance。
+     */
+    private void handleNapCatDiscover() {
+        String dir = napCatLauncher.getNapCatDir();
+        if (dir == null || dir.isEmpty()) {
+            System.out.println("请先设置 NapCat 目录: /napcat dir <路径>");
+            return;
+        }
+
+        try {
+            var configs = NapCatConfigDiscovery.discover(dir);
+            if (configs.isEmpty()) {
+                System.out.println("未发现任何已启用 WS/HTTP 服务的 QQ Bot 配置");
+                System.out.println("请检查 " + dir + "/config/ 下是否有 onebot11_*.json 文件");
+                return;
+            }
+
+            System.out.println("发现 " + configs.size() + " 个 QQ Bot 配置:");
+            int created = 0;
+            for (var cfg : configs) {
+                System.out.println("  " + cfg);
+
+                // 用 QQ 号作为 Bot 名称
+                String botName = "qq" + cfg.qqUin;
+                if (bots.containsKey(botName)) {
+                    // 更新已有 Bot 的连接信息
+                    var inst = bots.get(botName);
+                    applyDiscoveredConfig(inst, cfg);
+                    System.out.println("    -> 已更新 Bot: " + botName);
+                } else {
+                    // 创建新 Bot
+                    var inst = new BotInstance(botName);
+                    applyDiscoveredConfig(inst, cfg);
+                    bots.put(botName, inst);
+                    if (activeBotName == null) activeBotName = botName;
+                    System.out.println("    -> 已创建 Bot: " + botName);
+                    created++;
+                }
+            }
+
+            saveConfig();
+            System.out.println("完成! 新建 " + created + " 个，共 " + bots.size() + " 个 Bot");
+            System.out.println("使用 /show 查看配置，/connect 或 /connectall 连接");
+        } catch (Exception e) {
+            System.out.println("自动发现失败: " + e.getMessage());
+        }
+    }
+
+    /** 将发现的 NapCat 配置应用到 BotInstance */
+    private void applyDiscoveredConfig(BotInstance inst, NapCatConfigDiscovery.BotConfig cfg) {
+        inst.setMode(cfg.recommendedMode());
+        if (cfg.wsEnabled) {
+            inst.setWsUrl(cfg.wsUrl());
+            inst.setWsToken(cfg.wsToken);
+        }
+        if (cfg.httpEnabled) {
+            inst.setHttpUrl(cfg.httpUrl());
+            inst.setHttpToken(cfg.httpToken);
+        }
+    }
+
     private void printNapCatHelp() {
         System.out.println("用法: /napcat <子命令>");
         System.out.println("  dir [路径]           查看/设置 NapCat.Shell 目录");
@@ -953,6 +1078,7 @@ public class BotConsole {
         System.out.println("  log <名称>           查看实例日志 (最后30行)");
         System.out.println("  attach <名称>        连接实时日志流 (屏幕切换)");
         System.out.println("  detach               断开日志流");
+        System.out.println("  discover             自动发现 NapCat 配置并创建 Bot");
         System.out.println();
         System.out.println("示例:");
         System.out.println("  /napcat dir C:\\Users\\Lenovo\\Desktop\\NapCat.Shell");
@@ -1026,7 +1152,14 @@ public class BotConsole {
                         if (botCfg.get("mode") instanceof String v) inst.setMode(v);
                         if (botCfg.get("wsUrl") instanceof String v) inst.setWsUrl(v);
                         if (botCfg.get("httpUrl") instanceof String v) inst.setHttpUrl(v);
-                        if (botCfg.get("accessToken") instanceof String v) inst.setAccessToken(CryptoUtil.decrypt(v));
+                        if (botCfg.get("wsToken") instanceof String v) inst.setWsToken(CryptoUtil.decrypt(v));
+                        if (botCfg.get("httpToken") instanceof String v) inst.setHttpToken(CryptoUtil.decrypt(v));
+                        // 兼容旧版 accessToken: 同时设置 ws 和 http
+                        if (botCfg.get("accessToken") instanceof String v) {
+                            String decrypted = CryptoUtil.decrypt(v);
+                            if (inst.getWsToken().isEmpty()) inst.setWsToken(decrypted);
+                            if (inst.getHttpToken().isEmpty()) inst.setHttpToken(decrypted);
+                        }
                         bots.put(name, inst);
                     }
                 }
@@ -1044,7 +1177,12 @@ public class BotConsole {
                 if (cfg.get("mode") instanceof String v) inst.setMode(v);
                 if (cfg.get("wsUrl") instanceof String v) inst.setWsUrl(v);
                 if (cfg.get("httpUrl") instanceof String v) inst.setHttpUrl(v);
-                if (cfg.get("accessToken") instanceof String v) inst.setAccessToken(CryptoUtil.decrypt(v));
+                // 旧版 accessToken: 同时设置 ws 和 http token
+                if (cfg.get("accessToken") instanceof String v) {
+                    String decrypted = CryptoUtil.decrypt(v);
+                    inst.setWsToken(decrypted);
+                    inst.setHttpToken(decrypted);
+                }
                 bots.put(DEFAULT_BOT_NAME, inst);
                 activeBotName = DEFAULT_BOT_NAME;
                 // 保存为新格式
@@ -1071,7 +1209,8 @@ public class BotConsole {
                 botCfg.put("mode", inst.getMode());
                 botCfg.put("wsUrl", inst.getWsUrl());
                 botCfg.put("httpUrl", inst.getHttpUrl());
-                botCfg.put("accessToken", CryptoUtil.encrypt(inst.getAccessToken()));
+                botCfg.put("wsToken", CryptoUtil.encrypt(inst.getWsToken()));
+                botCfg.put("httpToken", CryptoUtil.encrypt(inst.getHttpToken()));
                 botsMap.put(inst.getName(), botCfg);
             }
 
@@ -1128,7 +1267,8 @@ public class BotConsole {
         System.out.println("  │ /set mode <ws|http> 切换连接模式      │");
         System.out.println("  │ /set ws <url>      设置 WebSocket 地址│");
         System.out.println("  │ /set http <url>    设置 HTTP API 地址 │");
-        System.out.println("  │ /set token <token> 设置 Access Token  │");
+        System.out.println("  │ /set wstoken <t>   设置 WS Token      │");
+        System.out.println("  │ /set httptoken <t> 设置 HTTP Token    │");
         System.out.println("  │ /show              显示所有 Bot 配置  │");
         System.out.println("  ├─ 连接管理 ────────────────────────────┤");
         System.out.println("  │ /connect           连接当前 Bot      │");

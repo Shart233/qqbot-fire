@@ -1,13 +1,10 @@
 package onebot.console;
 
-import onebot.client.ApiProvider;
-import onebot.client.OneBotClient;
-import onebot.client.OneBotConnection;
-import onebot.client.OneBotHttpConnection;
+import onebot.client.*;
 import onebot.handler.CommandHandler;
 import onebot.handler.EventDispatcher;
 import onebot.handler.LogHandler;
-import onebot.scheduler.ScheduleManager;
+import onebot.napcat.NapCatLauncher;
 import onebot.util.CryptoUtil;
 import onebot.util.JsonUtil;
 import org.apache.logging.log4j.LogManager;
@@ -16,45 +13,38 @@ import org.apache.logging.log4j.Logger;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.LinkedHashMap;
-import java.util.Map;
-import java.util.Scanner;
+import java.util.*;
 
 /**
- * QQBot-Fire 交互式控制台
+ * QQBot-Fire 交互式控制台 (多实例版)
  *
- * 支持两种连接模式:
- *   ws   - WebSocket 模式 (同时支持 API 调用和事件接收)
- *   http - HTTP 模式 (仅 API 调用，不接收事件)
+ * 支持同时管理多个 NapCat Bot 实例 (双开/多开):
+ *   /bot add <名称>           - 添加 Bot 实例
+ *   /bot remove <名称>        - 删除 Bot 实例
+ *   /bot list                 - 列出所有 Bot 实例
+ *   /bot use <名称>           - 切换当前操作的 Bot
+ *   /bot rename <旧名> <新名> - 重命名 Bot
  *
- * 配置命令:
- *   /set mode <ws|http>   - 切换连接模式
- *   /set ws <url>         - 设置 WebSocket 地址
- *   /set http <url>       - 设置 HTTP API 地址
- *   /set token <token>    - 设置 access_token
- *   /set prefix <prefix>  - 设置命令前缀
- *   /show                 - 显示当前配置
- *   /connect              - 连接并启动 Bot
+ * 每个 Bot 拥有独立的连接配置、连接和定时任务。
+ * 所有 /set /connect /send 等命令都作用于当前选中的 Bot。
+ *
+ * 配置自动保存到 config.json，格式:
+ *   { "bots": { "name": { mode, wsUrl, httpUrl, accessToken }, ... }, "activeBot": "name" }
+ * 兼容旧版单 Bot 配置: { mode, wsUrl, httpUrl, accessToken }
  */
 public class BotConsole {
 
     private static final Logger logger = LogManager.getLogger(BotConsole.class);
     private static final String CONFIG_FILE = "config.json";
+    private static final String DEFAULT_BOT_NAME = "default";
 
-    // 可配置参数 (持久化到 config.json)
-    private String mode = "ws";
-    private String wsUrl = "ws://127.0.0.1:3001";
-    private String httpUrl = "http://127.0.0.1:6099";
-    private String accessToken = "";
+    // 多实例管理
+    private final Map<String, BotInstance> bots = new LinkedHashMap<>();
+    private String activeBotName = null;
     private final String commandPrefix = "/";
 
-    // 运行时对象
-    private final ScheduleManager scheduler = new ScheduleManager();
-    private OneBotConnection wsConnection;
-    private ApiProvider provider;
-    private OneBotClient bot;
-    private EventDispatcher dispatcher;
-    private boolean connected = false;
+    // NapCat 进程管理
+    private final NapCatLauncher napCatLauncher = new NapCatLauncher();
 
     public void start() {
         printBanner();
@@ -65,7 +55,7 @@ public class BotConsole {
 
         try (var scanner = new Scanner(System.in)) {
             while (true) {
-                System.out.print("> ");
+                System.out.print(buildPrompt());
                 String line;
                 try {
                     if (!scanner.hasNextLine()) break;
@@ -87,17 +77,21 @@ public class BotConsole {
                 try {
                     switch (cmd) {
                         case "help", "h" -> printHelp();
+                        case "bot", "b" -> handleBot(parts);
                         case "set" -> handleSet(parts);
                         case "show" -> showConfig();
                         case "connect", "c" -> handleConnect();
                         case "disconnect", "dc" -> handleDisconnect();
                         case "reconnect", "rc" -> handleReconnect();
+                        case "connectall", "ca" -> handleConnectAll();
+                        case "disconnectall", "dca" -> handleDisconnectAll();
                         case "status", "s" -> handleStatus();
                         case "send" -> handleSend(parts);
                         case "friends" -> handleFriends();
                         case "groups" -> handleGroups();
                         case "members" -> handleMembers(parts);
                         case "schedule", "sch" -> handleSchedule(parts);
+                        case "napcat", "nc" -> handleNapCat(parts);
                         case "logout" -> handleLogout();
                         case "quit", "exit", "q" -> {
                             handleQuit();
@@ -112,9 +106,165 @@ public class BotConsole {
         }
     }
 
+    /** 构建带 Bot 名称的命令提示符 */
+    private String buildPrompt() {
+        var bot = activeBot();
+        if (bot == null) return "> ";
+        if (bot.isConnected() && bot.getUserId() > 0) {
+            return "[" + bot.getName() + ":" + bot.getUserId() + "] > ";
+        }
+        return "[" + bot.getName() + "] > ";
+    }
+
+    // ==================== Bot 实例管理 ====================
+
+    private void handleBot(String[] parts) {
+        if (parts.length < 2) {
+            printBotHelp();
+            return;
+        }
+        String sub = parts[1].toLowerCase();
+        switch (sub) {
+            case "add", "new" -> {
+                if (parts.length < 3 || parts[2].isBlank()) {
+                    System.out.println("用法: /bot add <名称>");
+                    return;
+                }
+                String name = parts[2].trim();
+                if (bots.containsKey(name)) {
+                    System.out.println("Bot '" + name + "' 已存在");
+                    return;
+                }
+                bots.put(name, new BotInstance(name));
+                activeBotName = name;
+                saveConfig();
+                System.out.println("已添加 Bot: " + name + " (已自动切换)");
+            }
+            case "remove", "rm", "del" -> {
+                if (parts.length < 3 || parts[2].isBlank()) {
+                    System.out.println("用法: /bot remove <名称>");
+                    return;
+                }
+                String name = parts[2].trim();
+                var inst = bots.get(name);
+                if (inst == null) {
+                    System.out.println("Bot '" + name + "' 不存在");
+                    return;
+                }
+                // 先断开连接
+                if (inst.isConnected() && inst.getProvider() != null) {
+                    inst.getScheduler().stop();
+                    inst.getProvider().close();
+                }
+                bots.remove(name);
+                if (name.equals(activeBotName)) {
+                    activeBotName = bots.isEmpty() ? null : bots.keySet().iterator().next();
+                }
+                saveConfig();
+                System.out.println("已删除 Bot: " + name
+                        + (activeBotName != null ? " (当前: " + activeBotName + ")" : ""));
+            }
+            case "list", "ls" -> {
+                if (bots.isEmpty()) {
+                    System.out.println("暂无 Bot 实例，使用 /bot add <名称> 添加");
+                    return;
+                }
+                System.out.println("Bot 实例列表 (共 " + bots.size() + " 个):");
+                for (var inst : bots.values()) {
+                    String marker = inst.getName().equals(activeBotName) ? " <-- 当前" : "";
+                    System.out.println("  " + inst + marker);
+                }
+            }
+            case "use", "switch", "sw" -> {
+                if (parts.length < 3 || parts[2].isBlank()) {
+                    System.out.println("用法: /bot use <名称>");
+                    return;
+                }
+                String name = parts[2].trim();
+                if (!bots.containsKey(name)) {
+                    System.out.println("Bot '" + name + "' 不存在，已有: " + String.join(", ", bots.keySet()));
+                    return;
+                }
+                activeBotName = name;
+                saveConfig();
+                var inst = bots.get(name);
+                System.out.println("已切换到: " + inst.label());
+            }
+            case "rename" -> {
+                if (parts.length < 3) {
+                    System.out.println("用法: /bot rename <旧名> <新名>");
+                    return;
+                }
+                String[] args = parts[2].trim().split("\\s+", 2);
+                if (args.length < 2) {
+                    System.out.println("用法: /bot rename <旧名> <新名>");
+                    return;
+                }
+                String oldName = args[0], newName = args[1];
+                var inst = bots.get(oldName);
+                if (inst == null) {
+                    System.out.println("Bot '" + oldName + "' 不存在");
+                    return;
+                }
+                if (bots.containsKey(newName)) {
+                    System.out.println("Bot '" + newName + "' 已存在");
+                    return;
+                }
+                bots.remove(oldName);
+                inst.setName(newName);
+                bots.put(newName, inst);
+                if (oldName.equals(activeBotName)) activeBotName = newName;
+                saveConfig();
+                System.out.println("已重命名: " + oldName + " -> " + newName);
+            }
+            default -> printBotHelp();
+        }
+    }
+
+    private void printBotHelp() {
+        System.out.println("用法: /bot <子命令>");
+        System.out.println("  add <名称>              添加新 Bot 实例");
+        System.out.println("  remove <名称>           删除 Bot 实例");
+        System.out.println("  list                    列出所有 Bot");
+        System.out.println("  use <名称>              切换当前操作的 Bot");
+        System.out.println("  rename <旧名> <新名>    重命名 Bot");
+    }
+
+    /** 获取当前活跃 Bot，不存在时提示 */
+    private BotInstance activeBot() {
+        if (activeBotName == null || !bots.containsKey(activeBotName)) return null;
+        return bots.get(activeBotName);
+    }
+
+    /** 获取当前 Bot，不存在时打印提示并返回 null */
+    private BotInstance requireActiveBot() {
+        var bot = activeBot();
+        if (bot == null) {
+            if (bots.isEmpty()) {
+                System.out.println("暂无 Bot 实例，使用 /bot add <名称> 添加");
+            } else {
+                System.out.println("请先选择 Bot: /bot use <名称>");
+            }
+        }
+        return bot;
+    }
+
+    /** 获取已连接的当前 Bot */
+    private BotInstance requireConnectedBot() {
+        var bot = requireActiveBot();
+        if (bot != null && !bot.isConnected()) {
+            System.out.println("Bot '" + bot.getName() + "' 尚未连接，请先执行 /connect");
+            return null;
+        }
+        return bot;
+    }
+
     // ==================== 配置命令 ====================
 
     private void handleSet(String[] parts) {
+        var inst = requireActiveBot();
+        if (inst == null) return;
+
         if (parts.length < 3) {
             System.out.println("用法: /set <mode|ws|http|token> <值>");
             return;
@@ -124,158 +274,231 @@ public class BotConsole {
         switch (key) {
             case "mode" -> {
                 if ("ws".equals(value) || "http".equals(value)) {
-                    mode = value;
+                    inst.setMode(value);
                     saveConfig();
-                    System.out.println("连接模式已设置: " + mode.toUpperCase());
+                    System.out.println("[" + inst.getName() + "] 连接模式已设置: " + value.toUpperCase());
                 } else {
                     System.out.println("模式只能是 ws 或 http");
                 }
             }
             case "ws" -> {
-                wsUrl = value;
+                inst.setWsUrl(value);
                 saveConfig();
-                System.out.println("WebSocket 地址已设置: " + wsUrl);
+                System.out.println("[" + inst.getName() + "] WebSocket 地址已设置: " + value);
             }
             case "http" -> {
-                httpUrl = value;
+                inst.setHttpUrl(value);
                 saveConfig();
-                System.out.println("HTTP API 地址已设置: " + httpUrl);
+                System.out.println("[" + inst.getName() + "] HTTP API 地址已设置: " + value);
             }
             case "token" -> {
                 if (value.length() >= 2 && value.startsWith("\"") && value.endsWith("\"")) {
                     value = value.substring(1, value.length() - 1);
                 }
-                accessToken = value;
+                inst.setAccessToken(value);
                 saveConfig();
-                System.out.println("Access Token 已设置" + (value.length() > 4 ? " (" + value.substring(0, 4) + "...)" : ""));
+                System.out.println("[" + inst.getName() + "] Access Token 已设置"
+                        + (value.length() > 4 ? " (" + value.substring(0, 4) + "...)" : ""));
             }
             default -> System.out.println("未知配置项: " + key + "，可用: mode, ws, http, token");
         }
     }
 
     private void showConfig() {
-        System.out.println("┌─ 当前配置 ─────────────────────────────┐");
-        System.out.println("│ 模式     : " + pad(mode.toUpperCase() + ("ws".equals(mode) ? " (WebSocket)" : " (HTTP)"), 30) + "│");
-        if ("ws".equals(mode)) {
-            System.out.println("│ WS 地址  : " + pad(wsUrl, 30) + "│");
-        } else {
-            System.out.println("│ HTTP 地址: " + pad(httpUrl, 30) + "│");
+        if (bots.isEmpty()) {
+            System.out.println("暂无 Bot 实例，使用 /bot add <名称> 添加");
+            return;
         }
-        String tokenDisplay = accessToken.isEmpty() ? "(无)" :
-                accessToken.substring(0, Math.min(4, accessToken.length())) + "****";
-        System.out.println("│ Token    : " + pad(tokenDisplay, 30) + "│");
-        System.out.println("│ 状态     : " + pad(connected ? "已连接" : "未连接", 30) + "│");
-        System.out.println("└───────────────────────────────────────┘");
+        for (var inst : bots.values()) {
+            String marker = inst.getName().equals(activeBotName) ? " (*当前*)" : "";
+            String mode = inst.getMode();
+            System.out.println("┌─ Bot: " + inst.getName() + marker + " ─────────────────────────┐");
+            System.out.println("│ 模式     : " + pad(mode.toUpperCase() + ("ws".equals(mode) ? " (WebSocket)" : " (HTTP)"), 30) + "│");
+            if ("ws".equals(mode)) {
+                System.out.println("│ WS 地址  : " + pad(inst.getWsUrl(), 30) + "│");
+            } else {
+                System.out.println("│ HTTP 地址: " + pad(inst.getHttpUrl(), 30) + "│");
+            }
+            String tokenDisplay = inst.getAccessToken().isEmpty() ? "(无)" :
+                    inst.getAccessToken().substring(0, Math.min(4, inst.getAccessToken().length())) + "****";
+            System.out.println("│ Token    : " + pad(tokenDisplay, 30) + "│");
+            String statusStr = inst.isConnected()
+                    ? (inst.getUserId() > 0 ? "已连接 (QQ:" + inst.getUserId() + " " + inst.getNickname() + ")" : "已连接")
+                    : "未连接";
+            System.out.println("│ 状态     : " + pad(statusStr, 30) + "│");
+            System.out.println("└───────────────────────────────────────────┘");
+        }
     }
 
     // ==================== 连接管理 ====================
 
     private void handleConnect() {
-        if (connected) {
-            System.out.println("已处于连接状态，使用 /reconnect 重连或 /disconnect 断开");
+        var inst = requireActiveBot();
+        if (inst == null) return;
+        if (inst.isConnected()) {
+            System.out.println("Bot '" + inst.getName() + "' 已连接，使用 /reconnect 重连或 /disconnect 断开");
             return;
         }
+        connectInstance(inst);
+    }
 
-        if ("ws".equals(mode)) {
-            connectWebSocket();
+    private void connectInstance(BotInstance inst) {
+        if ("ws".equals(inst.getMode())) {
+            connectWebSocket(inst);
         } else {
-            connectHttp();
+            connectHttp(inst);
         }
     }
 
-    private void connectWebSocket() {
-        System.out.println("正在通过 WebSocket 连接...");
+    private void connectWebSocket(BotInstance inst) {
+        System.out.println("[" + inst.getName() + "] 正在通过 WebSocket 连接...");
 
-        dispatcher = new EventDispatcher();
+        var dispatcher = new EventDispatcher();
         dispatcher.addHandler(new LogHandler());
 
-        wsConnection = accessToken.isEmpty()
-                ? new OneBotConnection(wsUrl, dispatcher)
-                : new OneBotConnection(wsUrl, accessToken, dispatcher);
+        var wsConn = inst.getAccessToken().isEmpty()
+                ? new OneBotConnection(inst.getWsUrl(), dispatcher)
+                : new OneBotConnection(inst.getWsUrl(), inst.getAccessToken(), dispatcher);
 
-        wsConnection.setAutoReconnect(true);
-        wsConnection.setReconnectInterval(5);
-        wsConnection.connect();
+        wsConn.setAutoReconnect(true);
+        wsConn.setReconnectInterval(5);
+        wsConn.connect();
 
-        provider = wsConnection;
-        bot = new OneBotClient(wsConnection);
+        inst.setWsConnection(wsConn);
+        inst.setProvider(wsConn);
+        inst.setDispatcher(dispatcher);
 
-        dispatcher.addHandler(new CommandHandler(bot, commandPrefix));
+        var client = new OneBotClient(wsConn);
+        inst.setClient(client);
 
-        tryPrintLoginInfo();
-        scheduler.setBot(bot);
-        scheduler.start();
-        connected = true;
-        System.out.println("Bot 已启动 (WebSocket 模式)，QQ 发送 '/help' 查看命令");
+        dispatcher.addHandler(new CommandHandler(client, commandPrefix));
+
+        tryPrintLoginInfo(inst);
+        inst.getScheduler().setBot(client);
+        inst.getScheduler().start();
+        inst.setConnected(true);
+
+        System.out.println("[" + inst.getName() + "] Bot 已启动 (WebSocket 模式)");
     }
 
-    private void connectHttp() {
-        System.out.println("正在通过 HTTP 连接...");
+    private void connectHttp(BotInstance inst) {
+        System.out.println("[" + inst.getName() + "] 正在通过 HTTP 连接...");
 
-        var httpConn = accessToken.isEmpty()
-                ? new OneBotHttpConnection(httpUrl)
-                : new OneBotHttpConnection(httpUrl, accessToken);
+        var httpConn = inst.getAccessToken().isEmpty()
+                ? new OneBotHttpConnection(inst.getHttpUrl())
+                : new OneBotHttpConnection(inst.getHttpUrl(), inst.getAccessToken());
 
-        provider = httpConn;
-        bot = new OneBotClient(httpConn);
+        inst.setProvider(httpConn);
+        var client = new OneBotClient(httpConn);
+        inst.setClient(client);
 
-        tryPrintLoginInfo();
-        scheduler.setBot(bot);
-        scheduler.start();
-        connected = true;
-        System.out.println("Bot 已启动 (HTTP 模式)，注意: HTTP 模式不接收事件推送");
+        tryPrintLoginInfo(inst);
+        inst.getScheduler().setBot(client);
+        inst.getScheduler().start();
+        inst.setConnected(true);
+
+        System.out.println("[" + inst.getName() + "] Bot 已启动 (HTTP 模式，不接收事件推送)");
     }
 
-    private void tryPrintLoginInfo() {
+    private void tryPrintLoginInfo(BotInstance inst) {
         try {
-            var loginInfo = bot.getLoginInfo();
-            System.out.println("登录成功 — QQ: " + loginInfo.getUserId() + ", 昵称: " + loginInfo.getNickname());
+            var loginInfo = inst.getClient().getLoginInfo();
+            inst.setUserId(loginInfo.getUserId());
+            inst.setNickname(loginInfo.getNickname());
+            System.out.println("[" + inst.getName() + "] 登录成功 — QQ: "
+                    + loginInfo.getUserId() + ", 昵称: " + loginInfo.getNickname());
         } catch (Exception e) {
-            System.out.println("警告: 无法获取登录信息 (" + e.getMessage() + ")");
+            System.out.println("[" + inst.getName() + "] 警告: 无法获取登录信息 (" + e.getMessage() + ")");
         }
     }
 
     private void handleDisconnect() {
-        if (!connected) {
-            System.out.println("当前未连接");
+        var inst = requireActiveBot();
+        if (inst == null) return;
+        disconnectInstance(inst);
+    }
+
+    private void disconnectInstance(BotInstance inst) {
+        if (!inst.isConnected()) {
+            System.out.println("[" + inst.getName() + "] 当前未连接");
             return;
         }
-        if (provider != null) {
-            provider.close();
+        inst.getScheduler().stop();
+        if (inst.getProvider() != null) {
+            inst.getProvider().close();
         }
-        wsConnection = null;
-        provider = null;
-        bot = null;
-        connected = false;
-        System.out.println("已断开连接");
+        inst.setWsConnection(null);
+        inst.setProvider(null);
+        inst.setClient(null);
+        inst.setDispatcher(null);
+        inst.setConnected(false);
+        inst.setUserId(0);
+        inst.setNickname("");
+        System.out.println("[" + inst.getName() + "] 已断开连接");
     }
 
     private void handleReconnect() {
-        handleDisconnect();
-        handleConnect();
+        var inst = requireActiveBot();
+        if (inst == null) return;
+        disconnectInstance(inst);
+        connectInstance(inst);
+    }
+
+    /** 连接所有未连接的 Bot */
+    private void handleConnectAll() {
+        if (bots.isEmpty()) {
+            System.out.println("暂无 Bot 实例");
+            return;
+        }
+        int count = 0;
+        for (var inst : bots.values()) {
+            if (!inst.isConnected()) {
+                connectInstance(inst);
+                count++;
+            }
+        }
+        if (count == 0) {
+            System.out.println("所有 Bot 均已连接");
+        } else {
+            System.out.println("已连接 " + count + " 个 Bot");
+        }
+    }
+
+    /** 断开所有已连接的 Bot */
+    private void handleDisconnectAll() {
+        int count = 0;
+        for (var inst : bots.values()) {
+            if (inst.isConnected()) {
+                disconnectInstance(inst);
+                count++;
+            }
+        }
+        System.out.println("已断开 " + count + " 个 Bot");
     }
 
     // ==================== 运行时命令 ====================
 
     private void handleStatus() {
-        if (!checkConnected()) return;
+        var inst = requireConnectedBot();
+        if (inst == null) return;
         try {
-            var loginInfo = bot.getLoginInfo();
-            var ver = bot.getVersionInfo();
-            System.out.println("┌─ Bot 状态 ─────────────────────────────┐");
-            System.out.println("│ 模式     : " + pad(mode.toUpperCase(), 30) + "│");
+            var loginInfo = inst.getClient().getLoginInfo();
+            var ver = inst.getClient().getVersionInfo();
+            System.out.println("┌─ Bot 状态: " + inst.getName() + " ──────────────────────┐");
+            System.out.println("│ 模式     : " + pad(inst.getMode().toUpperCase(), 30) + "│");
             System.out.println("│ QQ号     : " + pad(String.valueOf(loginInfo.getUserId()), 30) + "│");
             System.out.println("│ 昵称     : " + pad(loginInfo.getNickname(), 30) + "│");
             System.out.println("│ 应用     : " + pad(ver.getAppName() + " v" + ver.getAppVersion(), 30) + "│");
-            System.out.println("│ 连接状态 : " + pad(provider.isConnected() ? "已连接" : "已断开", 30) + "│");
-            System.out.println("└───────────────────────────────────────┘");
+            System.out.println("│ 连接状态 : " + pad(inst.getProvider().isConnected() ? "已连接" : "已断开", 30) + "│");
+            System.out.println("└───────────────────────────────────────────┘");
         } catch (Exception e) {
             System.out.println("获取状态失败: " + e.getMessage());
         }
     }
 
     private void handleSend(String[] parts) {
-        if (!checkConnected()) return;
+        var inst = requireConnectedBot();
+        if (inst == null) return;
         if (parts.length < 3) {
             System.out.println("用法: /send group <群号> <消息>");
             System.out.println("      /send private <QQ号> <消息>");
@@ -301,12 +524,12 @@ public class BotConsole {
             long msgId;
             switch (sub) {
                 case "group", "g" -> {
-                    msgId = bot.sendGroupMsg(id, msg);
-                    System.out.println("群消息发送成功, message_id=" + msgId);
+                    msgId = inst.getClient().sendGroupMsg(id, msg);
+                    System.out.println("[" + inst.getName() + "] 群消息发送成功, message_id=" + msgId);
                 }
                 case "private", "p" -> {
-                    msgId = bot.sendPrivateMsg(id, msg);
-                    System.out.println("私聊消息发送成功, message_id=" + msgId);
+                    msgId = inst.getClient().sendPrivateMsg(id, msg);
+                    System.out.println("[" + inst.getName() + "] 私聊消息发送成功, message_id=" + msgId);
                 }
                 default -> System.out.println("类型必须是 group 或 private");
             }
@@ -316,10 +539,11 @@ public class BotConsole {
     }
 
     private void handleFriends() {
-        if (!checkConnected()) return;
+        var inst = requireConnectedBot();
+        if (inst == null) return;
         try {
-            var friends = bot.getFriendList();
-            System.out.println("好友列表 (共 " + friends.size() + " 个):");
+            var friends = inst.getClient().getFriendList();
+            System.out.println("[" + inst.getName() + "] 好友列表 (共 " + friends.size() + " 个):");
             for (var f : friends) {
                 String remark = (f.getRemark() != null && !f.getRemark().isEmpty()) ? " (" + f.getRemark() + ")" : "";
                 System.out.println("  " + f.getUserId() + " - " + f.getNickname() + remark);
@@ -330,10 +554,11 @@ public class BotConsole {
     }
 
     private void handleGroups() {
-        if (!checkConnected()) return;
+        var inst = requireConnectedBot();
+        if (inst == null) return;
         try {
-            var groups = bot.getGroupList();
-            System.out.println("群列表 (共 " + groups.size() + " 个):");
+            var groups = inst.getClient().getGroupList();
+            System.out.println("[" + inst.getName() + "] 群列表 (共 " + groups.size() + " 个):");
             for (var g : groups) {
                 System.out.println("  " + g.getGroupId() + " - " + g.getGroupName()
                         + " (" + g.getMemberCount() + "/" + g.getMaxMemberCount() + ")");
@@ -344,7 +569,8 @@ public class BotConsole {
     }
 
     private void handleMembers(String[] parts) {
-        if (!checkConnected()) return;
+        var inst = requireConnectedBot();
+        if (inst == null) return;
         if (parts.length < 2) {
             System.out.println("用法: /members <群号>");
             return;
@@ -357,7 +583,7 @@ public class BotConsole {
             return;
         }
         try {
-            var members = bot.getGroupMemberList(groupId);
+            var members = inst.getClient().getGroupMemberList(groupId);
             System.out.println("群 " + groupId + " 成员列表 (共 " + members.size() + " 人):");
             for (var m : members) {
                 String card = (m.getCard() != null && !m.getCard().isEmpty()) ? m.getCard() : m.getNickname();
@@ -371,6 +597,10 @@ public class BotConsole {
     // ==================== 定时任务命令 ====================
 
     private void handleSchedule(String[] parts) {
+        var inst = requireActiveBot();
+        if (inst == null) return;
+        var scheduler = inst.getScheduler();
+
         if (parts.length < 2) {
             printScheduleHelp();
             return;
@@ -380,19 +610,18 @@ public class BotConsole {
             case "list", "ls" -> {
                 var tasks = scheduler.getTasks();
                 if (tasks.isEmpty()) {
-                    System.out.println("暂无定时任务，使用 /schedule add 添加");
+                    System.out.println("[" + inst.getName() + "] 暂无定时任务，使用 /schedule add 添加");
                 } else {
-                    System.out.println("定时任务列表 (共 " + tasks.size() + " 个):");
+                    System.out.println("[" + inst.getName() + "] 定时任务列表 (共 " + tasks.size() + " 个):");
                     for (var t : tasks) {
                         System.out.println("  " + t);
                     }
                 }
             }
             case "add" -> {
-                // /schedule add <名称> <时间> <QQ1,QQ2,...> <消息内容>
                 if (parts.length < 3) {
                     System.out.println("用法: /schedule add <名称> <HH:mm> <QQ1,QQ2,...> <消息内容>");
-                    System.out.println("示例: /schedule add morning 05:00 123456,789012 早上好！新的一天开始了");
+                    System.out.println("示例: /schedule add morning 05:00 123456,789012 早上好！");
                     return;
                 }
                 String rest = parts[2];
@@ -414,7 +643,8 @@ public class BotConsole {
 
                 try {
                     scheduler.addTask(name, time, targets, message);
-                    System.out.println("定时任务已添加: " + name + " -> 每天 " + time + " 发送到 " + targets.size() + " 人");
+                    System.out.println("[" + inst.getName() + "] 定时任务已添加: " + name
+                            + " -> 每天 " + time + " 发送到 " + targets.size() + " 人");
                 } catch (Exception e) {
                     System.out.println("添加失败: " + e.getMessage());
                 }
@@ -442,11 +672,14 @@ public class BotConsole {
                 else System.out.println("任务不存在");
             }
             case "test" -> {
-                if (!checkConnected()) return;
+                if (inst.getClient() == null) {
+                    System.out.println("Bot 未连接，请先 /connect");
+                    return;
+                }
                 if (parts.length < 3 || parts[2].isBlank()) { System.out.println("用法: /schedule test <任务名>"); return; }
                 String name = parts[2].trim();
                 if (scheduler.getTask(name) != null) {
-                    System.out.println("立即执行任务: " + name);
+                    System.out.println("[" + inst.getName() + "] 立即执行任务: " + name);
                     scheduler.triggerNow(name);
                 } else {
                     System.out.println("任务不存在: " + name);
@@ -465,16 +698,151 @@ public class BotConsole {
         System.out.println("  off <名称>                    禁用任务");
         System.out.println("  test <名称>                   立即测试执行");
         System.out.println();
+        System.out.println("定时任务归属当前选中的 Bot，切换 Bot 后操作对应的任务列表");
+    }
+
+    // ==================== NapCat 进程管理 ====================
+
+    private void handleNapCat(String[] parts) {
+        if (parts.length < 2) {
+            printNapCatHelp();
+            return;
+        }
+        String sub = parts[1].toLowerCase();
+        switch (sub) {
+            case "dir" -> {
+                if (parts.length < 3 || parts[2].isBlank()) {
+                    String cur = napCatLauncher.getNapCatDir();
+                    System.out.println("NapCat 目录: " + (cur != null ? cur : "(未设置)"));
+                    return;
+                }
+                napCatLauncher.setNapCatDir(parts[2].trim());
+                saveConfig();
+                System.out.println("NapCat 目录已设置: " + parts[2].trim());
+            }
+            case "workroot" -> {
+                if (parts.length < 3 || parts[2].isBlank()) {
+                    String cur = napCatLauncher.getWorkRoot();
+                    System.out.println("工作根目录: " + (cur != null ? cur : "(默认: NapCat目录/instances)"));
+                    return;
+                }
+                napCatLauncher.setWorkRoot(parts[2].trim());
+                saveConfig();
+                System.out.println("工作根目录已设置: " + parts[2].trim());
+            }
+            case "start" -> {
+                if (parts.length < 3) {
+                    System.out.println("用法: /napcat start <名称> <QQ号> <WS端口> <HTTP端口> <WebUI端口>");
+                    System.out.println("示例: /napcat start bot1 2838453502 3001 3003 6101");
+                    return;
+                }
+                String[] args = parts[2].trim().split("\\s+");
+                if (args.length < 5) {
+                    System.out.println("参数不足，用法: /napcat start <名称> <QQ号> <WS端口> <HTTP端口> <WebUI端口>");
+                    return;
+                }
+                String name = args[0], qqUin = args[1];
+                int wsPort, httpPort, webuiPort;
+                try {
+                    wsPort = Integer.parseInt(args[2]);
+                    httpPort = Integer.parseInt(args[3]);
+                    webuiPort = Integer.parseInt(args[4]);
+                } catch (NumberFormatException e) {
+                    System.out.println("端口必须是数字");
+                    return;
+                }
+                try {
+                    napCatLauncher.start(name, qqUin, wsPort, httpPort, webuiPort);
+                    System.out.println("NapCat 实例已启动: " + name + " QQ=" + qqUin);
+                    System.out.println("  WS=ws://127.0.0.1:" + wsPort
+                            + " HTTP=http://127.0.0.1:" + httpPort
+                            + " WebUI=http://127.0.0.1:" + webuiPort);
+                } catch (Exception e) {
+                    System.out.println("启动失败: " + e.getMessage());
+                }
+            }
+            case "stop" -> {
+                if (parts.length < 3 || parts[2].isBlank()) {
+                    System.out.println("用法: /napcat stop <名称>");
+                    return;
+                }
+                String name = parts[2].trim();
+                if ("all".equalsIgnoreCase(name)) {
+                    napCatLauncher.stopAll();
+                    System.out.println("已停止所有 NapCat 实例");
+                } else if (napCatLauncher.stop(name)) {
+                    System.out.println("已停止 NapCat 实例: " + name);
+                } else {
+                    System.out.println("实例 '" + name + "' 不存在或已停止");
+                }
+            }
+            case "list", "ls" -> {
+                var instances = napCatLauncher.listInstances();
+                if (instances.isEmpty()) {
+                    System.out.println("暂无运行中的 NapCat 实例");
+                } else {
+                    System.out.println("NapCat 实例列表 (共 " + instances.size() + " 个):");
+                    for (var inst : instances) {
+                        System.out.println("  " + inst);
+                    }
+                }
+                String dir = napCatLauncher.getNapCatDir();
+                System.out.println("NapCat 目录: " + (dir != null ? dir : "(未设置)"));
+            }
+            case "log" -> {
+                if (parts.length < 3 || parts[2].isBlank()) {
+                    System.out.println("用法: /napcat log <名称>");
+                    return;
+                }
+                String name = parts[2].trim();
+                var instances = napCatLauncher.listInstances();
+                for (var inst : instances) {
+                    if (inst.name.equals(name)) {
+                        System.out.println("日志文件: " + inst.logFile);
+                        try {
+                            var lines = java.nio.file.Files.readAllLines(java.nio.file.Path.of(inst.logFile));
+                            int start = Math.max(0, lines.size() - 30);
+                            System.out.println("--- 最后 " + Math.min(30, lines.size()) + " 行 ---");
+                            for (int i = start; i < lines.size(); i++) {
+                                System.out.println(lines.get(i));
+                            }
+                        } catch (Exception e) {
+                            System.out.println("读取日志失败: " + e.getMessage());
+                        }
+                        return;
+                    }
+                }
+                System.out.println("实例 '" + name + "' 不存在");
+            }
+            default -> printNapCatHelp();
+        }
+    }
+
+    private void printNapCatHelp() {
+        System.out.println("用法: /napcat <子命令>");
+        System.out.println("  dir [路径]           查看/设置 NapCat.Shell 目录");
+        System.out.println("  workroot [路径]      查看/设置实例工作根目录");
+        System.out.println("  start <名称> <QQ号> <WS端口> <HTTP端口> <WebUI端口>");
+        System.out.println("                       启动 NapCat 实例");
+        System.out.println("  stop <名称|all>      停止 NapCat 实例");
+        System.out.println("  list                 查看运行中的实例");
+        System.out.println("  log <名称>           查看实例日志 (最后30行)");
+        System.out.println();
         System.out.println("示例:");
-        System.out.println("  /schedule add morning 05:00 123456,789012 早上好！");
+        System.out.println("  /napcat dir C:\\Users\\Lenovo\\Desktop\\NapCat.Shell");
+        System.out.println("  /napcat start bot1 2838453502 3001 3003 6101");
+        System.out.println("  /napcat start bot2 3149003262 3002 3004 6102");
+        System.out.println("  /napcat list");
+        System.out.println("  /napcat stop all");
     }
 
     private void handleLogout() {
-        if (!checkConnected()) return;
+        var inst = requireConnectedBot();
+        if (inst == null) return;
         try {
-            System.out.println("正在退出 QQ 登录...");
-            bot.callApi("bot_exit", null);
-            System.out.println("已发送退出登录请求，NapCat 将断开当前 QQ 账号");
+            System.out.println("[" + inst.getName() + "] 正在退出 QQ 登录...");
+            inst.getClient().callApi("bot_exit", null);
+            System.out.println("[" + inst.getName() + "] 已发送退出登录请求");
         } catch (Exception e) {
             System.out.println("退出登录失败: " + e.getMessage());
         }
@@ -482,56 +850,123 @@ public class BotConsole {
 
     private void handleQuit() {
         System.out.println("正在退出...");
-        scheduler.stop();
-        if (connected && provider != null) {
-            provider.close();
+        // 停止所有 Bot 连接
+        for (var inst : bots.values()) {
+            if (inst.isConnected()) {
+                inst.getScheduler().stop();
+                if (inst.getProvider() != null) {
+                    inst.getProvider().close();
+                }
+            }
+        }
+        // 停止所有 NapCat 实例
+        if (!napCatLauncher.listInstances().isEmpty()) {
+            System.out.println("正在停止 NapCat 实例...");
+            napCatLauncher.stopAll();
         }
         System.out.println("再见!");
     }
 
-    // ==================== 配置持久化 ====================
+    // ==================== 配置持久化 (多 Bot) ====================
 
+    /**
+     * 加载配置，支持两种格式:
+     *   新格式: { "bots": { "name": {...}, ... }, "activeBot": "name" }
+     *   旧格式: { "mode": "ws", "wsUrl": "...", ... }  (自动迁移为名为 "default" 的 Bot)
+     */
+    @SuppressWarnings("unchecked")
     private void loadConfig() {
         try {
             CryptoUtil.init();
             Path path = Path.of(CONFIG_FILE);
-            if (Files.exists(path)) {
-                String json = Files.readString(path);
-                Map<String, Object> cfg = JsonUtil.parseObject(json);
-                if (cfg.get("mode") instanceof String v) mode = v;
-                if (cfg.get("wsUrl") instanceof String v) wsUrl = v;
-                if (cfg.get("httpUrl") instanceof String v) httpUrl = v;
-                if (cfg.get("accessToken") instanceof String v) accessToken = CryptoUtil.decrypt(v);
-                logger.debug("已加载配置文件: {}", path.toAbsolutePath());
+            if (!Files.exists(path)) {
+                // 首次运行，创建一个默认 Bot
+                bots.put(DEFAULT_BOT_NAME, new BotInstance(DEFAULT_BOT_NAME));
+                activeBotName = DEFAULT_BOT_NAME;
+                return;
             }
+
+            String json = Files.readString(path);
+            Map<String, Object> cfg = JsonUtil.parseObject(json);
+
+            if (cfg.containsKey("bots") && cfg.get("bots") instanceof Map botsMap) {
+                // 新格式: 多 Bot
+                for (var entry : ((Map<String, Object>) botsMap).entrySet()) {
+                    String name = entry.getKey();
+                    if (entry.getValue() instanceof Map botCfg) {
+                        var inst = new BotInstance(name);
+                        if (botCfg.get("mode") instanceof String v) inst.setMode(v);
+                        if (botCfg.get("wsUrl") instanceof String v) inst.setWsUrl(v);
+                        if (botCfg.get("httpUrl") instanceof String v) inst.setHttpUrl(v);
+                        if (botCfg.get("accessToken") instanceof String v) inst.setAccessToken(CryptoUtil.decrypt(v));
+                        bots.put(name, inst);
+                    }
+                }
+                if (cfg.get("activeBot") instanceof String ab && bots.containsKey(ab)) {
+                    activeBotName = ab;
+                } else if (!bots.isEmpty()) {
+                    activeBotName = bots.keySet().iterator().next();
+                }
+                // NapCat 配置
+                if (cfg.get("napCatDir") instanceof String v) napCatLauncher.setNapCatDir(v);
+                if (cfg.get("napCatWorkRoot") instanceof String v) napCatLauncher.setWorkRoot(v);
+            } else if (cfg.containsKey("mode")) {
+                // 旧格式: 单 Bot -> 自动迁移
+                var inst = new BotInstance(DEFAULT_BOT_NAME);
+                if (cfg.get("mode") instanceof String v) inst.setMode(v);
+                if (cfg.get("wsUrl") instanceof String v) inst.setWsUrl(v);
+                if (cfg.get("httpUrl") instanceof String v) inst.setHttpUrl(v);
+                if (cfg.get("accessToken") instanceof String v) inst.setAccessToken(CryptoUtil.decrypt(v));
+                bots.put(DEFAULT_BOT_NAME, inst);
+                activeBotName = DEFAULT_BOT_NAME;
+                // 保存为新格式
+                saveConfig();
+                logger.info("已将旧版配置迁移为多 Bot 格式");
+            } else {
+                bots.put(DEFAULT_BOT_NAME, new BotInstance(DEFAULT_BOT_NAME));
+                activeBotName = DEFAULT_BOT_NAME;
+            }
+
+            logger.debug("已加载 {} 个 Bot 配置", bots.size());
         } catch (Exception e) {
             logger.warn("加载配置文件失败，使用默认配置: {}", e.getMessage());
+            bots.put(DEFAULT_BOT_NAME, new BotInstance(DEFAULT_BOT_NAME));
+            activeBotName = DEFAULT_BOT_NAME;
         }
     }
 
     private void saveConfig() {
         try {
+            var botsMap = new LinkedHashMap<String, Object>();
+            for (var inst : bots.values()) {
+                var botCfg = new LinkedHashMap<String, Object>();
+                botCfg.put("mode", inst.getMode());
+                botCfg.put("wsUrl", inst.getWsUrl());
+                botCfg.put("httpUrl", inst.getHttpUrl());
+                botCfg.put("accessToken", CryptoUtil.encrypt(inst.getAccessToken()));
+                botsMap.put(inst.getName(), botCfg);
+            }
+
             var cfg = new LinkedHashMap<String, Object>();
-            cfg.put("mode", mode);
-            cfg.put("wsUrl", wsUrl);
-            cfg.put("httpUrl", httpUrl);
-            cfg.put("accessToken", CryptoUtil.encrypt(accessToken));
+            cfg.put("bots", botsMap);
+            cfg.put("activeBot", activeBotName);
+
+            // NapCat 配置
+            if (napCatLauncher.getNapCatDir() != null) {
+                cfg.put("napCatDir", napCatLauncher.getNapCatDir());
+            }
+            if (napCatLauncher.getWorkRoot() != null) {
+                cfg.put("napCatWorkRoot", napCatLauncher.getWorkRoot());
+            }
+
             Files.writeString(Path.of(CONFIG_FILE), JsonUtil.toJson(cfg));
-            logger.debug("配置已保存");
+            logger.debug("配置已保存 ({} 个 Bot)", bots.size());
         } catch (IOException e) {
             logger.warn("保存配置文件失败", e);
         }
     }
 
     // ==================== 辅助方法 ====================
-
-    private boolean checkConnected() {
-        if (!connected || bot == null) {
-            System.out.println("尚未连接，请先执行 /connect");
-            return false;
-        }
-        return true;
-    }
 
     private static String pad(String s, int width) {
         if (s == null) s = "";
@@ -546,37 +981,52 @@ public class BotConsole {
     private void printBanner() {
         System.out.println();
         System.out.println("  ╔═══════════════════════════════════════╗");
-        System.out.println("  ║         QQBot-Fire  v1.0.0            ║");
+        System.out.println("  ║         QQBot-Fire  v2.0.0            ║");
         System.out.println("  ║   NapCat OneBot 11 Java Bot Client    ║");
+        System.out.println("  ║        多实例 (双开) 支持              ║");
         System.out.println("  ╚═══════════════════════════════════════╝");
         System.out.println();
     }
 
     private void printHelp() {
         System.out.println();
-        System.out.println("  ┌─ 配置命令 ────────────────────────────┐");
+        System.out.println("  ┌─ Bot 管理 (多开) ─────────────────────┐");
+        System.out.println("  │ /bot add <名称>    添加 Bot 实例      │");
+        System.out.println("  │ /bot remove <名称> 删除 Bot 实例      │");
+        System.out.println("  │ /bot list          列出所有 Bot       │");
+        System.out.println("  │ /bot use <名称>    切换当前 Bot       │");
+        System.out.println("  │ /bot rename <旧> <新>  重命名 Bot     │");
+        System.out.println("  ├─ 配置命令 (作用于当前 Bot) ───────────┤");
         System.out.println("  │ /set mode <ws|http> 切换连接模式      │");
         System.out.println("  │ /set ws <url>      设置 WebSocket 地址│");
         System.out.println("  │ /set http <url>    设置 HTTP API 地址 │");
         System.out.println("  │ /set token <token> 设置 Access Token  │");
-        System.out.println("  │ /show              显示当前配置       │");
+        System.out.println("  │ /show              显示所有 Bot 配置  │");
         System.out.println("  ├─ 连接管理 ────────────────────────────┤");
-        System.out.println("  │ /connect           连接并启动 Bot     │");
-        System.out.println("  │ /disconnect        断开连接           │");
-        System.out.println("  │ /reconnect         重新连接           │");
-        System.out.println("  ├─ 运行时命令 ──────────────────────────┤");
+        System.out.println("  │ /connect           连接当前 Bot      │");
+        System.out.println("  │ /disconnect        断开当前 Bot      │");
+        System.out.println("  │ /reconnect         重新连接当前 Bot  │");
+        System.out.println("  │ /connectall        连接所有 Bot      │");
+        System.out.println("  │ /disconnectall     断开所有 Bot      │");
+        System.out.println("  ├─ 运行时命令 (当前 Bot) ──────────────┤");
         System.out.println("  │ /status            查看 Bot 状态      │");
         System.out.println("  │ /send group <群号> <消息>  发送群消息  │");
         System.out.println("  │ /send private <QQ> <消息>  发送私聊   │");
         System.out.println("  │ /friends           获取好友列表       │");
         System.out.println("  │ /groups            获取群列表         │");
         System.out.println("  │ /members <群号>    获取群成员列表     │");
-        System.out.println("  ├─ 定时任务 ────────────────────────────┤");
+        System.out.println("  ├─ 定时任务 (当前 Bot) ────────────────┤");
         System.out.println("  │ /schedule list     查看定时任务       │");
         System.out.println("  │ /schedule add ...  添加定时任务       │");
         System.out.println("  │ /schedule remove   删除定时任务       │");
         System.out.println("  │ /schedule test     立即测试执行       │");
         System.out.println("  │ /logout            退出 QQ 登录       │");
+        System.out.println("  ├─ NapCat 进程管理 ─────────────────────┤");
+        System.out.println("  │ /napcat dir [路径]  NapCat.Shell 目录 │");
+        System.out.println("  │ /napcat start ...  启动 NapCat 实例   │");
+        System.out.println("  │ /napcat stop <名称> 停止 NapCat 实例  │");
+        System.out.println("  │ /napcat list       查看运行中的实例   │");
+        System.out.println("  │ /napcat log <名称> 查看实例日志       │");
         System.out.println("  ├─ 其他 ────────────────────────────────┤");
         System.out.println("  │ /quit              退出程序           │");
         System.out.println("  │ /help              显示此帮助         │");

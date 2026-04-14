@@ -32,7 +32,7 @@ import java.util.concurrent.CopyOnWriteArrayList;
 public class ScheduleManager {
 
     private static final Logger logger = LogManager.getLogger(ScheduleManager.class);
-    private static final String SCHEDULE_FILE = "schedules.json";
+    private static final String SCHEDULE_FILE_PREFIX = "schedules";
     private static final DateTimeFormatter TIME_FMT = DateTimeFormatter.ofPattern("HH:mm");
     private static final long NTP_RESYNC_INTERVAL_MS = 3600_000; // 每小时重新同步 NTP
 
@@ -41,7 +41,21 @@ public class ScheduleManager {
     private volatile Thread schedulerThread;
     private volatile boolean running = false;
 
+    /** Bot 实例名称，用于区分定时任务文件 (schedules_<botName>.json) */
+    private final String botName;
+
+    /** 无参构造 (向后兼容，使用 schedules.json) */
     public ScheduleManager() {
+        this(null);
+    }
+
+    /**
+     * @param botName Bot 实例名称，null 或 "default" 使用 schedules.json，
+     *                其他名称使用 schedules_<botName>.json
+     */
+    public ScheduleManager(String botName) {
+        this.botName = botName;
+        migrateOldFile();
         loadTasks();
     }
 
@@ -274,10 +288,28 @@ public class ScheduleManager {
 
     // ==================== 持久化 ====================
 
+    /** 获取当前 Bot 对应的定时任务文件路径 */
+    private String getScheduleFile() {
+        if (botName == null || botName.isEmpty() || "default".equals(botName)) {
+            return SCHEDULE_FILE_PREFIX + ".json";
+        }
+        return SCHEDULE_FILE_PREFIX + "_" + botName + ".json";
+    }
+
+    /**
+     * 旧版迁移: 如果是非 default Bot 且 schedules.json 存在但 schedules_xxx.json 不存在，
+     * 不做迁移 (旧文件留给 default Bot)。
+     * 如果是 default Bot，直接使用 schedules.json，无需迁移。
+     */
+    private void migrateOldFile() {
+        // 仅当 default Bot 且旧文件存在时，旧文件自然就是它的文件，无需迁移
+        // 非 default Bot 使用各自独立文件，不抢占旧文件
+    }
+
     @SuppressWarnings("unchecked")
     private void loadTasks() {
         try {
-            Path path = Path.of(SCHEDULE_FILE);
+            Path path = Path.of(getScheduleFile());
             if (Files.exists(path)) {
                 String json = Files.readString(path);
                 List<Map<String, Object>> list = JsonUtil.parseArray(json);
@@ -321,7 +353,7 @@ public class ScheduleManager {
                 map.put("enabled", task.enabled);
                 list.add(map);
             }
-            Files.writeString(Path.of(SCHEDULE_FILE), JsonUtil.toJson(list));
+            Files.writeString(Path.of(getScheduleFile()), JsonUtil.toJson(list));
             logger.debug("定时任务已保存");
         } catch (IOException e) {
             logger.warn("保存定时任务失败", e);

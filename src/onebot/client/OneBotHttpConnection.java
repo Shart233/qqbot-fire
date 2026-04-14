@@ -14,10 +14,20 @@ import java.util.*;
 /**
  * NapCat OneBot 11 HTTP 连接
  *
- * 通过 NapCat Debug API 发送请求:
- *   POST http://host:port/api/Debug/call/debug-primary
- *   Authorization: Bearer "token"
- *   Body: {"action": "get_login_info", "params": {}}
+ * 支持两种 HTTP API 模式:
+ *
+ *   1. 标准 OneBot 11 HTTP (默认)
+ *      POST http://host:port/{action}
+ *      Authorization: Bearer {token}
+ *      Body: {params}
+ *
+ *   2. NapCat Debug API
+ *      POST http://host:port/api/Debug/call/debug-primary
+ *      Authorization: Bearer "{token}"
+ *      Body: {"action": "...", "params": {...}}
+ *
+ * 通过 setDebugMode(true) 切换到 Debug API 模式。
+ * 首次连接会自动探测: 优先尝试标准模式，失败时回退到 Debug 模式。
  *
  * 注意: HTTP 模式不支持事件接收，只能主动调用 API。
  * 如需接收消息事件，请使用 WebSocket 模式 (OneBotConnection)。
@@ -29,16 +39,19 @@ public class OneBotHttpConnection implements ApiProvider {
     private final String baseUrl;
     private final String accessToken;
     private final HttpClient httpClient;
-    private final String apiPath;
+
+    /** true = NapCat Debug API, false = 标准 OneBot 11 HTTP */
+    private boolean debugMode = false;
+    /** 是否已完成自动探测 */
+    private boolean modeDetected = false;
 
     /**
-     * @param baseUrl     NapCat 地址，如 http://127.0.0.1:6099
+     * @param baseUrl     NapCat 地址，如 http://127.0.0.1:3000 (标准) 或 http://127.0.0.1:6099 (Debug)
      * @param accessToken 访问令牌
      */
     public OneBotHttpConnection(String baseUrl, String accessToken) {
         this.baseUrl = baseUrl.endsWith("/") ? baseUrl.substring(0, baseUrl.length() - 1) : baseUrl;
         this.accessToken = accessToken;
-        this.apiPath = "/api/Debug/call/debug-primary";
         this.httpClient = HttpClient.newBuilder()
                 .connectTimeout(Duration.ofSeconds(10))
                 .build();
@@ -49,6 +62,19 @@ public class OneBotHttpConnection implements ApiProvider {
         this(baseUrl, null);
     }
 
+    /** 手动设置 Debug API 模式 */
+    public void setDebugMode(boolean debugMode) {
+        this.debugMode = debugMode;
+        this.modeDetected = true;
+    }
+
+    /** 是否使用 Debug API 模式 */
+    public boolean isDebugMode() {
+        return debugMode;
+    }
+
+    // ==================== API 调用 ====================
+
     /**
      * 调用 OneBot API
      * @param action API 动作名
@@ -57,14 +83,52 @@ public class OneBotHttpConnection implements ApiProvider {
      */
     @SuppressWarnings("unchecked")
     public Map<String, Object> callApi(String action, Map<String, Object> params) {
-        var body = new LinkedHashMap<String, Object>();
-        body.put("action", action);
-        body.put("params", params != null ? params : Map.of());
+        autoDetectMode(action, params);
 
-        String json = JsonUtil.toJson(body);
-        String url = baseUrl + apiPath;
+        Object rawData = doRequest(action, params);
+        if (rawData instanceof Map) {
+            return (Map<String, Object>) rawData;
+        }
+        // data 可能是 List 或 null，包装一层
+        var wrapper = new LinkedHashMap<String, Object>();
+        wrapper.put("data", rawData);
+        return wrapper;
+    }
 
-        logger.debug("HTTP 请求: POST {} action={}", url, action);
+    /**
+     * 调用 API 返回原始 data (可能是 List、Map 或 null)
+     */
+    public Object callApiRaw(String action, Map<String, Object> params) {
+        autoDetectMode(action, params);
+        return doRequest(action, params);
+    }
+
+    // ==================== 核心请求 ====================
+
+    /**
+     * 发送 HTTP 请求并解析 OneBot 响应
+     */
+    private Object doRequest(String action, Map<String, Object> params) {
+        String url;
+        String json;
+        String authHeader;
+
+        if (debugMode) {
+            // Debug API: POST /api/Debug/call/debug-primary, Bearer "token"
+            url = baseUrl + "/api/Debug/call/debug-primary";
+            var body = new LinkedHashMap<String, Object>();
+            body.put("action", action);
+            body.put("params", params != null ? params : Map.of());
+            json = JsonUtil.toJson(body);
+            authHeader = buildAuthHeader(true);
+        } else {
+            // 标准 OneBot 11: POST /{action}, Bearer token
+            url = baseUrl + "/" + action;
+            json = JsonUtil.toJson(params != null ? params : Map.of());
+            authHeader = buildAuthHeader(false);
+        }
+
+        logger.debug("HTTP 请求: POST {} {}{}", url, debugMode ? "[Debug] " : "", "action=" + action);
 
         try {
             var requestBuilder = HttpRequest.newBuilder()
@@ -74,9 +138,8 @@ public class OneBotHttpConnection implements ApiProvider {
                     .timeout(Duration.ofSeconds(30))
                     .POST(HttpRequest.BodyPublishers.ofString(json));
 
-            // NapCat Debug API 使用 Bearer "token" (带引号)
-            if (accessToken != null && !accessToken.isEmpty()) {
-                requestBuilder.header("Authorization", "Bearer \"" + accessToken + "\"");
+            if (authHeader != null) {
+                requestBuilder.header("Authorization", authHeader);
             }
 
             HttpResponse<String> response = httpClient.send(
@@ -89,26 +152,7 @@ public class OneBotHttpConnection implements ApiProvider {
                 throw new OneBotException("HTTP " + response.statusCode() + ": " + response.body());
             }
 
-            Map<String, Object> result = JsonUtil.parseObject(response.body());
-
-            // 检查 OneBot 响应
-            String status = (String) result.get("status");
-            int retcode = toInt(result.get("retcode"));
-
-            if ("ok".equals(status) || retcode == 0) {
-                Object data = result.get("data");
-                if (data instanceof Map) {
-                    return (Map<String, Object>) data;
-                }
-                // data 可能是 List 或 null
-                var wrapper = new LinkedHashMap<String, Object>();
-                wrapper.put("data", data);
-                return wrapper;
-            } else {
-                String message = (String) result.get("message");
-                String wording = (String) result.get("wording");
-                throw new OneBotException("API error [" + retcode + "]: " + message + " (" + wording + ")");
-            }
+            return parseResponse(response.body(), action);
         } catch (OneBotException e) {
             throw e;
         } catch (Exception e) {
@@ -118,55 +162,71 @@ public class OneBotHttpConnection implements ApiProvider {
     }
 
     /**
-     * 调用 API 返回原始 data (可能是 List)
+     * 解析 OneBot 标准响应格式
      */
-    @SuppressWarnings("unchecked")
-    public Object callApiRaw(String action, Map<String, Object> params) {
-        var body = new LinkedHashMap<String, Object>();
-        body.put("action", action);
-        body.put("params", params != null ? params : Map.of());
+    private Object parseResponse(String responseBody, String action) {
+        Map<String, Object> result = JsonUtil.parseObject(responseBody);
 
-        String json = JsonUtil.toJson(body);
-        String url = baseUrl + apiPath;
+        String status = (String) result.get("status");
+        int retcode = toInt(result.get("retcode"));
 
-        logger.debug("HTTP 请求: POST {} action={}", url, action);
-
-        try {
-            var requestBuilder = HttpRequest.newBuilder()
-                    .uri(URI.create(url))
-                    .header("Content-Type", "application/json")
-                    .header("Accept", "application/json")
-                    .timeout(Duration.ofSeconds(30))
-                    .POST(HttpRequest.BodyPublishers.ofString(json));
-
-            if (accessToken != null && !accessToken.isEmpty()) {
-                requestBuilder.header("Authorization", "Bearer \"" + accessToken + "\"");
-            }
-
-            HttpResponse<String> response = httpClient.send(
-                    requestBuilder.build(),
-                    HttpResponse.BodyHandlers.ofString());
-
-            if (response.statusCode() != 200) {
-                throw new OneBotException("HTTP " + response.statusCode() + ": " + response.body());
-            }
-
-            Map<String, Object> result = JsonUtil.parseObject(response.body());
-            String status = (String) result.get("status");
-            int retcode = toInt(result.get("retcode"));
-
-            if ("ok".equals(status) || retcode == 0) {
-                return result.get("data");
-            } else {
-                String message = (String) result.get("message");
-                String wording = (String) result.get("wording");
-                throw new OneBotException("API error [" + retcode + "]: " + message + " (" + wording + ")");
-            }
-        } catch (OneBotException e) {
-            throw e;
-        } catch (Exception e) {
-            throw new OneBotException("HTTP API 调用失败: " + action, e);
+        if ("ok".equals(status) || retcode == 0) {
+            return result.get("data");
+        } else {
+            String message = (String) result.get("message");
+            String wording = (String) result.get("wording");
+            throw new OneBotException("API error [" + retcode + "]: " + message + " (" + wording + ")");
         }
+    }
+
+    /**
+     * 构造 Authorization 头
+     * @param withQuotes Debug API 需要 Bearer "token"，标准模式使用 Bearer token
+     */
+    private String buildAuthHeader(boolean withQuotes) {
+        if (accessToken == null || accessToken.isEmpty()) return null;
+        return withQuotes
+                ? "Bearer \"" + accessToken + "\""
+                : "Bearer " + accessToken;
+    }
+
+    // ==================== 模式自动探测 ====================
+
+    /**
+     * 首次调用时自动探测 API 模式
+     * 先尝试标准 OneBot 11 HTTP，失败后回退到 Debug API
+     */
+    private synchronized void autoDetectMode(String action, Map<String, Object> params) {
+        if (modeDetected) return;
+        modeDetected = true;
+
+        logger.info("首次连接，自动探测 HTTP API 模式...");
+
+        // 先尝试标准模式
+        try {
+            debugMode = false;
+            doRequest("get_login_info", null);
+            logger.info("检测到标准 OneBot 11 HTTP 接口 (POST /{action})");
+            System.out.println("HTTP 模式: 标准 OneBot 11 (POST /" + "{action})");
+            return;
+        } catch (Exception e) {
+            logger.debug("标准模式探测失败: {}", e.getMessage());
+        }
+
+        // 回退到 Debug API
+        try {
+            debugMode = true;
+            doRequest("get_login_info", null);
+            logger.info("检测到 NapCat Debug API (/api/Debug/call/debug-primary)");
+            System.out.println("HTTP 模式: NapCat Debug API");
+            return;
+        } catch (Exception e) {
+            logger.debug("Debug 模式探测失败: {}", e.getMessage());
+        }
+
+        // 都失败了，默认使用标准模式，让后续调用报出具体错误
+        debugMode = false;
+        logger.warn("两种 HTTP 模式均探测失败，默认使用标准 OneBot 11 模式");
     }
 
     /** 总是返回 false (HTTP 无持久连接) */

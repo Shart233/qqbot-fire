@@ -1,48 +1,123 @@
 # QQBot-Fire
 
-> NapCat OneBot 11 Java Bot 客户端 — 纯 JDK 24，零框架依赖
+> NapCat OneBot 11 Java Bot 客户端 — 纯 JDK 24，零框架依赖，内置 NapCat 多开管理
 
 基于 [NapCat](https://napneko.github.io/) 的 OneBot 11 协议，通过 WebSocket / HTTP 双模式对接 QQ Bot。
+支持同时运行多个 Bot 实例（双开/多开），并可直接从控制台启动和管理 NapCat 进程。
 
 ## 特性
 
-- **双模式连接** — WebSocket（参照 [NapLink](https://github.com/aspect-build/naplink) 架构）和 HTTP（NapCat Debug API）
+- **多实例管理 (双开)** — 同时运行多个 QQ Bot，每个 Bot 独立配置、独立连接
+- **NapCat 进程管理** — 从控制台直接启动/停止 NapCat 实例，自动生成配置和分配端口
+- **双模式连接** — WebSocket（API + 事件）和 HTTP（标准 OneBot 11 + NapCat Debug API 自动探测）
 - **交互式控制台** — `/` 命令配置、连接、发消息、管理定时任务
 - **事件驱动架构** — EventDispatcher 责任链分发，自定义 Handler 扩展
 - **NTP 精确定时** — 基于网络时间的定时消息调度器
 - **安全存储** — RSA 2048 加密 Token，配置持久化
 - **消息构建器** — 链式 API，支持 20+ 消息段类型
-- **零框架依赖** — 纯 JDK 24 + Log4j2，无 Maven/Gradle
+- **跨平台** — Windows + Linux，零框架依赖（纯 JDK 24 + Log4j2）
 
 ## 快速开始
 
 ### 环境要求
 
 - JDK 24+
-- NapCat 实例（已登录 QQ）
+- NapCat 实例（已登录 QQ）— 或由本项目自动启动
 
-### 运行
+### 编译运行
 
 ```bash
-# IntelliJ IDEA 直接运行 Main.java
-# 或命令行编译运行:
+# 编译
 javac -cp "lib/*" -d out -sourcepath src src/Main.java
+
+# Windows
 java -cp "out;lib/*;src/resources" Main
+
+# Linux
+java -cp "out:lib/*:src/resources" Main
+
+# Linux 后台运行
+nohup java -cp "out:lib/*:src/resources" Main > qqbot.log 2>&1 &
 ```
 
-### 首次配置
+也可以直接用 IntelliJ IDEA 打开项目，运行 `Main.java`。
+
+### 场景一：已有 NapCat 实例，直接连接
+
+如果你已经在运行 NapCat 并开启了 WebSocket 或 HTTP 服务：
 
 ```
-> /set mode http
-> /set http http://127.0.0.1:6099
+> /set mode ws
+> /set ws ws://127.0.0.1:3001
 > /set token your_access_token
 > /connect
-登录成功 — QQ: 123456, 昵称: MyBot
+[default] 登录成功 — QQ: 123456, 昵称: MyBot
+```
+
+### 场景二：由 QQBot-Fire 启动 NapCat 并连接
+
+```
+> /napcat dir C:\NapCat.Shell
+> /napcat start bot1 1234567890 3001 3003 6101
+NapCat 实例已启动: bot1 QQ=1234567890
+  WS=ws://127.0.0.1:3001 HTTP=http://127.0.0.1:3003 WebUI=http://127.0.0.1:6101
+
+> /set mode ws
+> /set ws ws://127.0.0.1:3001
+> /connect
+[default] 登录成功 — QQ: 1234567890, 昵称: MyBot
+```
+
+### 场景三：双开（同时运行两个 QQ Bot）
+
+```
+# 1. 启动两个 NapCat 实例（不同端口）
+> /napcat dir C:\NapCat.Shell
+> /napcat start main 1234567890 3001 3003 6101
+> /napcat start sub  9876543210 3002 3004 6102
+
+# 2. 配置第一个 Bot
+> /bot add main
+> /set mode ws
+> /set ws ws://127.0.0.1:3001
+
+# 3. 配置第二个 Bot
+> /bot add sub
+> /set mode ws
+> /set ws ws://127.0.0.1:3002
+
+# 4. 一键全部连接
+> /connectall
+[main] 登录成功 — QQ: 1234567890, 昵称: MainBot
+[sub] 登录成功 — QQ: 9876543210, 昵称: SubBot
+
+# 5. 切换操作目标
+> /bot use main
+[main:1234567890] > /send group 123456 你好，我是主号
+> /bot use sub
+[sub:9876543210] > /send group 123456 你好，我是小号
+
+# 6. 查看所有 Bot 状态
+> /bot list
+  [ON] main WS QQ:1234567890 MainBot <-- 当前
+  [ON] sub  WS QQ:9876543210 SubBot
 ```
 
 配置自动保存到 `config.json`，下次启动无需重复设置。
 
 ## 控制台命令
+
+### Bot 管理（多开）
+
+| 命令 | 说明 |
+|---|---|
+| `/bot add <名称>` | 添加新 Bot 实例 |
+| `/bot remove <名称>` | 删除 Bot 实例 |
+| `/bot list` | 列出所有 Bot 及状态 |
+| `/bot use <名称>` | 切换当前操作的 Bot |
+| `/bot rename <旧名> <新名>` | 重命名 Bot |
+
+### 配置（作用于当前 Bot）
 
 | 命令 | 说明 |
 |---|---|
@@ -50,20 +125,181 @@ java -cp "out;lib/*;src/resources" Main
 | `/set ws <url>` | 设置 WebSocket 地址 |
 | `/set http <url>` | 设置 HTTP API 地址 |
 | `/set token <token>` | 设置 Access Token |
-| `/show` | 显示当前配置 |
-| `/connect` | 连接 Bot |
-| `/disconnect` | 断开连接 |
+| `/show` | 显示所有 Bot 配置 |
+
+### 连接管理
+
+| 命令 | 说明 |
+|---|---|
+| `/connect` | 连接当前 Bot |
+| `/disconnect` | 断开当前 Bot |
+| `/reconnect` | 重新连接当前 Bot |
+| `/connectall` | 连接所有 Bot |
+| `/disconnectall` | 断开所有 Bot |
+
+### 运行时命令（当前 Bot）
+
+| 命令 | 说明 |
+|---|---|
 | `/status` | 查看 Bot 状态 |
 | `/send group <群号> <消息>` | 发送群消息 |
 | `/send private <QQ> <消息>` | 发送私聊消息 |
 | `/friends` | 获取好友列表 |
 | `/groups` | 获取群列表 |
 | `/members <群号>` | 获取群成员列表 |
-| `/schedule add <名称> <HH:mm> <QQ,...> <消息>` | 添加定时任务 |
+
+### NapCat 进程管理
+
+| 命令 | 说明 |
+|---|---|
+| `/napcat dir [路径]` | 查看/设置 NapCat.Shell 目录 |
+| `/napcat workroot [路径]` | 查看/设置实例工作根目录 |
+| `/napcat start <名称> <QQ号> <WS端口> <HTTP端口> <WebUI端口>` | 启动 NapCat 实例 |
+| `/napcat stop <名称\|all>` | 停止 NapCat 实例 |
+| `/napcat list` | 查看运行中的 NapCat 实例 |
+| `/napcat log <名称>` | 查看实例日志（最后30行） |
+
+### 定时任务（当前 Bot）
+
+| 命令 | 说明 |
+|---|---|
 | `/schedule list` | 查看定时任务 |
+| `/schedule add <名称> <HH:mm> <QQ,...> <消息>` | 添加定时任务 |
+| `/schedule remove <名称>` | 删除定时任务 |
+| `/schedule on/off <名称>` | 启用/禁用任务 |
 | `/schedule test <名称>` | 立即测试执行 |
+
+### 其他
+
+| 命令 | 说明 |
+|---|---|
 | `/logout` | 退出 QQ 登录 |
-| `/quit` | 退出程序 |
+| `/quit` | 退出程序（自动停止所有连接和 NapCat 实例） |
+| `/help` | 显示帮助 |
+
+## NapCat 多开
+
+### 原理
+
+每个 NapCat 实例通过 `NAPCAT_WORKDIR` 环境变量隔离配置、缓存和日志。
+不同实例使用不同的 WebSocket/HTTP/WebUI 端口，互不干扰。
+
+### 端口分配建议
+
+| 实例 | QQ 号 | WS 端口 | HTTP 端口 | WebUI 端口 |
+|---|---|---|---|---|
+| bot1 | 1234567890 | 3001 | 3003 | 6101 |
+| bot2 | 9876543210 | 3002 | 3004 | 6102 |
+| bot3 | ... | 3005 | 3006 | 6103 |
+
+### 方式一：从控制台管理（推荐）
+
+通过 `/napcat` 命令直接在 BotConsole 中启动和管理 NapCat 进程：
+
+```
+> /napcat dir C:\NapCat.Shell     # 设置 NapCat 路径（只需一次）
+> /napcat start bot1 1234567890 3001 3003 6101          # 启动第一个实例
+> /napcat start bot2 9876543210 3002 3004 6102          # 启动第二个实例
+> /napcat list                                          # 查看运行状态
+> /napcat log bot1                                      # 查看日志
+> /napcat stop all                                      # 停止所有
+```
+
+启动时自动完成：
+- 创建独立工作目录 `<workroot>/<实例名>/`
+- 生成 `onebot11_<QQ号>.json` 配置文件（分配 WS/HTTP 端口）
+- 启动 NapCat 进程并重定向日志
+
+### 方式二：使用脚本批量启动
+
+`scripts/` 目录提供独立的启动脚本，可在 BotConsole 外使用：
+
+**Windows:**
+```bat
+cd scripts
+napcat-multi.bat init          REM 生成配置模板
+notepad napcat-instances.conf   REM 编辑配置
+napcat-multi.bat start          REM 启动所有实例
+napcat-multi.bat status         REM 查看状态
+napcat-multi.bat stop           REM 停止所有
+```
+
+**Linux:**
+```bash
+cd scripts
+./napcat-multi.sh init          # 生成配置模板
+vim napcat-instances.conf       # 编辑配置
+./napcat-multi.sh start         # 启动所有实例
+./napcat-multi.sh status        # 查看状态
+./napcat-multi.sh stop          # 优雅停止所有
+./napcat-multi.sh restart       # 重启所有
+```
+
+**配置文件格式 (`napcat-instances.conf`):**
+
+Windows:
+```conf
+NAPCAT_DIR=C:\NapCat.Shell
+WORK_ROOT=C:\NapCat.Shell\instances
+
+instance bot1       1234567890    3001    3003      6101
+instance bot2       9876543210    3002    3004      6102
+```
+
+Linux:
+```conf
+NAPCAT_DIR=/opt/NapCat
+WORK_ROOT=/opt/NapCat/instances
+
+instance bot1       1234567890    3001    3003      6101
+instance bot2       9876543210    3002    3004      6102
+```
+
+## 连接模式对比
+
+| | WebSocket | HTTP (标准 OneBot 11) | HTTP (NapCat Debug API) |
+|---|---|---|---|
+| API 调用 | `{action, params, echo}` 通过 WS | `POST /{action}` | `POST /api/Debug/call/debug-primary` |
+| 事件接收 | 实时推送 | 不支持 | 不支持 |
+| Token | URL query `?access_token=xxx` | `Bearer token` | `Bearer "token"` |
+| 自动重连 | 支持 | 无状态 | 无状态 |
+| 模式探测 | - | 自动 | 自动 |
+
+HTTP 模式会自动探测：先尝试标准 OneBot 11 接口，失败时回退到 NapCat Debug API。
+
+## 配置文件
+
+### config.json（多 Bot 格式）
+
+```json
+{
+  "bots": {
+    "main": {
+      "mode": "ws",
+      "wsUrl": "ws://127.0.0.1:3001",
+      "httpUrl": "http://127.0.0.1:3003",
+      "accessToken": "RSA:..."
+    },
+    "sub": {
+      "mode": "ws",
+      "wsUrl": "ws://127.0.0.1:3002",
+      "httpUrl": "http://127.0.0.1:3004",
+      "accessToken": "RSA:..."
+    }
+  },
+  "activeBot": "main",
+  "napCatDir": "C:\\NapCat.Shell",
+  "napCatWorkRoot": "C:\\NapCat.Shell\\instances"
+}
+```
+
+旧版单 Bot 格式 `{mode, wsUrl, httpUrl, accessToken}` 会自动迁移为多 Bot 格式。
+
+### 定时任务文件
+
+每个 Bot 拥有独立的定时任务文件：
+- `default` Bot → `schedules.json`
+- 其他 Bot → `schedules_<名称>.json`
 
 ## 项目结构
 
@@ -73,12 +309,15 @@ src/
 ├── onebot/
 │   ├── client/
 │   │   ├── ApiProvider.java           # API 提供者接口
+│   │   ├── BotInstance.java           # Bot 实例数据类 (多开)
 │   │   ├── OneBotClient.java          # 高层 API 客户端 (60+ 方法)
 │   │   ├── OneBotConnection.java      # WebSocket 连接 (echo 请求-响应匹配)
-│   │   ├── OneBotHttpConnection.java  # HTTP 连接 (NapCat Debug API)
+│   │   ├── OneBotHttpConnection.java  # HTTP 连接 (标准 + Debug API 自动探测)
 │   │   └── OneBotException.java       # 异常
 │   ├── console/
-│   │   └── BotConsole.java            # 交互式控制台
+│   │   └── BotConsole.java            # 交互式控制台 (多实例管理)
+│   ├── napcat/
+│   │   └── NapCatLauncher.java        # NapCat 进程管理 (Windows + Linux)
 │   ├── event/
 │   │   ├── OneBotEvent.java           # 通用事件模型
 │   │   └── EventType.java             # 事件类型常量
@@ -92,11 +331,16 @@ src/
 │   │   └── MessageBuilder.java        # 链式消息构建器
 │   ├── model/                         # 数据模型 (10 个)
 │   ├── scheduler/
-│   │   └── ScheduleManager.java       # NTP 精确定时调度器
+│   │   └── ScheduleManager.java       # NTP 精确定时调度器 (per-bot)
 │   └── util/
 │       ├── JsonUtil.java              # 轻量 JSON 序列化/反序列化
 │       ├── CryptoUtil.java            # RSA 加解密
 │       └── NtpUtil.java               # NTP 时间同步
+scripts/
+├── napcat-instance.bat                # NapCat 单实例启动 (Windows)
+├── napcat-instance.sh                 # NapCat 单实例启动 (Linux)
+├── napcat-multi.bat                   # NapCat 批量多开 (Windows)
+└── napcat-multi.sh                    # NapCat 批量多开 (Linux)
 lib/
 ├── log4j-api-2.24.3.jar
 └── log4j-core-2.24.3.jar
@@ -105,39 +349,35 @@ lib/
 ## 架构
 
 ```
-                    ┌─────────────────────────┐
-                    │      BotConsole          │
-                    │   (交互式控制台)          │
-                    └────────┬────────────────┘
+                    ┌─────────────────────────────┐
+                    │        BotConsole            │
+                    │    (交互式控制台, 多实例)      │
+                    └────────┬────────────────────┘
                              │
-              ┌──────────────┼──────────────┐
-              │              │              │
-     ┌────────▼───────┐  ┌──▼───────┐  ┌──▼──────────┐
-     │ OneBotClient   │  │ Schedule │  │ Command     │
-     │ (60+ API 方法)  │  │ Manager  │  │ Handler     │
-     └────────┬───────┘  └──────────┘  └─────────────┘
-              │
-     ┌────────▼────────────────────┐
-     │       ApiProvider           │
-     ├─────────────┬───────────────┤
-     │ WebSocket    │    HTTP       │
-     │ (echo匹配)   │ (Debug API)   │
-     └─────────────┴───────────────┘
-              │
-     ┌────────▼───────┐
-     │   NapCat        │
-     │  (QQ Bot 框架)   │
-     └────────────────┘
+          ┌──────────────────┼──────────────────┐
+          │                  │                  │
+ ┌────────▼──────┐  ┌───────▼────────┐  ┌──────▼───────────┐
+ │ BotInstance[] │  │ NapCatLauncher │  │ ScheduleManager[]│
+ │ (多个 Bot)    │  │ (NapCat 进程)  │  │ (per-bot 定时)   │
+ └────────┬──────┘  └────────────────┘  └──────────────────┘
+          │
+ ┌────────▼───────┐
+ │ OneBotClient   │
+ │ (60+ API 方法)  │
+ └────────┬───────┘
+          │
+ ┌────────▼────────────────────┐
+ │       ApiProvider           │
+ ├─────────────┬───────────────┤
+ │ WebSocket   │    HTTP       │
+ │ (echo匹配)   │ (自动探测)    │
+ └─────────────┴───────────────┘
+          │
+ ┌────────▼────────────────────┐
+ │  NapCat × N                 │
+ │  (多个 QQ Bot 实例)          │
+ └─────────────────────────────┘
 ```
-
-## 连接模式对比
-
-| | WebSocket | HTTP |
-|---|---|---|
-| API 调用 | `{action, params, echo}` 通过 WS | POST Debug API |
-| 事件接收 | 实时推送 | 不支持 |
-| Token | URL query `?access_token=xxx` | Header `Bearer "xxx"` |
-| 自动重连 | 支持 | 无状态 |
 
 ## 扩展开发
 
@@ -165,17 +405,11 @@ public class MyHandler implements EventHandler {
 ## 致谢
 
 - [NapCat](https://napneko.github.io/) — QQ Bot 框架
-- [NapLink](https://github.com/aspect-build/naplink) — WebSocket SDK 架构参考
 - [OneBot 11](https://github.com/botuniverse/onebot-11) — 标准化 Bot 协议
 
 ## 未来计划
 
-- [ ] **NapCat 隐匿模式** — 反检测机制，让 Bot 行为更接近真人，躲避 NapCat 风控识别
-  - 消息发送随机延迟（模拟打字速度）
-  - 心跳与在线状态伪装
-  - 请求频率自适应限流
-  - UA / 设备指纹模拟
-- [ ] **多协议适配** — 除 NapCat 外支持 Lagrange、LLOneBot 等后端
+- [ ] **NapCat 隐匿模式** — 反检测机制，让 Bot 行为更接近真人
 - [ ] **插件系统** — 热加载 `.jar` 插件，运行时启停
 - [ ] **权限管理** — 基于角色的命令权限控制
 - [ ] **持久化升级** — SQLite 存储消息记录与调度任务

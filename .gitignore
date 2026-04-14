@@ -32,7 +32,7 @@ bin/
 ### QQBot-Fire ###
 config.json
 .keys/
-schedules.json
+schedules*.json
 
 ### IntelliJ IDEA (project-specific) ###
 .idea/

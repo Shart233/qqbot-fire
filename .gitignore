@@ -33,6 +33,7 @@ bin/
 config.json
 .keys/
 schedules*.json
+logs/
 
 ### IntelliJ IDEA (project-specific) ###
 .idea/

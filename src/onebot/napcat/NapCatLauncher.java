@@ -198,16 +198,42 @@ public class NapCatLauncher {
             np.outputReader.stop();
         }
         if (np.process.isAlive()) {
+            // 先尝试终止子进程树，再销毁主进程
+            try {
+                np.process.toHandle().descendants().forEach(ProcessHandle::destroyForcibly);
+            } catch (Exception ignored) {}
             np.process.destroyForcibly();
             logger.info("NapCat 实例已停止: {} PID={}", name, np.pid);
         }
         return true;
     }
 
-    /** 停止所有实例 */
+    /** 停止所有实例，并清理残留进程 */
     public void stopAll() {
         for (var name : new ArrayList<>(processes.keySet())) {
             stop(name);
+        }
+        // 清理 NapCat 注入的宿主进程
+        if (IS_WINDOWS) {
+            // Windows: 强制终止所有 QQ.exe
+            killProcess("taskkill", "/f", "/im", "QQ.exe");
+        } else {
+            // Linux: 终止 napcat 相关进程 (node napcat.mjs 和可能的 QQ 进程)
+            killProcess("pkill", "-f", "napcat.mjs");
+            killProcess("pkill", "-f", "NapCat");
+        }
+    }
+
+    /** 执行外部命令杀进程，忽略失败 */
+    private void killProcess(String... cmd) {
+        try {
+            var pb = new ProcessBuilder(cmd);
+            pb.redirectErrorStream(true);
+            var proc = pb.start();
+            proc.waitFor();
+            logger.info("已执行: {}", String.join(" ", cmd));
+        } catch (Exception e) {
+            logger.debug("进程清理命令失败 (可忽略): {} - {}", String.join(" ", cmd), e.getMessage());
         }
     }
 

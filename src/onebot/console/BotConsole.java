@@ -845,7 +845,7 @@ public class BotConsole {
                 String wsToken = "", httpToken = "";
                 try {
                     // 1) 从共享配置目录按 QQ 号精确读取 (通常有正确 token)
-                    java.nio.file.Path sharedConfigDir = Path.of(napCatLauncher.getNapCatDir(), "config");
+                    Path sharedConfigDir = Path.of(napCatLauncher.getNapCatDir(), "config");
                     NapCatConfigDiscovery.BotConfig matched = NapCatConfigDiscovery.discoverByQQ(sharedConfigDir, qqUin);
 
                     // 2) 从实例工作目录读取并合并 (端口可能不同，token 可能为空)
@@ -853,7 +853,7 @@ public class BotConsole {
                     if (wr == null || wr.isEmpty()) {
                         wr = napCatLauncher.getNapCatDir() + "/instances";
                     }
-                    java.nio.file.Path instanceConfigDir = Path.of(wr, name, "config");
+                    Path instanceConfigDir = Path.of(wr, name, "config");
                     NapCatConfigDiscovery.BotConfig instanceCfg = NapCatConfigDiscovery.discoverByQQ(instanceConfigDir, qqUin);
 
                     if (matched != null && instanceCfg != null) {

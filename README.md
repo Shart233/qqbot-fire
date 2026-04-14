@@ -157,7 +157,9 @@ NapCat 实例已启动: bot1 QQ=1234567890
 | `/napcat start <名称> <QQ号> <WS端口> <HTTP端口> <WebUI端口>` | 启动 NapCat 实例 |
 | `/napcat stop <名称\|all>` | 停止 NapCat 实例 |
 | `/napcat list` | 查看运行中的 NapCat 实例 |
-| `/napcat log <名称>` | 查看实例日志（最后30行） |
+| `/napcat log <名称>` | 查看实例日志（缓冲区全部内容） |
+| `/napcat attach <名称>` | 连接实时日志流（屏幕切换） |
+| `/napcat detach` | 断开日志流，回到控制台 |
 
 ### 定时任务（当前 Bot）
 
@@ -201,14 +203,21 @@ NapCat 实例已启动: bot1 QQ=1234567890
 > /napcat start bot1 1234567890 3001 3003 6101          # 启动第一个实例
 > /napcat start bot2 9876543210 3002 3004 6102          # 启动第二个实例
 > /napcat list                                          # 查看运行状态
-> /napcat log bot1                                      # 查看日志
+> /napcat log bot1                                      # 查看缓冲区日志
+> /napcat attach bot1                                   # 实时日志流 (屏幕切换)
+[NapCat] starting...
+[NapCat] login success...
+--- 已连接到 bot1 的日志流 (输入 /detach 或按回车退出) ---
+[NapCat] new message from ...                           ← 实时输出
+/detach                                                 ← 回到控制台
+--- 已断开 bot1 的日志流 ---
 > /napcat stop all                                      # 停止所有
 ```
 
 启动时自动完成：
 - 创建独立工作目录 `<workroot>/<实例名>/`
 - 生成 `onebot11_<QQ号>.json` 配置文件（分配 WS/HTTP 端口）
-- 启动 NapCat 进程并重定向日志
+- 启动 NapCat 进程，后台线程实时捕获输出（写日志文件 + 内存缓冲区）
 
 ### 方式二：使用脚本批量启动
 
@@ -317,7 +326,8 @@ src/
 │   ├── console/
 │   │   └── BotConsole.java            # 交互式控制台 (多实例管理)
 │   ├── napcat/
-│   │   └── NapCatLauncher.java        # NapCat 进程管理 (Windows + Linux)
+│   │   ├── NapCatLauncher.java        # NapCat 进程管理 (Windows + Linux)
+│   │   └── NapCatOutputReader.java    # 实时日志读取 (环形缓冲 + 监听器)
 │   ├── event/
 │   │   ├── OneBotEvent.java           # 通用事件模型
 │   │   └── EventType.java             # 事件类型常量

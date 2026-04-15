@@ -1,13 +1,12 @@
 package onebot.console;
 
 import onebot.client.*;
+import onebot.config.ConfigManager;
 import onebot.handler.CommandHandler;
 import onebot.handler.EventDispatcher;
 import onebot.handler.LogHandler;
 import onebot.napcat.NapCatConfigDiscovery;
 import onebot.napcat.NapCatLauncher;
-import onebot.util.CryptoUtil;
-import onebot.util.JsonUtil;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -61,6 +60,46 @@ public class BotConsole {
     public String getActiveBotName() { return activeBotName; }
     public void setActiveBotName(String name) { this.activeBotName = name; }
     public NapCatLauncher getNapCatLauncher() { return napCatLauncher; }
+
+    /**
+     * 执行控制台命令 (Web 层调用)。
+     * 命令必须以 / 开头。输出会被 System.out 捕获。
+     */
+    public void executeCommand(String line) {
+        if (line == null || !line.startsWith("/")) {
+            System.out.println("命令需以 / 开头");
+            return;
+        }
+        String[] parts = line.substring(1).split("\\s+", 3);
+        String cmd = parts[0].toLowerCase();
+        try {
+            switch (cmd) {
+                case "help", "h" -> printHelp();
+                case "bot", "b" -> handleBot(parts);
+                case "set" -> handleSet(parts);
+                case "show" -> showConfig();
+                case "config" -> handleConfig(parts);
+                case "connect", "c" -> handleConnect();
+                case "disconnect", "dc" -> handleDisconnect();
+                case "reconnect", "rc" -> handleReconnect();
+                case "connectall", "ca" -> handleConnectAll();
+                case "disconnectall", "dca" -> handleDisconnectAll();
+                case "status", "s" -> handleStatus();
+                case "send" -> handleSend(parts);
+                case "friends" -> handleFriends();
+                case "groups" -> handleGroups();
+                case "members" -> handleMembers(parts);
+                case "schedule", "sch" -> handleSchedule(parts);
+                case "napcat", "nc" -> handleNapCat(parts);
+                case "web" -> handleWeb(parts);
+                case "logout" -> handleLogout();
+                case "quit", "exit", "q" -> System.out.println("Web 控制台不支持 /quit 命令");
+                default -> System.out.println("未知命令: /" + cmd + "，输入 /help 查看帮助");
+            }
+        } catch (Exception e) {
+            System.out.println("命令执行失败: " + e.getMessage());
+        }
+    }
 
     /** 连接指定 Bot（Web 层调用） */
     public void connectInstance(BotInstance inst) {
@@ -1293,109 +1332,22 @@ public class BotConsole {
      *   新格式: { "bots": { "name": {...}, ... }, "activeBot": "name" }
      *   旧格式: { "mode": "ws", "wsUrl": "...", ... }  (自动迁移为名为 "default" 的 Bot)
      */
-    @SuppressWarnings("unchecked")
     private void loadConfig() {
-        try {
-            CryptoUtil.init();
-            Path path = Path.of(CONFIG_FILE);
-            if (!Files.exists(path)) {
-                // 首次运行，创建一个默认 Bot
-                bots.put(DEFAULT_BOT_NAME, new BotInstance(DEFAULT_BOT_NAME));
-                activeBotName = DEFAULT_BOT_NAME;
-                return;
-            }
+        var result = ConfigManager.load();
+        result.bots().forEach(bots::put);
+        activeBotName = result.activeBotName();
+        if (result.napCatDir() != null) napCatLauncher.setNapCatDir(result.napCatDir());
+        if (result.napCatWorkRoot() != null) napCatLauncher.setWorkRoot(result.napCatWorkRoot());
 
-            String json = Files.readString(path);
-            Map<String, Object> cfg = JsonUtil.parseObject(json);
-
-            if (cfg.containsKey("bots") && cfg.get("bots") instanceof Map botsMap) {
-                // 新格式: 多 Bot
-                for (var entry : ((Map<String, Object>) botsMap).entrySet()) {
-                    String name = entry.getKey();
-                    if (entry.getValue() instanceof Map botCfg) {
-                        var inst = new BotInstance(name);
-                        if (botCfg.get("mode") instanceof String v) inst.setMode(v);
-                        if (botCfg.get("wsUrl") instanceof String v) inst.setWsUrl(v);
-                        if (botCfg.get("httpUrl") instanceof String v) inst.setHttpUrl(v);
-                        if (botCfg.get("wsToken") instanceof String v) inst.setWsToken(CryptoUtil.decrypt(v));
-                        if (botCfg.get("httpToken") instanceof String v) inst.setHttpToken(CryptoUtil.decrypt(v));
-                        // 兼容旧版 accessToken: 同时设置 ws 和 http
-                        if (botCfg.get("accessToken") instanceof String v) {
-                            String decrypted = CryptoUtil.decrypt(v);
-                            if (inst.getWsToken().isEmpty()) inst.setWsToken(decrypted);
-                            if (inst.getHttpToken().isEmpty()) inst.setHttpToken(decrypted);
-                        }
-                        bots.put(name, inst);
-                    }
-                }
-                if (cfg.get("activeBot") instanceof String ab && bots.containsKey(ab)) {
-                    activeBotName = ab;
-                } else if (!bots.isEmpty()) {
-                    activeBotName = bots.keySet().iterator().next();
-                }
-                // NapCat 配置
-                if (cfg.get("napCatDir") instanceof String v) napCatLauncher.setNapCatDir(v);
-                if (cfg.get("napCatWorkRoot") instanceof String v) napCatLauncher.setWorkRoot(v);
-            } else if (cfg.containsKey("mode")) {
-                // 旧格式: 单 Bot -> 自动迁移
-                var inst = new BotInstance(DEFAULT_BOT_NAME);
-                if (cfg.get("mode") instanceof String v) inst.setMode(v);
-                if (cfg.get("wsUrl") instanceof String v) inst.setWsUrl(v);
-                if (cfg.get("httpUrl") instanceof String v) inst.setHttpUrl(v);
-                // 旧版 accessToken: 同时设置 ws 和 http token
-                if (cfg.get("accessToken") instanceof String v) {
-                    String decrypted = CryptoUtil.decrypt(v);
-                    inst.setWsToken(decrypted);
-                    inst.setHttpToken(decrypted);
-                }
-                bots.put(DEFAULT_BOT_NAME, inst);
-                activeBotName = DEFAULT_BOT_NAME;
-                // 保存为新格式
-                saveConfig();
-                logger.info("已将旧版配置迁移为多 Bot 格式");
-            } else {
-                bots.put(DEFAULT_BOT_NAME, new BotInstance(DEFAULT_BOT_NAME));
-                activeBotName = DEFAULT_BOT_NAME;
-            }
-
-            logger.debug("已加载 {} 个 Bot 配置", bots.size());
-        } catch (Exception e) {
-            logger.warn("加载配置文件失败，使用默认配置: {}", e.getMessage());
-            bots.put(DEFAULT_BOT_NAME, new BotInstance(DEFAULT_BOT_NAME));
-            activeBotName = DEFAULT_BOT_NAME;
+        // 旧格式迁移: 如果文件是旧格式，ConfigManager.load() 已解析，但需要保存为新格式
+        if (result.bots().size() == 1 && result.bots().containsKey("default")) {
+            // 可能是旧格式迁移，保存一次确保新格式
+            saveConfig();
         }
     }
 
     public void saveConfig() {
-        try {
-            var botsMap = new LinkedHashMap<String, Object>();
-            for (var inst : bots.values()) {
-                var botCfg = new LinkedHashMap<String, Object>();
-                botCfg.put("mode", inst.getMode());
-                botCfg.put("wsUrl", inst.getWsUrl());
-                botCfg.put("httpUrl", inst.getHttpUrl());
-                botCfg.put("wsToken", CryptoUtil.encrypt(inst.getWsToken()));
-                botCfg.put("httpToken", CryptoUtil.encrypt(inst.getHttpToken()));
-                botsMap.put(inst.getName(), botCfg);
-            }
-
-            var cfg = new LinkedHashMap<String, Object>();
-            cfg.put("bots", botsMap);
-            cfg.put("activeBot", activeBotName);
-
-            // NapCat 配置
-            if (napCatLauncher.getNapCatDir() != null) {
-                cfg.put("napCatDir", napCatLauncher.getNapCatDir());
-            }
-            if (napCatLauncher.getWorkRoot() != null) {
-                cfg.put("napCatWorkRoot", napCatLauncher.getWorkRoot());
-            }
-
-            Files.writeString(Path.of(CONFIG_FILE), JsonUtil.toJson(cfg));
-            logger.debug("配置已保存 ({} 个 Bot)", bots.size());
-        } catch (IOException e) {
-            logger.warn("保存配置文件失败", e);
-        }
+        ConfigManager.save(bots, activeBotName, napCatLauncher);
     }
 
     // ==================== 辅助方法 ====================
@@ -1412,11 +1364,11 @@ public class BotConsole {
 
     private void printBanner() {
         System.out.println();
-        System.out.println("  ╔═══════════════════════════════════════╗");
-        System.out.println("  ║         QQBot-Fire  v2.0.0            ║");
-        System.out.println("  ║   NapCat OneBot 11 Java Bot Client    ║");
-        System.out.println("  ║        多实例 (双开) 支持              ║");
-        System.out.println("  ╚═══════════════════════════════════════╝");
+        System.out.println("  +---------------------------------------+");
+        System.out.println("  |         QQBot-Fire  v2.0.0            |");
+        System.out.println("  |   NapCat OneBot 11 Java Bot Client    |");
+        System.out.println("  |        多实例 (双开) 支持              |");
+        System.out.println("  +---------------------------------------+");
         System.out.println();
     }
 

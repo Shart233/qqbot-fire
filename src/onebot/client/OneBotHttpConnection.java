@@ -1,10 +1,12 @@
 package onebot.client;
 
 import onebot.util.ConvertUtil;
-import onebot.util.JsonUtil;
+import onebot.util.GsonFactory;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
+import com.google.gson.reflect.TypeToken;
+import java.lang.reflect.Type;
 import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
@@ -120,12 +122,12 @@ public class OneBotHttpConnection implements ApiProvider {
             var body = new LinkedHashMap<String, Object>();
             body.put("action", action);
             body.put("params", params != null ? params : Map.of());
-            json = JsonUtil.toJson(body);
+            json = GsonFactory.gson().toJson(body);
             authHeader = buildAuthHeader(true);
         } else {
             // 标准 OneBot 11: POST /{action}, Bearer token
             url = baseUrl + "/" + action;
-            json = JsonUtil.toJson(params != null ? params : Map.of());
+            json = GsonFactory.gson().toJson(params != null ? params : Map.of());
             authHeader = buildAuthHeader(false);
         }
 
@@ -166,7 +168,8 @@ public class OneBotHttpConnection implements ApiProvider {
      * 解析 OneBot 标准响应格式
      */
     private Object parseResponse(String responseBody, String action) {
-        Map<String, Object> result = JsonUtil.parseObject(responseBody);
+        Type mapType = new TypeToken<Map<String, Object>>(){}.getType();
+        Map<String, Object> result = GsonFactory.gson().fromJson(responseBody, mapType);
 
         String status = (String) result.get("status");
         int retcode = ConvertUtil.toInt(result.get("retcode"));

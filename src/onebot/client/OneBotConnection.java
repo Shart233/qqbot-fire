@@ -3,10 +3,12 @@ package onebot.client;
 import onebot.event.OneBotEvent;
 import onebot.handler.EventDispatcher;
 import onebot.util.ConvertUtil;
-import onebot.util.JsonUtil;
+import onebot.util.GsonFactory;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
+import com.google.gson.reflect.TypeToken;
+import java.lang.reflect.Type;
 import java.net.URI;
 import java.net.URLEncoder;
 import java.net.http.HttpClient;
@@ -192,7 +194,7 @@ public class OneBotConnection implements ApiProvider {
         request.put("params", params != null ? params : Map.of());
         request.put("echo", echo);
 
-        String payload = JsonUtil.toJson(request);
+        String payload = GsonFactory.gson().toJson(request);
         logger.debug("发送 API 请求: {} echo={}", action, echo);
 
         var future = new CompletableFuture<Map<String, Object>>();
@@ -302,7 +304,7 @@ public class OneBotConnection implements ApiProvider {
     @SuppressWarnings("unchecked")
     private void processMessage(String json) {
         try {
-            Map<String, Object> data = JsonUtil.parseObject(json);
+            Map<String, Object> data = GsonFactory.gson().fromJson(json, new TypeToken<Map<String, Object>>(){}.getType());
             if (data.isEmpty()) return;
 
             // 有 echo -> API 响应

@@ -7,7 +7,8 @@ import onebot.console.BotConsole;
 import onebot.napcat.NapCatConfigDiscovery;
 import onebot.napcat.NapCatLauncher;
 import onebot.util.ConvertUtil;
-import onebot.util.JsonUtil;
+import com.google.gson.reflect.TypeToken;
+import onebot.util.GsonFactory;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -52,6 +53,18 @@ public class WebApiHandler implements HttpHandler {
         // 去掉 /api 前缀
         String api = path.startsWith("/api") ? path.substring(4) : path;
         if (api.isEmpty()) api = "/";
+
+        // ---- Console ----
+        if (api.startsWith("/console")) {
+            routeConsole(ex, method, api);
+            return;
+        }
+
+        // ---- Logs ----
+        if (api.startsWith("/logs")) {
+            routeLogs(ex, method, api.substring(5));
+            return;
+        }
 
         // ---- NapCat ----
         if (api.startsWith("/napcat")) {
@@ -189,6 +202,120 @@ public class WebApiHandler implements HttpHandler {
         }
 
         sendError(ex, 404, "未知 NapCat API");
+    }
+
+    // ==================== 控制台命令 ====================
+
+    private void routeConsole(HttpExchange ex, String method, String api) throws IOException {
+        if ("/console/exec".equals(api) && "POST".equals(method)) {
+            handleConsoleExec(ex); return;
+        }
+        sendError(ex, 404, "未知控制台 API");
+    }
+
+    private void handleConsoleExec(HttpExchange ex) throws IOException {
+        var body = readBodyAsMap(ex);
+        String command = (String) body.get("command");
+        if (command == null || command.isBlank()) {
+            sendError(ex, 400, "缺少 command 参数"); return;
+        }
+
+        // 捕获 System.out 输出
+        var baos = new java.io.ByteArrayOutputStream();
+        var capture = new java.io.PrintStream(baos, true, java.nio.charset.StandardCharsets.UTF_8);
+        var oldOut = System.out;
+        System.setOut(capture);
+        try {
+            console.executeCommand(command);
+        } catch (Exception e) {
+            System.out.println("错误: " + e.getMessage());
+        } finally {
+            System.setOut(oldOut);
+        }
+
+        String output = baos.toString(java.nio.charset.StandardCharsets.UTF_8);
+        sendOk(ex, Map.of("output", output));
+    }
+
+    // ==================== 服务端日志 ====================
+
+    private void routeLogs(HttpExchange ex, String method, String api) throws IOException {
+        if ("GET".equals(method)) {
+            // /logs/list — 列出可用日志文件
+            if ("/list".equals(api)) {
+                handleLogList(ex); return;
+            }
+            // /logs/read?file=xxx&lines=nnn&offset=nnn
+            if ("/read".equals(api)) {
+                handleLogRead(ex); return;
+            }
+        }
+        sendError(ex, 404, "未知日志 API");
+    }
+
+    private void handleLogList(HttpExchange ex) throws IOException {
+        var logDir = java.nio.file.Path.of("logs");
+        var files = new ArrayList<Map<String, Object>>();
+        if (java.nio.file.Files.isDirectory(logDir)) {
+            try (var stream = java.nio.file.Files.list(logDir)) {
+                stream.filter(p -> p.toString().endsWith(".log"))
+                      .sorted()
+                      .forEach(p -> {
+                          var m = new LinkedHashMap<String, Object>();
+                          m.put("name", p.getFileName().toString());
+                          try { m.put("size", java.nio.file.Files.size(p)); } catch (Exception e) { m.put("size", 0); }
+                          try { m.put("modified", java.nio.file.Files.getLastModifiedTime(p).toMillis()); } catch (Exception e) { m.put("modified", 0); }
+                          files.add(m);
+                      });
+            }
+        }
+        sendOk(ex, files);
+    }
+
+    private void handleLogRead(HttpExchange ex) throws IOException {
+        String query = ex.getRequestURI().getQuery();
+        var params = parseQuery(query);
+        String fileName = params.getOrDefault("file", "qqbot-fire.log");
+        int lines = 200;
+        try { lines = Integer.parseInt(params.getOrDefault("lines", "200")); } catch (Exception ignored) {}
+        if (lines > 2000) lines = 2000;
+        if (lines < 1) lines = 200;
+
+        // 安全检查: 只允许读取 logs/ 下的 .log 文件
+        if (fileName.contains("..") || fileName.contains("/") || fileName.contains("\\") || !fileName.endsWith(".log")) {
+            sendError(ex, 400, "非法文件名"); return;
+        }
+
+        var logFile = java.nio.file.Path.of("logs", fileName);
+        if (!java.nio.file.Files.exists(logFile)) {
+            sendOk(ex, Map.of("file", fileName, "lines", List.of(), "total", 0));
+            return;
+        }
+
+        // 读取最后 N 行 (tail)
+        var allLines = java.nio.file.Files.readAllLines(logFile, java.nio.charset.StandardCharsets.UTF_8);
+        int total = allLines.size();
+        int from = Math.max(0, total - lines);
+        var tail = allLines.subList(from, total);
+
+        var data = new LinkedHashMap<String, Object>();
+        data.put("file", fileName);
+        data.put("lines", tail);
+        data.put("total", total);
+        data.put("from", from);
+        sendOk(ex, data);
+    }
+
+    private static Map<String, String> parseQuery(String query) {
+        var params = new LinkedHashMap<String, String>();
+        if (query == null || query.isBlank()) return params;
+        for (String pair : query.split("&")) {
+            int eq = pair.indexOf('=');
+            if (eq > 0) {
+                params.put(urlDecode(pair.substring(0, eq)), urlDecode(pair.substring(eq + 1)));
+            }
+        }
+        return params;
     }
 
     // ==================== Bot 管理 ====================
@@ -810,7 +937,8 @@ public class WebApiHandler implements HttpHandler {
     private Map<String, Object> readBodyAsMap(HttpExchange ex) throws IOException {
         String body = new String(ex.getRequestBody().readAllBytes(), StandardCharsets.UTF_8);
         if (body.isBlank()) return Map.of();
-        var parsed = JsonUtil.parseObject(body);
+        java.lang.reflect.Type mapType = new TypeToken<Map<String, Object>>(){}.getType();
+        Map<String, Object> parsed = GsonFactory.gson().fromJson(body, mapType);
         return parsed != null ? parsed : Map.of();
     }
 
@@ -829,7 +957,7 @@ public class WebApiHandler implements HttpHandler {
     }
 
     private void sendJson(HttpExchange ex, int code, Object obj) throws IOException {
-        String json = JsonUtil.toJson(obj);
+        String json = GsonFactory.gson().toJson(obj);
         byte[] bytes = json.getBytes(StandardCharsets.UTF_8);
         ex.getResponseHeaders().set("Content-Type", "application/json; charset=utf-8");
         ex.sendResponseHeaders(code, bytes.length);

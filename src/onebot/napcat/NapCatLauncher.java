@@ -1,6 +1,6 @@
 package onebot.napcat;
 
-import onebot.util.JsonUtil;
+import onebot.util.GsonFactory;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -299,7 +299,7 @@ public class NapCatLauncher {
         config.put("parseMultMsg", false);
         config.put("timeout", timeout);
 
-        Files.writeString(path, JsonUtil.toJson(config));
+        Files.writeString(path, GsonFactory.gson().toJson(config));
     }
 
     // ==================== 查找 QQ (Windows) ====================

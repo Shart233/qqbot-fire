@@ -1,9 +1,11 @@
 # QQBot-Fire
 
-> NapCat OneBot 11 Java Bot 客户端 — 纯 JDK 24，零框架依赖，内置 NapCat 多开管理
+> NapCat OneBot 11 Java Bot 客户端 — JDK 24 + Gradle，内置 NapCat 多开管理
 
 基于 [NapCat](https://napneko.github.io/) 的 OneBot 11 协议，通过 WebSocket / HTTP 双模式对接 QQ Bot。
 支持同时运行多个 Bot 实例（双开/多开），并可直接从控制台启动和管理 NapCat 进程。
+
+**160+ typed API wrapper** 完整覆盖 OneBot 11 标准 API 和 NapCat 扩展 API。
 
 ## 特性
 
@@ -15,9 +17,10 @@
 - **NTP 精确定时** — 基于网络时间的定时消息调度器
 - **安全存储** — RSA 2048 加密 Token，配置持久化
 - **消息构建器** — 链式 API，支持 20+ 消息段类型
-- **Web 管理控制台** — 暗色主题 SPA，浏览器端完整管理（零额外依赖，JDK 内置 HttpServer）
+- **完整 API 覆盖** — 160+ typed wrapper 方法，覆盖 OneBot 11 标准 39 个 + NapCat 扩展 120+ 个端点
+- **Web 管理控制台** — React SPA（暗色/亮色主题），浏览器端完整管理（JDK 内置 HttpServer 托管）
 - **结构化日志** — Log4j2 分级日志，按天滚动，主日志/错误日志/Web API 日志分离
-- **跨平台** — Windows + Linux 全面支持，零框架依赖（纯 JDK 24 + Log4j2）
+- **跨平台** — Windows + Linux 全面支持（JDK 24 + Gradle）
 
 ## 快速开始
 
@@ -28,6 +31,22 @@
 
 ### 编译运行
 
+**Gradle（推荐）：**
+
+```bash
+# 编译
+./gradlew compileJava
+
+# 运行
+./gradlew run
+
+# 构建 fat jar
+./gradlew jar
+java -jar build/libs/qqbot-fire.jar
+```
+
+**手动编译（无需 Gradle）：**
+
 ```bash
 # 编译
 javac -cp "lib/*" -d out -sourcepath src src/Main.java
@@ -37,15 +56,16 @@ java -cp "out;lib/*;src/resources" Main
 
 # Linux
 java -cp "out:lib/*:src/resources" Main
+```
 
-# Linux 后台运行 (日志自动写入 logs/ 目录)
+**Linux 后台运行：**
+
+```bash
 nohup java -cp "out:lib/*:src/resources" Main &
-
-# 查看实时日志
 tail -f logs/qqbot-fire.log
 ```
 
-也可以直接用 IntelliJ IDEA 打开项目，运行 `Main.java`。
+也可以直接用 IntelliJ IDEA 打开项目，使用 `qqbot-fire [:run]`（Gradle）或 `QQBot-fire`（Java）运行配置。
 
 ### Linux 部署说明
 
@@ -246,8 +266,10 @@ NapCat 实例已启动: bot1 QQ=1234567890
 ### 技术栈
 
 - 后端：JDK 内置 `HttpServer`（零额外依赖）
-- 前端：纯 HTML + CSS + JS 单页应用（暗色主题）
+- 前端：React 19 + TypeScript + Tailwind CSS v4 + HeroUI v3 SPA（暗色/亮色主题）
+- 构建：Vite 8，开发时 `/api` 自动代理到 Java 后端 `:8080`
 - 通过 REST API 与后端通信
+- 使用 `npm run deploy` 构建并拷贝到 `src/resources/web/`
 
 ### 使用
 
@@ -432,7 +454,7 @@ src/
 │   ├── client/
 │   │   ├── ApiProvider.java           # API 提供者接口
 │   │   ├── BotInstance.java           # Bot 实例数据类 (多开)
-│   │   ├── OneBotClient.java          # 高层 API 客户端 (60+ 方法)
+│   │   ├── OneBotClient.java          # 高层 API 客户端 (160+ 方法)
 │   │   ├── OneBotConnection.java      # WebSocket 连接 (echo 请求-响应匹配)
 │   │   ├── OneBotHttpConnection.java  # HTTP 连接 (标准 + Debug API 自动探测)
 │   │   └── OneBotException.java       # 异常
@@ -459,17 +481,20 @@ src/
 │   ├── web/
 │   │   ├── WebConsoleServer.java      # 内嵌 HTTP 服务器 (JDK HttpServer)
 │   │   └── WebApiHandler.java         # REST API 处理器 (30+ 端点)
+│   ├── config/
+│   │   └── ConfigManager.java         # 配置持久化 (config.json)
 │   └── util/
-│       ├── JsonUtil.java              # 轻量 JSON 序列化/反序列化
+│       ├── GsonFactory.java           # Gson 实例工厂
 │       ├── ConvertUtil.java           # 通用类型转换工具
 │       ├── CryptoUtil.java            # RSA 加解密 (线程安全)
 │       └── NtpUtil.java               # NTP 时间同步
 resources/
 ├── log4j2.xml                         # 日志配置 (分级输出 + 按天滚动)
-└── web/
-    ├── index.html                     # Web 控制台前端 (SPA)
-    ├── style.css                      # 暗色主题样式
-    └── app.js                         # 前端逻辑
+└── web/                               # Web UI 构建产物（由 web-ui/ 生成，勿直接编辑）
+web-ui/                                    # React SPA 前端项目
+├── src/                               # React + TypeScript 源码
+├── package.json                       # npm run dev / build / deploy
+└── vite.config.ts                     # Vite 配置 (/api 代理到 :8080)
 logs/                                      # 运行时自动创建
 ├── qqbot-fire.log                     # 主日志
 ├── qqbot-fire-error.log               # 错误日志
@@ -479,9 +504,10 @@ scripts/
 ├── napcat-instance.sh                 # NapCat 单实例启动 (Linux)
 ├── napcat-multi.bat                   # NapCat 批量多开 (Windows)
 └── napcat-multi.sh                    # NapCat 批量多开 (Linux)
-lib/
+lib/                                       # 手动编译用 (Gradle 自动拉取依赖)
 ├── log4j-api-2.24.3.jar
-└── log4j-core-2.24.3.jar
+├── log4j-core-2.24.3.jar
+└── gson-2.12.1.jar
 ```
 
 ## 架构
@@ -506,7 +532,7 @@ lib/
           │
  ┌────────▼───────┐
  │ OneBotClient   │
- │ (60+ API 方法)  │
+ │ (160+ API 方法) │
  └────────┬───────┘
           │
  ┌────────▼────────────────────┐
@@ -521,6 +547,29 @@ lib/
  │  (多个 QQ Bot 实例)          │
  └─────────────────────────────┘
 ```
+
+## API 覆盖
+
+`OneBotClient` 提供 160+ typed wrapper 方法，完整覆盖：
+
+| 分类 | 端点数 | 说明 |
+|------|--------|------|
+| OneBot 11 标准 | 39 | 消息收发、好友/群管理、系统信息等 |
+| NapCat 消息扩展 | ~15 | 转发消息、已读标记、消息历史 |
+| NapCat 好友扩展 | ~10 | 分类好友、单向好友、最近联系人 |
+| NapCat 群组扩展 | ~25 | 群详情、群搜索、群相册、群公告 |
+| NapCat 群文件 | ~15 | 文件上传/下载/管理/文件夹 |
+| NapCat 精华消息 | 3 | 设置/删除/获取精华消息 |
+| NapCat 表情扩展 | 4 | 表情点赞/获取 |
+| NapCat 个人资料 | ~8 | 头像/资料/在线状态/输入状态 |
+| NapCat AI 语音 | 3 | AI 角色列表、语音生成/发送 |
+| NapCat Ark 分享 | 5 | 群/用户 Ark 分享、小程序 Ark |
+| NapCat 收藏/闪传 | ~10 | 创建收藏、闪传任务/文件 |
+| NapCat 在线文件 | 6 | 发送/接收/拒绝/取消在线文件 |
+| NapCat 系统杂项 | ~15 | RKey、戳一戳、数据包、机型等 |
+| NapCat 流式传输 | 6 | 文件/语音/图片流式上传下载 |
+
+即使没有 typed wrapper，插件也可通过 `callApi("action", params)` 调用任意 API。
 
 ## 扩展开发
 

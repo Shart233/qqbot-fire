@@ -1,7 +1,9 @@
 package onebot.napcat;
 
-import onebot.util.ConvertUtil;
-import onebot.util.JsonUtil;
+import com.google.gson.JsonArray;
+import com.google.gson.JsonElement;
+import com.google.gson.JsonObject;
+import com.google.gson.JsonParser;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -10,7 +12,6 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Map;
 import java.util.regex.Pattern;
 
 /**
@@ -119,7 +120,6 @@ public class NapCatConfigDiscovery {
     /**
      * 解析单个 onebot11_{QQ号}.json 文件
      */
-    @SuppressWarnings("unchecked")
     private static BotConfig parseOneBotConfig(Path path) throws IOException {
         // 从文件名提取 QQ 号
         var matcher = ONEBOT_CONFIG_PATTERN.matcher(path.getFileName().toString());
@@ -127,57 +127,53 @@ public class NapCatConfigDiscovery {
         String qqUin = matcher.group(1);
 
         String json = Files.readString(path);
-        Map<String, Object> root = JsonUtil.parseObject(json);
-        if (root == null || !root.containsKey("network")) return null;
+        JsonObject root = JsonParser.parseString(json).getAsJsonObject();
+        if (!root.has("network")) return null;
 
-        var network = (Map<String, Object>) root.get("network");
+        JsonObject network = root.getAsJsonObject("network");
         if (network == null) return null;
 
         var bc = new BotConfig();
         bc.qqUin = qqUin;
         bc.configFile = path.toString();
 
-        // 解析 websocketServers — 优先取 enable=true 的，否则取第一个 (读取 token/port)
-        if (network.get("websocketServers") instanceof List<?> wsList) {
-            Map<String, Object> firstWs = null;
-            for (var item : wsList) {
-                if (item instanceof Map<?, ?> wsMap) {
-                    @SuppressWarnings("unchecked")
-                    var ws = (Map<String, Object>) wsMap;
-                    if (firstWs == null) firstWs = ws;
-                    if (Boolean.TRUE.equals(ws.get("enable"))) {
-                        firstWs = ws;
-                        bc.wsEnabled = true;
-                        break;
-                    }
+        // 解析 websocketServers — 优先取 enable=true 的，否则取第一个
+        if (network.has("websocketServers")) {
+            JsonArray wsList = network.getAsJsonArray("websocketServers");
+            JsonObject firstWs = null;
+            for (JsonElement item : wsList) {
+                JsonObject ws = item.getAsJsonObject();
+                if (firstWs == null) firstWs = ws;
+                if (ws.has("enable") && ws.get("enable").getAsBoolean()) {
+                    firstWs = ws;
+                    bc.wsEnabled = true;
+                    break;
                 }
             }
             if (firstWs != null) {
-                bc.wsHost = ConvertUtil.stringOf(firstWs.get("host"), "127.0.0.1");
-                bc.wsPort = ConvertUtil.intOf(firstWs.get("port"), 0);
-                bc.wsToken = ConvertUtil.stringOf(firstWs.get("token"), "");
+                bc.wsHost = getStr(firstWs, "host", "127.0.0.1");
+                bc.wsPort = getInt(firstWs, "port", 0);
+                bc.wsToken = getStr(firstWs, "token", "");
             }
         }
 
-        // 解析 httpServers — 优先取 enable=true 的，否则取第一个 (读取 token/port)
-        if (network.get("httpServers") instanceof List<?> httpList) {
-            Map<String, Object> firstHttp = null;
-            for (var item : httpList) {
-                if (item instanceof Map<?, ?> httpMap) {
-                    @SuppressWarnings("unchecked")
-                    var http = (Map<String, Object>) httpMap;
-                    if (firstHttp == null) firstHttp = http;
-                    if (Boolean.TRUE.equals(http.get("enable"))) {
-                        firstHttp = http;
-                        bc.httpEnabled = true;
-                        break;
-                    }
+        // 解析 httpServers — 优先取 enable=true 的，否则取第一个
+        if (network.has("httpServers")) {
+            JsonArray httpList = network.getAsJsonArray("httpServers");
+            JsonObject firstHttp = null;
+            for (JsonElement item : httpList) {
+                JsonObject http = item.getAsJsonObject();
+                if (firstHttp == null) firstHttp = http;
+                if (http.has("enable") && http.get("enable").getAsBoolean()) {
+                    firstHttp = http;
+                    bc.httpEnabled = true;
+                    break;
                 }
             }
             if (firstHttp != null) {
-                bc.httpHost = ConvertUtil.stringOf(firstHttp.get("host"), "127.0.0.1");
-                bc.httpPort = ConvertUtil.intOf(firstHttp.get("port"), 0);
-                bc.httpToken = ConvertUtil.stringOf(firstHttp.get("token"), "");
+                bc.httpHost = getStr(firstHttp, "host", "127.0.0.1");
+                bc.httpPort = getInt(firstHttp, "port", 0);
+                bc.httpToken = getStr(firstHttp, "token", "");
             }
         }
 
@@ -188,6 +184,14 @@ public class NapCatConfigDiscovery {
         }
 
         return bc;
+    }
+
+    private static String getStr(JsonObject obj, String key, String def) {
+        return obj.has(key) && !obj.get(key).isJsonNull() ? obj.get(key).getAsString() : def;
+    }
+
+    private static int getInt(JsonObject obj, String key, int def) {
+        return obj.has(key) && !obj.get(key).isJsonNull() ? obj.get(key).getAsInt() : def;
     }
 
 

@@ -1,8 +1,7 @@
 package onebot.scheduler;
 
 import onebot.client.OneBotClient;
-import onebot.util.ConvertUtil;
-import onebot.util.JsonUtil;
+import onebot.util.GsonFactory;
 import onebot.util.NtpUtil;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -296,33 +295,21 @@ public class ScheduleManager {
         return SCHEDULE_FILE_PREFIX + "_" + botName + ".json";
     }
 
-    @SuppressWarnings("unchecked")
     private void loadTasks() {
         try {
             Path path = Path.of(getScheduleFile());
             if (Files.exists(path)) {
                 String json = Files.readString(path);
-                List<Map<String, Object>> list = JsonUtil.parseArray(json);
-                for (Object item : list) {
-                    if (item instanceof Map map) {
-                        var task = new ScheduleTask();
-                        task.name = ConvertUtil.str(map.get("name"));
-                        task.time = ConvertUtil.str(map.get("time"));
-                        task.message = ConvertUtil.str(map.get("message"));
-                        task.enabled = map.get("enabled") instanceof Boolean b ? b : true;
-                        task.targets = new ArrayList<>();
-                        if (map.get("targets") instanceof List targets) {
-                            for (Object t : targets) {
-                                if (t instanceof Number n) task.targets.add(n.longValue());
-                                else if (t instanceof String s) {
-                                    try { task.targets.add(Long.parseLong(s)); } catch (NumberFormatException ignored) {}
-                                }
-                            }
-                        }
-                        if (!task.name.isEmpty() && !task.time.isEmpty()) {
-                            tasks.add(task);
-                        }
-                    }
+                java.lang.reflect.Type listType = new com.google.gson.reflect.TypeToken<List<ScheduleTask>>(){}.getType();
+                List<ScheduleTask> loaded = GsonFactory.gson().fromJson(json, listType);
+                if (loaded != null) {
+                    // 过滤无效任务
+                    loaded.stream()
+                            .filter(t -> t.name != null && !t.name.isEmpty() && t.time != null && !t.time.isEmpty())
+                            .forEach(t -> {
+                                if (t.targets == null) t.targets = new ArrayList<>();
+                                tasks.add(t);
+                            });
                 }
                 logger.debug("已加载 {} 个定时任务", tasks.size());
             }
@@ -333,17 +320,7 @@ public class ScheduleManager {
 
     private void saveTasks() {
         try {
-            var list = new ArrayList<Map<String, Object>>();
-            for (var task : tasks) {
-                var map = new LinkedHashMap<String, Object>();
-                map.put("name", task.name);
-                map.put("time", task.time);
-                map.put("targets", task.targets);
-                map.put("message", task.message);
-                map.put("enabled", task.enabled);
-                list.add(map);
-            }
-            Files.writeString(Path.of(getScheduleFile()), JsonUtil.toJson(list));
+            Files.writeString(Path.of(getScheduleFile()), GsonFactory.gson().toJson(tasks));
             logger.debug("定时任务已保存");
         } catch (IOException e) {
             logger.warn("保存定时任务失败", e);
@@ -358,7 +335,7 @@ public class ScheduleManager {
         public List<Long> targets = new ArrayList<>();
         public String message = "";
         public boolean enabled = true;
-        public long lastExecuted = 0;
+        public transient long lastExecuted = 0;
 
         @Override
         public String toString() {

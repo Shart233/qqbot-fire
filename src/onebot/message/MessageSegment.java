@@ -1,6 +1,6 @@
 package onebot.message;
 
-import onebot.util.JsonUtil;
+import onebot.util.GsonFactory;
 
 import java.util.LinkedHashMap;
 import java.util.Map;
@@ -167,7 +167,7 @@ public class MessageSegment {
         var map = new LinkedHashMap<String, Object>();
         map.put("type", type);
         map.put("data", data);
-        return JsonUtil.toJson(map);
+        return GsonFactory.gson().toJson(map);
     }
 
     @Override

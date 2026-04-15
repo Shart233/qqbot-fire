@@ -4,7 +4,7 @@ import onebot.message.MessageBuilder;
 import onebot.message.MessageSegment;
 import onebot.model.*;
 import onebot.util.ConvertUtil;
-import onebot.util.JsonUtil;
+import onebot.util.GsonFactory;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -66,13 +66,13 @@ public class OneBotClient {
     /** 获取登录号信息 */
     public LoginInfo getLoginInfo() {
         var data = callApi("get_login_info", null);
-        return JsonUtil.mapToBean(data, LoginInfo.class);
+        return GsonFactory.convert(data, LoginInfo.class);
     }
 
     /** 获取版本信息 */
     public VersionInfo getVersionInfo() {
         var data = callApi("get_version_info", null);
-        return JsonUtil.mapToBean(data, VersionInfo.class);
+        return GsonFactory.convert(data, VersionInfo.class);
     }
 
     /** 获取运行状态 */
@@ -150,7 +150,7 @@ public class OneBotClient {
     /** 获取消息 */
     public MessageData getMsg(long messageId) {
         var data = callApi("get_msg", Map.of("message_id", messageId));
-        return JsonUtil.mapToBean(data, MessageData.class);
+        return GsonFactory.convert(data, MessageData.class);
     }
 
     /** 标记消息已读 */
@@ -199,7 +199,7 @@ public class OneBotClient {
     public List<FriendInfo> getFriendList() {
         var data = callApiRaw("get_friend_list", null);
         if (data instanceof List list) {
-            return JsonUtil.mapToList((List<Map<String, Object>>) list, FriendInfo.class);
+            return GsonFactory.convertList((List<?>) list, FriendInfo.class);
         }
         return List.of();
     }
@@ -207,7 +207,7 @@ public class OneBotClient {
     /** 获取陌生人信息 */
     public StrangerInfo getStrangerInfo(long userId) {
         var data = callApi("get_stranger_info", Map.of("user_id", String.valueOf(userId)));
-        return JsonUtil.mapToBean(data, StrangerInfo.class);
+        return GsonFactory.convert(data, StrangerInfo.class);
     }
 
     /** 处理加好友请求 */
@@ -232,7 +232,7 @@ public class OneBotClient {
     public List<GroupInfo> getGroupList() {
         var data = callApiRaw("get_group_list", null);
         if (data instanceof List list) {
-            return JsonUtil.mapToList((List<Map<String, Object>>) list, GroupInfo.class);
+            return GsonFactory.convertList((List<?>) list, GroupInfo.class);
         }
         return List.of();
     }
@@ -240,7 +240,7 @@ public class OneBotClient {
     /** 获取群信息 */
     public GroupInfo getGroupInfo(long groupId) {
         var data = callApi("get_group_info", Map.of("group_id", String.valueOf(groupId)));
-        return JsonUtil.mapToBean(data, GroupInfo.class);
+        return GsonFactory.convert(data, GroupInfo.class);
     }
 
     /** 获取群成员列表 */
@@ -248,7 +248,7 @@ public class OneBotClient {
     public List<GroupMember> getGroupMemberList(long groupId) {
         var data = callApiRaw("get_group_member_list", Map.of("group_id", String.valueOf(groupId)));
         if (data instanceof List list) {
-            return JsonUtil.mapToList((List<Map<String, Object>>) list, GroupMember.class);
+            return GsonFactory.convertList((List<?>) list, GroupMember.class);
         }
         return List.of();
     }
@@ -258,7 +258,7 @@ public class OneBotClient {
         var data = callApi("get_group_member_info", Map.of(
                 "group_id", String.valueOf(groupId),
                 "user_id", String.valueOf(userId)));
-        return JsonUtil.mapToBean(data, GroupMember.class);
+        return GsonFactory.convert(data, GroupMember.class);
     }
 
     /** 设置群名称 */

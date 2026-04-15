@@ -30,7 +30,7 @@ QQ Bot client built on NapCat/OneBot 11. Two independent codebases in one repo: 
 
 | Package | Purpose |
 |---|---|
-| `onebot.client` | WS + HTTP connections, API client (60+ methods) |
+| `onebot.client` | WS + HTTP connections, API client (160+ methods) |
 | `onebot.config` | `ConfigManager` — persistence of bot/NapCat config to `config.json` |
 | `onebot.web` | Embedded HTTP server (JDK `HttpServer`), REST API (30+ endpoints) |
 | `onebot.napcat` | NapCat process management, config discovery |

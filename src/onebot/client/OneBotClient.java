@@ -1229,7 +1229,22 @@ public class OneBotClient {
         return callApi("clean_stream_temp_file", Map.of());
     }
 
-    // ==================== 内部工具方法 ====================
+    // ==================== QQ 频道 (Guild) ====================
+
+    /** 获取频道列表 */
+    @SuppressWarnings("unchecked")
+    public List<Map<String, Object>> getGuildList() {
+        var raw = callApiRaw("get_guild_list", null);
+        if (raw instanceof List<?> list) return (List<Map<String, Object>>) (List<?>) list;
+        return List.of();
+    }
+
+    /** 获取频道个人资料 */
+    public Map<String, Object> getGuildServiceProfile() {
+        return callApi("get_guild_service_profile", null);
+    }
+
+    // ==================== 内部工具方法 ==
 
     private List<Map<String, Object>> segmentsToList(List<MessageSegment> segments) {
         var list = new ArrayList<Map<String, Object>>();

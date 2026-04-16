@@ -1,11 +1,11 @@
 # QQBot-Fire
 
-> NapCat OneBot 11 Java Bot 客户端 — JDK 24 + Gradle，内置 NapCat 多开管理
+> NapCat OneBot 11 Java Bot 客户端 — JDK 24 + Gradle，内置 NapCat 多开管理 & Web 管理控制台
 
 基于 [NapCat](https://napneko.github.io/) 的 OneBot 11 协议，通过 WebSocket / HTTP 双模式对接 QQ Bot。
 支持同时运行多个 Bot 实例（双开/多开），并可直接从控制台启动和管理 NapCat 进程。
 
-**160+ typed API wrapper** 完整覆盖 OneBot 11 标准 API 和 NapCat 扩展 API。
+**170+ typed API wrapper** 完整覆盖 OneBot 11 标准 API、NapCat 扩展 API 和 QQ 频道 (Guild) API。
 
 ## 特性
 
@@ -17,8 +17,8 @@
 - **NTP 精确定时** — 基于网络时间的定时消息调度器
 - **安全存储** — RSA 2048 加密 Token，配置持久化
 - **消息构建器** — 链式 API，支持 20+ 消息段类型
-- **完整 API 覆盖** — 160+ typed wrapper 方法，覆盖 OneBot 11 标准 39 个 + NapCat 扩展 120+ 个端点
-- **Web 管理控制台** — React SPA（暗色主题），浏览器端完整管理（JDK 内置 HttpServer 托管）
+- **完整 API 覆盖** — 170+ typed wrapper 方法，覆盖 OneBot 11 标准 39 个 + NapCat 扩展 120+ 个 + QQ 频道 (Guild) 端点
+- **Web 管理控制台** — React SPA（暗色/亮色主题），浏览器端完整管理（JDK 内置 HttpServer 托管）
 - **Docker 部署** — 提供 Dockerfile + docker-compose，与 NapCat 容器一键编排
 - **结构化日志** — Log4j2 分级日志，按天滚动，主日志/错误日志/Web API 日志分离
 - **跨平台** — Windows + Linux + Docker 全面支持（JDK 24 + Gradle）
@@ -316,18 +316,21 @@ NapCat 实例已启动: bot1 QQ=1234567890
 ### 功能
 
 - **仪表盘** — Bot 状态卡片一览，快速连接/断开，5 秒自动刷新
-- **Bot 管理** — 添加/删除/配置 Bot，编辑连接信息
+- **Bot 管理** — 添加/删除/配置 Bot，编辑连接信息（弹窗式配置）
 - **消息发送** — 选择 Bot → 选择群/好友 → 发消息（QQ 号历史记忆）
 - **好友与群** — 好友列表、群列表、点击查看群成员
 - **定时任务** — 每个 Bot 的定时任务 CRUD + 开关 + 立即测试
-- **NapCat 管理** — 启动/停止实例，自动发现配置，查看实时日志
-- **日志** — 实时操作日志
+- **NapCat 管理** — 启动/停止/重启/编辑实例，自动发现配置，实例记忆与恢复
+- **NapCat 日志** — 实时查看各实例日志流
+- **控制台** — Web 端交互式命令行，支持所有 `/` 控制台命令
+- **服务端日志** — 浏览和查看服务端日志文件（主日志/错误日志/API 日志）
+- **操作日志** — 实时操作日志
 - **状态记忆** — 页面、选择器、Tab 等状态自动保存（localStorage）
 
 ### 技术栈
 
 - 后端：JDK 内置 `HttpServer`（零额外依赖）
-- 前端：React 19 + TypeScript + Tailwind CSS v4 + HeroUI v3 SPA（暗色主题）
+- 前端：React 19 + TypeScript + Tailwind CSS v4 + HeroUI v3 SPA（暗色/亮色主题切换）
 - 构建：Vite 8，开发时 `/api` 自动代理到 Java 后端 `:9988`
 - 通过 REST API 与后端通信
 - 使用 `npm run deploy` 构建并拷贝到 `src/resources/web/`
@@ -534,7 +537,7 @@ src/
 │   ├── client/
 │   │   ├── ApiProvider.java           # API 提供者接口
 │   │   ├── BotInstance.java           # Bot 实例数据类 (多开)
-│   │   ├── OneBotClient.java          # 高层 API 客户端 (160+ 方法)
+│   │   ├── OneBotClient.java          # 高层 API 客户端 (170+ 方法)
 │   │   ├── OneBotConnection.java      # WebSocket 连接 (echo 请求-响应匹配)
 │   │   ├── OneBotHttpConnection.java  # HTTP 连接 (标准 + Debug API 自动探测)
 │   │   └── OneBotException.java       # 异常
@@ -633,7 +636,7 @@ docker-entrypoint.sh                           # 容器启动脚本
 
 ## API 覆盖
 
-`OneBotClient` 提供 160+ typed wrapper 方法，完整覆盖：
+`OneBotClient` 提供 170+ typed wrapper 方法，完整覆盖：
 
 | 分类 | 端点数 | 说明 |
 |------|--------|------|
@@ -651,6 +654,7 @@ docker-entrypoint.sh                           # 容器启动脚本
 | NapCat 在线文件 | 6 | 发送/接收/拒绝/取消在线文件 |
 | NapCat 系统杂项 | ~15 | RKey、戳一戳、数据包、机型等 |
 | NapCat 流式传输 | 6 | 文件/语音/图片流式上传下载 |
+| QQ 频道 (Guild) | 2 | 频道列表、频道个人资料 |
 
 即使没有 typed wrapper，插件也可通过 `callApi("action", params)` 调用任意 API。
 
@@ -691,6 +695,7 @@ public class MyHandler implements EventHandler {
 - [ ] **权限管理** — 基于角色的命令权限控制
 - [ ] **持久化升级** — SQLite 存储消息记录与调度任务
 - [ ] **群管工具集** — 自动审批、关键词过滤、违规计数
+- [x] **QQ 频道支持** — Guild API 方法（频道列表、个人资料）（已完成）
 - [ ] **AI 对话集成** — 接入 LLM 实现智能聊天
 
 ## License

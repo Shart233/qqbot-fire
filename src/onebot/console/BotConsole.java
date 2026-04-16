@@ -1267,7 +1267,7 @@ public class BotConsole {
                         System.out.println("Web 控制台已在运行");
                         return;
                     }
-                    int port = 8080;
+                    int port = 9988;
                     if (parts.length >= 3) {
                         try { port = Integer.parseInt(parts[2].trim()); } catch (NumberFormatException e) {
                             System.out.println("端口号无效");
@@ -1294,7 +1294,7 @@ public class BotConsole {
             }
         } else {
             if (webServer != null) {
-                System.out.println("Web 控制台运行中: http://127.0.0.1:8080");
+                System.out.println("Web 控制台运行中: http://127.0.0.1:9988");
             } else {
                 System.out.println("Web 控制台未运行，使用 /web start [端口] 启动");
             }

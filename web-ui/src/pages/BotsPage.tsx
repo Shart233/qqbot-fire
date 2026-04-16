@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react'
-import { Button, Chip, Spinner, Table, Modal, useOverlayState, RadioGroup, Radio } from '@heroui/react'
+import { Button, Chip, Spinner, Table, RadioGroup, Radio } from '@heroui/react'
 import { toast } from '@heroui/react'
 import { motion } from 'framer-motion'
 import { useAppStore } from '../stores/app-store'
@@ -7,6 +7,7 @@ import { listBots, addBot, deleteBot, connectBot, disconnectBot, getBotConfig, u
 import PageHeader from '../components/shared/PageHeader'
 import EmptyState from '../components/shared/EmptyState'
 import ConfirmModal from '../components/shared/ConfirmModal'
+import SimpleModal from '../components/shared/SimpleModal'
 import type { BotConfig } from '../api/types'
 
 export default function BotsPage() {
@@ -21,11 +22,6 @@ export default function BotsPage() {
   const [configBot, setConfigBot] = useState<string | null>(null)
   const [configData, setConfigData] = useState<BotConfig | null>(null)
   const [configSaving, setConfigSaving] = useState(false)
-
-  const configModalState = useOverlayState({
-    isOpen: configBot !== null,
-    onOpenChange: (open) => { if (!open) setConfigBot(null) },
-  })
 
   const loadBots = useCallback(async () => {
     const data = await listBots()
@@ -201,70 +197,65 @@ export default function BotsPage() {
       />
 
       {/* Config Modal */}
-      <Modal state={configModalState}>
-        <Modal.Backdrop isDismissable />
-        <Modal.Container size="md">
-          <Modal.Dialog>
-            <Modal.Header>
-              <Modal.Heading>配置 - {configBot}</Modal.Heading>
-              <Modal.CloseTrigger />
-            </Modal.Header>
-            <Modal.Body>
-              <div className="space-y-4">
-                <div>
-                  <label className="text-sm text-text-muted mb-1 block">连接模式</label>
-                  <RadioGroup
-                    orientation="horizontal"
-                    value={configData?.mode ?? 'ws'}
-                    onChange={(value) => configData && setConfigData({ ...configData, mode: value as 'ws' | 'http' })}
-                  >
-                    <Radio value="ws">WebSocket</Radio>
-                    <Radio value="http">HTTP</Radio>
-                  </RadioGroup>
-                </div>
-                <div>
-                  <label className="text-sm text-text-muted mb-1 block">WS 地址</label>
-                  <input
-                    className="bg-input-bg border border-border-theme text-text-primary rounded-xl px-3 py-2 text-sm outline-none focus:border-accent transition-colors w-full"
-                    value={configData?.wsUrl || ''}
-                    onChange={e => configData && setConfigData({ ...configData, wsUrl: e.target.value })}
-                  />
-                </div>
-                <div>
-                  <label className="text-sm text-text-muted mb-1 block">HTTP 地址</label>
-                  <input
-                    className="bg-input-bg border border-border-theme text-text-primary rounded-xl px-3 py-2 text-sm outline-none focus:border-accent transition-colors w-full"
-                    value={configData?.httpUrl || ''}
-                    onChange={e => configData && setConfigData({ ...configData, httpUrl: e.target.value })}
-                  />
-                </div>
-                <div>
-                  <label className="text-sm text-text-muted mb-1 block">WS Token</label>
-                  <input
-                    className="bg-input-bg border border-border-theme text-text-primary rounded-xl px-3 py-2 text-sm outline-none focus:border-accent transition-colors w-full"
-                    type="password"
-                    value={configData?.wsToken || ''}
-                    onChange={e => configData && setConfigData({ ...configData, wsToken: e.target.value })}
-                  />
-                </div>
-                <div>
-                  <label className="text-sm text-text-muted mb-1 block">HTTP Token</label>
-                  <input
-                    className="bg-input-bg border border-border-theme text-text-primary rounded-xl px-3 py-2 text-sm outline-none focus:border-accent transition-colors w-full"
-                    type="password"
-                    value={configData?.httpToken || ''}
-                    onChange={e => configData && setConfigData({ ...configData, httpToken: e.target.value })}
-                  />
-                </div>
-              </div>
-            </Modal.Body>
-            <Modal.Footer>
-              <Button size="sm" variant="ghost" onPress={() => setConfigBot(null)}>取消</Button>
-              <Button size="sm" variant="primary" isDisabled={configSaving} onPress={handleSaveConfig}>保存</Button>
-            </Modal.Footer>
-          </Modal.Dialog>
-        </Modal.Container>
-      </Modal>
+      <SimpleModal
+        isOpen={configBot !== null}
+        onClose={() => setConfigBot(null)}
+        title={`配置 - ${configBot}`}
+        footer={
+          <>
+            <Button size="sm" variant="ghost" onPress={() => setConfigBot(null)}>取消</Button>
+            <Button size="sm" variant="primary" isDisabled={configSaving} onPress={handleSaveConfig}>保存</Button>
+          </>
+        }
+      >
+        <div className="space-y-4">
+          <div>
+            <label className="text-sm text-text-muted mb-1 block">连接模式</label>
+            <RadioGroup
+              orientation="horizontal"
+              value={configData?.mode ?? 'ws'}
+              onChange={(value) => configData && setConfigData({ ...configData, mode: value as 'ws' | 'http' })}
+            >
+              <Radio value="ws">WebSocket</Radio>
+              <Radio value="http">HTTP</Radio>
+            </RadioGroup>
+          </div>
+          <div>
+            <label className="text-sm text-text-muted mb-1 block">WS 地址</label>
+            <input
+              className="bg-input-bg border border-border-theme text-text-primary rounded-xl px-3 py-2 text-sm outline-none focus:border-accent transition-colors w-full"
+              value={configData?.wsUrl || ''}
+              onChange={e => configData && setConfigData({ ...configData, wsUrl: e.target.value })}
+            />
+          </div>
+          <div>
+            <label className="text-sm text-text-muted mb-1 block">HTTP 地址</label>
+            <input
+              className="bg-input-bg border border-border-theme text-text-primary rounded-xl px-3 py-2 text-sm outline-none focus:border-accent transition-colors w-full"
+              value={configData?.httpUrl || ''}
+              onChange={e => configData && setConfigData({ ...configData, httpUrl: e.target.value })}
+            />
+          </div>
+          <div>
+            <label className="text-sm text-text-muted mb-1 block">WS Token</label>
+            <input
+              className="bg-input-bg border border-border-theme text-text-primary rounded-xl px-3 py-2 text-sm outline-none focus:border-accent transition-colors w-full"
+              type="password"
+              value={configData?.wsToken || ''}
+              onChange={e => configData && setConfigData({ ...configData, wsToken: e.target.value })}
+            />
+          </div>
+          <div>
+            <label className="text-sm text-text-muted mb-1 block">HTTP Token</label>
+            <input
+              className="bg-input-bg border border-border-theme text-text-primary rounded-xl px-3 py-2 text-sm outline-none focus:border-accent transition-colors w-full"
+              type="password"
+              value={configData?.httpToken || ''}
+              onChange={e => configData && setConfigData({ ...configData, httpToken: e.target.value })}
+            />
+          </div>
+        </div>
+      </SimpleModal>
     </div>
   )
 }

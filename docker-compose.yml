@@ -1,0 +1,64 @@
+# ============================================
+# QQBot-Fire + NapCat Docker Compose
+# ============================================
+#
+# Usage:
+#   docker compose up -d
+#
+# Web UI:          http://localhost:9988
+# NapCat WebUI:    http://localhost:6099/webui
+#
+# NapCat WS:       ws://napcat:3000  (internal)
+# NapCat HTTP:     http://napcat:3001 (internal)
+#
+# Bot config in qqbot-fire should use:
+#   WS mode:   ws://napcat:3000
+#   HTTP mode: http://napcat:3001
+# ============================================
+
+services:
+  # ---- NapCat (QQ Bot framework) ----
+  napcat:
+    image: mlikiowa/napcat-docker:latest
+    container_name: napcat
+    restart: unless-stopped
+    environment:
+      - NAPCAT_UID=${NAPCAT_UID:-1000}
+      - NAPCAT_GID=${NAPCAT_GID:-1000}
+    ports:
+      - "3000:3000"   # WebSocket
+      - "3001:3001"   # HTTP API
+      - "6099:6099"   # NapCat WebUI
+    volumes:
+      - napcat-qq:/app/.config/QQ
+      - napcat-config:/app/napcat/config
+    networks:
+      - botnet
+
+  # ---- QQBot-Fire (Bot management platform) ----
+  qqbot-fire:
+    build: .
+    container_name: qqbot-fire
+    restart: unless-stopped
+    stdin_open: true    # Keep stdin open for BotConsole Scanner
+    ports:
+      - "9988:9988"     # Web UI + REST API
+    volumes:
+      - qqbot-data:/app/data
+    depends_on:
+      - napcat
+    networks:
+      - botnet
+
+volumes:
+  napcat-qq:
+    name: napcat-qq
+  napcat-config:
+    name: napcat-config
+  qqbot-data:
+    name: qqbot-fire-data
+
+networks:
+  botnet:
+    name: qqbot-fire-net
+    driver: bridge

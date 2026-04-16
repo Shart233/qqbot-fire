@@ -60,7 +60,7 @@ Main -> BotConsole.start()
           +-- WebConsoleServer (:9988, JDK HttpServer + 虚拟线程)
           |     +-- WebApiHandler (30+ REST 端点)
           +-- BotInstance[] (每个 Bot 完全独立)
-          |     +-- OneBotClient (160+ typed API 方法)
+          |     +-- OneBotClient (170+ typed API 方法)
           |     |     +-- ApiProvider 接口
           |     |           +-- OneBotConnection (WebSocket)
           |     |           +-- OneBotHttpConnection (HTTP, 自动探测标准/Debug API)

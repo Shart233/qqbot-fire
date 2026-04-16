@@ -71,6 +71,8 @@ public class ConfigManager {
                         if (botCfg.get("httpUrl") instanceof String v) inst.setHttpUrl(v);
                         if (botCfg.get("wsToken") instanceof String v) inst.setWsToken(CryptoUtil.decrypt(v));
                         if (botCfg.get("httpToken") instanceof String v) inst.setHttpToken(CryptoUtil.decrypt(v));
+                        if (botCfg.get("napCatInstanceName") instanceof String v) inst.setNapCatInstanceName(v);
+                        if (botCfg.get("qqUin") instanceof String v) inst.setQqUin(v);
                         // 兼容旧版 accessToken
                         if (botCfg.get("accessToken") instanceof String v) {
                             String decrypted = CryptoUtil.decrypt(v);
@@ -128,6 +130,8 @@ public class ConfigManager {
                 botCfg.put("httpUrl", inst.getHttpUrl());
                 botCfg.put("wsToken", CryptoUtil.encrypt(inst.getWsToken()));
                 botCfg.put("httpToken", CryptoUtil.encrypt(inst.getHttpToken()));
+                if (!inst.getNapCatInstanceName().isEmpty()) botCfg.put("napCatInstanceName", inst.getNapCatInstanceName());
+                if (!inst.getQqUin().isEmpty()) botCfg.put("qqUin", inst.getQqUin());
                 botsMap.put(inst.getName(), botCfg);
             }
 

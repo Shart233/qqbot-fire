@@ -24,6 +24,12 @@ public class BotInstance {
     private String wsToken = "";
     private String httpToken = "";
 
+    // ---- NapCat 关联 (持久化，用于定时任务自动启动) ----
+    /** 关联的 NapCat 实例名称 (对应 NapCatLauncher 中的 name) */
+    private String napCatInstanceName = "";
+    /** 关联的 QQ 号 (用于启动 NapCat 时传入) */
+    private String qqUin = "";
+
     // ---- 运行时 (不持久化) ----
     private OneBotConnection wsConnection;
     private ApiProvider provider;
@@ -60,6 +66,12 @@ public class BotInstance {
 
     public String getHttpToken() { return httpToken; }
     public void setHttpToken(String httpToken) { this.httpToken = httpToken; }
+
+    public String getNapCatInstanceName() { return napCatInstanceName; }
+    public void setNapCatInstanceName(String napCatInstanceName) { this.napCatInstanceName = napCatInstanceName; }
+
+    public String getQqUin() { return qqUin; }
+    public void setQqUin(String qqUin) { this.qqUin = qqUin; }
 
     // ==================== 运行时 ====================
 

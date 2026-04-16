@@ -41,6 +41,18 @@ public class ScheduleManager {
     private volatile Thread schedulerThread;
     private volatile boolean running = false;
 
+    /**
+     * Bot 自动连接回调。
+     * 当定时任务触发时 bot==null，调度器会调用此回调尝试自动启动 NapCat 并连接 Bot。
+     * 返回连接成功的 OneBotClient，失败返回 null。
+     */
+    @FunctionalInterface
+    public interface BotConnector {
+        OneBotClient tryConnect();
+    }
+
+    private BotConnector botConnector;
+
     /** Bot 实例名称，用于区分定时任务文件 (schedules_<botName>.json) */
     private final String botName;
 
@@ -62,6 +74,10 @@ public class ScheduleManager {
         this.bot = bot;
     }
 
+    public void setBotConnector(BotConnector connector) {
+        this.botConnector = connector;
+    }
+
     // ==================== 任务管理 ====================
 
     /**
@@ -72,6 +88,18 @@ public class ScheduleManager {
      * @param message 要发送的消息内容
      */
     public void addTask(String name, String time, List<Long> targets, String message) {
+        addTask(name, time, targets, "private", message);
+    }
+
+    /**
+     * 添加定时任务
+     * @param name       任务名 (唯一标识)
+     * @param time       每天执行时间 (HH:mm 格式)
+     * @param targets    目标列表 (QQ号或群号)
+     * @param targetType "private" 或 "group"
+     * @param message    要发送的消息内容
+     */
+    public void addTask(String name, String time, List<Long> targets, String targetType, String message) {
         LocalTime.parse(time, TIME_FMT); // 验证格式
         tasks.removeIf(t -> t.name.equals(name));
 
@@ -79,12 +107,14 @@ public class ScheduleManager {
         task.name = name;
         task.time = time;
         task.targets = new ArrayList<>(targets);
+        task.targetType = "group".equals(targetType) ? "group" : "private";
         task.message = message;
         task.enabled = true;
         tasks.add(task);
         saveTasks();
 
-        logger.info("添加定时任务: {} -> {} 发送到 {} 个目标", name, time, targets.size());
+        logger.info("添加定时任务: {} -> {} 发送到 {} 个{}", name, time, targets.size(),
+                "group".equals(task.targetType) ? "群" : "好友");
 
         // 如果调度器正在运行，中断 sleep 让它重新计算
         if (schedulerThread != null) {
@@ -257,8 +287,21 @@ public class ScheduleManager {
     // ==================== 执行任务 ====================
 
     private void executeTask(ScheduleTask task) {
+        if (bot == null && task.autoConnect && botConnector != null) {
+            logger.info("Bot 未连接，任务 [{}] 已启用自动启动，尝试启动 NapCat 并连接...", task.name);
+            try {
+                OneBotClient connected = botConnector.tryConnect();
+                if (connected != null) {
+                    this.bot = connected;
+                    logger.info("自动连接成功");
+                }
+            } catch (Exception e) {
+                logger.error("自动连接失败", e);
+            }
+        }
         if (bot == null) {
-            logger.warn("Bot 未连接，跳过任务: {}", task.name);
+            logger.warn("Bot 未连接{}，跳过任务: {}",
+                    task.autoConnect ? "且自动连接失败" : "(未启用自动启动)", task.name);
             return;
         }
 
@@ -266,18 +309,23 @@ public class ScheduleManager {
                 task.name, task.targets.size(), NtpUtil.nowHHmmss());
         int success = 0, fail = 0;
 
-        for (long userId : task.targets) {
+        boolean isGroup = "group".equals(task.targetType);
+        for (long targetId : task.targets) {
             try {
-                bot.sendPrivateMsg(userId, task.message);
+                if (isGroup) {
+                    bot.sendGroupMsg(targetId, task.message);
+                } else {
+                    bot.sendPrivateMsg(targetId, task.message);
+                }
                 success++;
-                logger.debug("定时消息已发送: {} -> {}", task.name, userId);
+                logger.debug("定时消息已发送: {} -> {} ({})", task.name, targetId, task.targetType);
                 Thread.sleep(1000); // 间隔 1 秒，避免频率限制
             } catch (InterruptedException e) {
                 Thread.currentThread().interrupt();
                 return;
             } catch (Exception e) {
                 fail++;
-                logger.error("定时消息发送失败: {} -> {}", task.name, userId, e);
+                logger.error("定时消息发送失败: {} -> {}", task.name, targetId, e);
             }
         }
 
@@ -318,7 +366,7 @@ public class ScheduleManager {
         }
     }
 
-    private void saveTasks() {
+    public void saveTasks() {
         try {
             Files.writeString(Path.of(getScheduleFile()), GsonFactory.gson().toJson(tasks));
             logger.debug("定时任务已保存");
@@ -333,15 +381,19 @@ public class ScheduleManager {
         public String name = "";
         public String time = "";
         public List<Long> targets = new ArrayList<>();
+        public String targetType = "private"; // "private" 或 "group"
         public String message = "";
         public boolean enabled = true;
+        public boolean autoConnect = false; // 触发时自动启动 NapCat + 连接 Bot
         public transient long lastExecuted = 0;
 
         @Override
         public String toString() {
-            return String.format("[%s] %s %s -> %d人 \"%s\"",
+            return String.format("[%s] %s %s -> %d%s \"%s\"%s",
                     enabled ? "ON" : "OFF", name, time, targets.size(),
-                    message.length() > 20 ? message.substring(0, 20) + "..." : message);
+                    "group".equals(targetType) ? "群" : "人",
+                    message.length() > 20 ? message.substring(0, 20) + "..." : message,
+                    autoConnect ? " [自动启动]" : "");
         }
     }
 }

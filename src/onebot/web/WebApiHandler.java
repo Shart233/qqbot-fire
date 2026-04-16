@@ -192,6 +192,9 @@ public class WebApiHandler implements HttpHandler {
         if ("/start".equals(sub) && "POST".equals(method)) { handleNapCatStart(ex); return; }
         if ("/stop".equals(sub) && "POST".equals(method)) { handleNapCatStop(ex); return; }
         if ("/instances".equals(sub) && "GET".equals(method)) { handleNapCatInstances(ex); return; }
+        if ("/saved".equals(sub) && "GET".equals(method)) { handleNapCatSaved(ex); return; }
+        if ("/saved".equals(sub) && "PUT".equals(method)) { handleNapCatUpdateSaved(ex); return; }
+        if ("/forget".equals(sub) && "POST".equals(method)) { handleNapCatForget(ex); return; }
         if ("/discover".equals(sub) && "POST".equals(method)) { handleNapCatDiscover(ex); return; }
 
         // /instances/{name}/log
@@ -628,6 +631,8 @@ public class WebApiHandler implements HttpHandler {
             sendError(ex, 400, "缺少 name, time, targets 或 message"); return;
         }
 
+        String targetType = body.get("targetType") instanceof String tt ? tt : "private";
+
         var targets = new ArrayList<Long>();
         if (rawTargets instanceof List<?> targetList) {
             for (var t : targetList) {
@@ -636,7 +641,7 @@ public class WebApiHandler implements HttpHandler {
         }
 
         try {
-            inst.getScheduler().addTask(name, time, targets, message);
+            inst.getScheduler().addTask(name, time, targets, targetType, message);
             sendOk(ex, Map.of("message", "任务已添加"));
         } catch (Exception e) {
             sendError(ex, 400, e.getMessage());
@@ -701,11 +706,19 @@ public class WebApiHandler implements HttpHandler {
         String qq = (String) body.get("qq");
         int webuiPort = ConvertUtil.intOf(body.get("webuiPort"), 6099);
 
-        if (name == null || qq == null) {
-            sendError(ex, 400, "缺少 name 或 qq 参数"); return;
+        // 如果只提供 name，从记忆实例补全参数
+        var launcher = console.getNapCatLauncher();
+        if (name != null && (qq == null || qq.isEmpty())) {
+            var saved = launcher.getSavedInstance(name);
+            if (saved != null) {
+                qq = saved.qqUin;
+                webuiPort = saved.webuiPort;
+            }
         }
 
-        var launcher = console.getNapCatLauncher();
+        if (name == null || qq == null || qq.isEmpty()) {
+            sendError(ex, 400, "缺少 name 或 qq 参数 (记忆中也没有此实例)"); return;
+        }
 
         // 自动发现端口和 token
         int wsPort = 0, httpPort = 0;
@@ -753,6 +766,8 @@ public class WebApiHandler implements HttpHandler {
                 inst.setHttpToken(httpToken);
                 if (wsPort == 0) inst.setMode("http");
             }
+            inst.setNapCatInstanceName(name);
+            inst.setQqUin(qq);
             console.saveConfig();
 
             var data = new LinkedHashMap<String, Object>();
@@ -785,9 +800,15 @@ public class WebApiHandler implements HttpHandler {
     }
 
     private void handleNapCatInstances(HttpExchange ex) throws IOException {
-        var instances = console.getNapCatLauncher().listInstances();
+        var launcher = console.getNapCatLauncher();
+        var running = launcher.listInstances();
+        var savedAll = launcher.getSavedInstances();
+        var runningNames = new HashSet<String>();
         var list = new ArrayList<Map<String, Object>>();
-        for (var inst : instances) {
+
+        // 运行中的实例
+        for (var inst : running) {
+            runningNames.add(inst.name);
             var m = new LinkedHashMap<String, Object>();
             m.put("name", inst.name);
             m.put("qqUin", inst.qqUin);
@@ -797,9 +818,77 @@ public class WebApiHandler implements HttpHandler {
             m.put("workDir", inst.workDir);
             m.put("pid", inst.pid);
             m.put("alive", inst.process != null && inst.process.isAlive());
+            m.put("saved", launcher.getSavedInstance(inst.name) != null);
+            list.add(m);
+        }
+        // 未运行但有记忆的实例
+        for (var si : savedAll) {
+            if (!runningNames.contains(si.name)) {
+                var m = new LinkedHashMap<String, Object>();
+                m.put("name", si.name);
+                m.put("qqUin", si.qqUin);
+                m.put("wsPort", 0);
+                m.put("httpPort", 0);
+                m.put("webuiPort", si.webuiPort);
+                m.put("workDir", "");
+                m.put("pid", 0L);
+                m.put("alive", false);
+                m.put("saved", true);
+                list.add(m);
+            }
+        }
+        sendOk(ex, list);
+    }
+
+    private void handleNapCatSaved(HttpExchange ex) throws IOException {
+        var saved = console.getNapCatLauncher().getSavedInstances();
+        var list = new ArrayList<Map<String, Object>>();
+        for (var si : saved) {
+            var m = new LinkedHashMap<String, Object>();
+            m.put("name", si.name);
+            m.put("qqUin", si.qqUin);
+            m.put("webuiPort", si.webuiPort);
+            m.put("running", console.getNapCatLauncher().isRunning(si.name));
             list.add(m);
         }
         sendOk(ex, list);
+    }
+
+    private void handleNapCatUpdateSaved(HttpExchange ex) throws IOException {
+        var body = readBodyAsMap(ex);
+        String name = (String) body.get("name");
+        if (name == null || name.isEmpty()) { sendError(ex, 400, "缺少 name 参数"); return; }
+
+        var launcher = console.getNapCatLauncher();
+        if (launcher.getSavedInstance(name) == null) {
+            sendError(ex, 404, "记忆中没有实例 '" + name + "'"); return;
+        }
+        if (launcher.isRunning(name)) {
+            sendError(ex, 400, "实例 '" + name + "' 正在运行，请先停止再编辑"); return;
+        }
+
+        String qqUin = body.containsKey("qqUin") ? String.valueOf(body.get("qqUin")) : launcher.getSavedInstance(name).qqUin;
+        int webuiPort = body.containsKey("webuiPort") ? ((Number) body.get("webuiPort")).intValue() : launcher.getSavedInstance(name).webuiPort;
+
+        launcher.saveInstance(name, qqUin, webuiPort);
+        sendOk(ex, Map.of("updated", name));
+    }
+
+    private void handleNapCatForget(HttpExchange ex) throws IOException {
+        var body = readBodyAsMap(ex);
+        String name = (String) body.get("name");
+        if (name == null) { sendError(ex, 400, "缺少 name 参数"); return; }
+
+        var launcher = console.getNapCatLauncher();
+        if ("all".equalsIgnoreCase(name)) {
+            var all = new ArrayList<>(launcher.getSavedInstances());
+            for (var si : all) launcher.forgetInstance(si.name);
+            sendOk(ex, Map.of("forgotten", all.size()));
+        } else if (launcher.forgetInstance(name)) {
+            sendOk(ex, Map.of("forgotten", name));
+        } else {
+            sendError(ex, 404, "记忆中没有实例 '" + name + "'");
+        }
     }
 
     private void handleNapCatLog(HttpExchange ex, String name) throws IOException {
@@ -922,6 +1011,7 @@ public class WebApiHandler implements HttpHandler {
         m.put("name", task.name);
         m.put("time", task.time);
         m.put("targets", task.targets);
+        m.put("targetType", task.targetType);
         m.put("message", task.message);
         m.put("enabled", task.enabled);
         return m;

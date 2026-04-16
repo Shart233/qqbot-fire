@@ -64,7 +64,7 @@ public class WebConsoleServer {
     }
 
     public WebConsoleServer(BotConsole console) {
-        this(console, 8080);
+        this(console, 9988);
     }
 
     /**

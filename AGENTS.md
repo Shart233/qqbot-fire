@@ -45,7 +45,7 @@ QQ Bot client built on NapCat/OneBot 11. Two independent codebases in one repo: 
 
 ```bash
 cd web-ui
-npm run dev          # Vite dev server on :5173, proxies /api -> :8080
+npm run dev          # Vite dev server on :5173, proxies /api -> :9988
 npm run build        # tsc -b && vite build -> web-ui/dist/
 npm run deploy       # build + copy dist/ -> src/resources/web/
 npm run lint         # ESLint
@@ -87,7 +87,7 @@ Without the tuple assertion, TS errors with `number[] is not assignable to Easin
 ## Gotchas
 
 - **Never edit `src/resources/web/` by hand.** Always edit under `web-ui/src/` and run `npm run deploy`.
-- The Vite dev server proxies `/api` to `http://127.0.0.1:8080` — the Java backend must be running for the UI to work in dev mode.
+- The Vite dev server proxies `/api` to `http://127.0.0.1:9988` — the Java backend must be running for the UI to work in dev mode.
 - Build produces a single chunk >500KB (expected; no code-splitting configured).
 - `config.json`, `.keys/`, `schedules*.json`, and `logs/` are gitignored runtime artifacts.
 - The project language is primarily Chinese (comments, UI strings, README).

@@ -1,0 +1,15 @@
+.idea/
+*.iml
+.gradle/
+build/
+out/
+logs/
+config.json
+.keys/
+schedules*.json
+web-ui/node_modules/
+web-ui/dist/
+.claude/
+.vscode/
+.DS_Store
+*.bat

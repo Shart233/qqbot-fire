@@ -51,6 +51,7 @@ export interface ScheduleTask {
   name: string
   time: string
   targets: number[]
+  targetType: 'group' | 'private'
   message: string
   enabled: boolean
 }
@@ -69,6 +70,14 @@ export interface NapCatInstance {
   workDir: string
   pid: number
   alive: boolean
+  saved: boolean
+}
+
+export interface SavedNapCatInstance {
+  name: string
+  qqUin: string
+  webuiPort: number
+  running: boolean
 }
 
 export interface LogReadResponse {

@@ -19,6 +19,7 @@ export default function SchedulesPage() {
   const [name, setName] = useState('')
   const [time, setTime] = useState('')
   const [targets, setTargets] = useState('')
+  const [targetType, setTargetType] = useState<'group' | 'private'>('private')
   const [message, setMessage] = useState('')
 
   useEffect(() => {
@@ -53,11 +54,11 @@ export default function SchedulesPage() {
       toast.danger('目标格式错误')
       return
     }
-    const data = await addSchedule(bot, { name: name.trim(), time, targets: targetNums, message: message.trim() })
+    const data = await addSchedule(bot, { name: name.trim(), time, targets: targetNums, targetType, message: message.trim() })
     if (data !== null) {
       toast.success('任务已添加')
       appendLog(`添加定时任务: ${name.trim()}`)
-      setName(''); setTime(''); setTargets(''); setMessage('')
+      setName(''); setTime(''); setTargets(''); setTargetType('private'); setMessage('')
       loadScheduleList()
     }
   }
@@ -117,7 +118,12 @@ export default function SchedulesPage() {
                       <Table.Row key={t.name} id={t.name}>
                         <Table.Cell>{t.name}</Table.Cell>
                         <Table.Cell>{t.time}</Table.Cell>
-                        <Table.Cell>{(t.targets || []).join(', ')}</Table.Cell>
+                        <Table.Cell>
+                          <span className="text-xs px-1.5 py-0.5 rounded-md mr-1.5 bg-opacity-20 font-medium" style={{ background: t.targetType === 'group' ? 'rgba(59,130,246,0.15)' : 'rgba(168,85,247,0.15)', color: t.targetType === 'group' ? '#3b82f6' : '#a855f7' }}>
+                            {t.targetType === 'group' ? '群' : '好友'}
+                          </span>
+                          {(t.targets || []).join(', ')}
+                        </Table.Cell>
                         <Table.Cell>
                           <span className="max-w-[200px] truncate inline-block">{t.message}</span>
                         </Table.Cell>
@@ -170,10 +176,37 @@ export default function SchedulesPage() {
                 />
               </div>
               <div>
-                <label className="text-sm text-text-muted mb-1 block">目标 (逗号分隔群号/QQ号)</label>
+                <label className="text-sm text-text-muted mb-1 block">目标类型</label>
+                <div className="flex gap-2">
+                  <button
+                    type="button"
+                    className={`px-3 py-2 rounded-xl text-sm border transition-colors ${
+                      targetType === 'group'
+                        ? 'bg-accent text-white border-accent'
+                        : 'bg-input-bg text-text-muted border-border-theme hover:border-accent'
+                    }`}
+                    onClick={() => setTargetType('group')}
+                  >
+                    群
+                  </button>
+                  <button
+                    type="button"
+                    className={`px-3 py-2 rounded-xl text-sm border transition-colors ${
+                      targetType === 'private'
+                        ? 'bg-accent text-white border-accent'
+                        : 'bg-input-bg text-text-muted border-border-theme hover:border-accent'
+                    }`}
+                    onClick={() => setTargetType('private')}
+                  >
+                    好友
+                  </button>
+                </div>
+              </div>
+              <div>
+                <label className="text-sm text-text-muted mb-1 block">{targetType === 'group' ? '群号 (逗号分隔)' : 'QQ号 (逗号分隔)'}</label>
                 <input
                   className="bg-input-bg border border-border-theme text-text-primary rounded-xl px-3 py-2 text-sm outline-none focus:border-accent transition-colors w-full"
-                  placeholder="123456,789012"
+                  placeholder={targetType === 'group' ? '123456,789012' : '123456,789012'}
                   value={targets}
                   onChange={e => setTargets(e.target.value)}
                 />

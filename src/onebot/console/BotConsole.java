@@ -11,6 +11,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 import java.io.IOException;
+import java.net.Socket;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.*;
@@ -124,6 +125,108 @@ public class BotConsole {
         inst.setConnected(false);
         inst.setUserId(0);
         inst.setNickname("");
+    }
+
+    /**
+     * 定时任务自动连接回调：启动 NapCat（如未运行）+ 等待端口就绪 + 连接 Bot。
+     * 由 ScheduleManager.BotConnector 调用。
+     * @return 连接成功的 OneBotClient，失败返回 null
+     */
+    public OneBotClient autoConnectBot(BotInstance inst) {
+        String ncName = inst.getNapCatInstanceName();
+        String qq = inst.getQqUin();
+        if (ncName == null || ncName.isEmpty() || qq == null || qq.isEmpty()) {
+            logger.warn("[{}] 无法自动连接: 缺少 napCatInstanceName 或 qqUin", inst.getName());
+            return null;
+        }
+
+        try {
+            // 1) 启动 NapCat（如果未在运行）
+            if (!napCatLauncher.isRunning(ncName)) {
+                logger.info("[{}] 自动启动 NapCat 实例: {}", inst.getName(), ncName);
+
+                // 从配置发现端口和 token
+                int wsPort = 0, httpPort = 0;
+                String wsToken = "", httpToken = "";
+                try {
+                    Path sharedConfigDir = Path.of(napCatLauncher.getNapCatDir(), "config");
+                    var matched = NapCatConfigDiscovery.discoverByQQ(sharedConfigDir, qq);
+                    String wr = napCatLauncher.getWorkRoot();
+                    if (wr == null || wr.isEmpty()) wr = napCatLauncher.getNapCatDir() + "/instances";
+                    Path instanceConfigDir = Path.of(wr, ncName, "config");
+                    var instanceCfg = NapCatConfigDiscovery.discoverByQQ(instanceConfigDir, qq);
+                    if (matched != null && instanceCfg != null) {
+                        NapCatConfigDiscovery.mergeConfig(matched, instanceCfg);
+                    } else if (matched == null) {
+                        matched = instanceCfg;
+                    }
+                    if (matched != null) {
+                        if (matched.wsPort > 0) { wsPort = matched.wsPort; wsToken = matched.wsToken; }
+                        if (matched.httpPort > 0) { httpPort = matched.httpPort; httpToken = matched.httpToken; }
+                    }
+                } catch (Exception e) {
+                    logger.warn("[{}] 读取 NapCat 配置失败: {}", inst.getName(), e.getMessage());
+                }
+
+                // 从记忆实例读取 webuiPort（如果有）
+                int webuiPort = 6099;
+                var savedInst = napCatLauncher.getSavedInstance(ncName);
+                if (savedInst != null) webuiPort = savedInst.webuiPort;
+
+                napCatLauncher.start(ncName, qq, wsPort, httpPort, webuiPort);
+
+                // 更新 BotInstance 连接参数
+                if (wsPort > 0) {
+                    inst.setMode("ws");
+                    inst.setWsUrl("ws://127.0.0.1:" + wsPort);
+                    inst.setWsToken(wsToken);
+                }
+                if (httpPort > 0) {
+                    inst.setHttpUrl("http://127.0.0.1:" + httpPort);
+                    inst.setHttpToken(httpToken);
+                    if (wsPort == 0) inst.setMode("http");
+                }
+                saveConfig();
+
+                // 2) 等待端口就绪（最多 30 秒）
+                int port = wsPort > 0 ? wsPort : httpPort;
+                if (port > 0) {
+                    logger.info("[{}] 等待端口 {} 就绪...", inst.getName(), port);
+                    if (!waitForPort(port, 30_000)) {
+                        logger.warn("[{}] 等待端口超时", inst.getName());
+                        return null;
+                    }
+                    Thread.sleep(2000); // 额外等待 NapCat 完全初始化
+                }
+            }
+
+            // 3) 连接 Bot
+            connectInstance(inst);
+            if (inst.isConnected() && inst.getClient() != null) {
+                logger.info("[{}] 自动连接成功", inst.getName());
+                return inst.getClient();
+            }
+        } catch (Exception e) {
+            logger.error("[{}] 自动连接异常", inst.getName(), e);
+        }
+        return null;
+    }
+
+    /** 等待指定端口可连接 */
+    private boolean waitForPort(int port, long timeoutMs) {
+        long deadline = System.currentTimeMillis() + timeoutMs;
+        while (System.currentTimeMillis() < deadline) {
+            try (var socket = new Socket("127.0.0.1", port)) {
+                return true;
+            } catch (IOException ignored) {
+                // 端口未就绪
+            }
+            try { Thread.sleep(1000); } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                return false;
+            }
+        }
+        return false;
     }
 
     public void start() {
@@ -537,6 +640,7 @@ public class BotConsole {
 
         tryPrintLoginInfo(inst);
         inst.getScheduler().setBot(client);
+        inst.getScheduler().setBotConnector(() -> autoConnectBot(inst));
         inst.getScheduler().start();
         inst.setConnected(true);
 
@@ -556,6 +660,7 @@ public class BotConsole {
 
         tryPrintLoginInfo(inst);
         inst.getScheduler().setBot(client);
+        inst.getScheduler().setBotConnector(() -> autoConnectBot(inst));
         inst.getScheduler().start();
         inst.setConnected(true);
 
@@ -764,31 +869,38 @@ public class BotConsole {
             }
             case "add" -> {
                 if (parts.length < 3) {
-                    System.out.println("用法: /schedule add <名称> <HH:mm> <QQ1,QQ2,...> <消息内容>");
-                    System.out.println("示例: /schedule add morning 05:00 123456,789012 早上好！");
+                    System.out.println("用法: /schedule add <名称> <HH:mm> <group|private> <号码1,号码2,...> <消息内容>");
+                    System.out.println("示例: /schedule add morning 05:00 private 123456,789012 早上好！");
+                    System.out.println("示例: /schedule add grpmsg 08:00 group 111222,333444 群早安！");
                     return;
                 }
                 String rest = parts[2];
-                String[] args = rest.split("\\s+", 4);
-                if (args.length < 4) {
-                    System.out.println("参数不足，用法: /schedule add <名称> <HH:mm> <QQ1,QQ2,...> <消息>");
+                String[] args = rest.split("\\s+", 5);
+                if (args.length < 5) {
+                    System.out.println("参数不足，用法: /schedule add <名称> <HH:mm> <group|private> <号码,...> <消息>");
                     return;
                 }
                 String name = args[0];
                 String time = args[1];
-                String[] qqStrs = args[2].split(",");
-                String message = args[3];
+                String targetType = args[2];
+                if (!"group".equals(targetType) && !"private".equals(targetType)) {
+                    System.out.println("目标类型必须是 group 或 private，当前: " + targetType);
+                    return;
+                }
+                String[] qqStrs = args[3].split(",");
+                String message = args[4];
 
                 var targets = new ArrayList<Long>();
                 for (String qq : qqStrs) {
                     try { targets.add(Long.parseLong(qq.trim())); }
-                    catch (NumberFormatException e) { System.out.println("无效 QQ 号: " + qq); return; }
+                    catch (NumberFormatException e) { System.out.println("无效号码: " + qq); return; }
                 }
 
                 try {
-                    scheduler.addTask(name, time, targets, message);
+                    scheduler.addTask(name, time, targets, targetType, message);
                     System.out.println("[" + inst.getName() + "] 定时任务已添加: " + name
-                            + " -> 每天 " + time + " 发送到 " + targets.size() + " 人");
+                            + " -> 每天 " + time + " 发送到 " + targets.size()
+                            + ("group".equals(targetType) ? " 个群" : " 人"));
                 } catch (Exception e) {
                     System.out.println("添加失败: " + e.getMessage());
                 }
@@ -829,6 +941,34 @@ public class BotConsole {
                     System.out.println("任务不存在: " + name);
                 }
             }
+            case "autostart" -> {
+                if (parts.length < 3 || parts[2].isBlank()) {
+                    System.out.println("用法: /schedule autostart <任务名> [on|off]");
+                    System.out.println("  开启后，定时任务触发时若 Bot 未连接，将自动启动 NapCat 并连接");
+                    System.out.println("  前提: Bot 已配置 napCatInstanceName 和 qqUin (通过 /napcat start 自动设置)");
+                    return;
+                }
+                String[] autoArgs = parts[2].trim().split("\\s+", 2);
+                String name = autoArgs[0];
+                var task = scheduler.getTask(name);
+                if (task == null) {
+                    System.out.println("任务不存在: " + name);
+                    return;
+                }
+                if (autoArgs.length < 2) {
+                    // 无 on/off 参数，显示当前状态
+                    System.out.println("[" + inst.getName() + "] 任务 " + name + " 自动启动: " + (task.autoConnect ? "ON" : "OFF"));
+                    return;
+                }
+                String toggle = autoArgs[1].toLowerCase();
+                boolean enable = "on".equals(toggle) || "true".equals(toggle) || "1".equals(toggle);
+                task.autoConnect = enable;
+                scheduler.saveTasks();
+                System.out.println("[" + inst.getName() + "] 任务 " + name + " 自动启动已" + (enable ? "开启" : "关闭"));
+                if (enable && (inst.getNapCatInstanceName().isEmpty() || inst.getQqUin().isEmpty())) {
+                    System.out.println("  注意: 当前 Bot 缺少 NapCat 关联配置，请先通过 /napcat start 启动一次");
+                }
+            }
             default -> printScheduleHelp();
         }
     }
@@ -840,6 +980,7 @@ public class BotConsole {
         System.out.println("  remove <名称>                 删除任务");
         System.out.println("  on <名称>                     启用任务");
         System.out.println("  off <名称>                    禁用任务");
+        System.out.println("  autostart <名称> [on|off]     开关自动启动 NapCat");
         System.out.println("  test <名称>                   立即测试执行");
         System.out.println();
         System.out.println("定时任务归属当前选中的 Bot，切换 Bot 后操作对应的任务列表");
@@ -876,25 +1017,39 @@ public class BotConsole {
             }
             case "start" -> {
                 if (parts.length < 3) {
-                    System.out.println("用法: /napcat start <名称> <QQ号> [WebUI端口]");
+                    System.out.println("用法: /napcat start <名称> [QQ号] [WebUI端口]");
+                    System.out.println("  如果有记忆实例，只需名称即可快速启动");
                     System.out.println("  端口和 Token 自动从 NapCat 配置读取");
-                    System.out.println("示例: /napcat start bot1 2838453502");
+                    System.out.println("示例: /napcat start bot1            (从记忆启动)");
+                    System.out.println("      /napcat start bot1 2838453502");
                     System.out.println("      /napcat start bot1 2838453502 6101");
                     return;
                 }
                 String[] args = parts[2].trim().split("\\s+");
-                if (args.length < 2) {
-                    System.out.println("参数不足，用法: /napcat start <名称> <QQ号> [WebUI端口]");
-                    return;
-                }
-                String name = args[0], qqUin = args[1];
+                String name = args[0];
+                String qqUin;
                 int webuiPort = 6099; // 默认 WebUI 端口
-                if (args.length >= 3) {
-                    try {
-                        webuiPort = Integer.parseInt(args[2]);
-                    } catch (NumberFormatException e) {
-                        System.out.println("WebUI 端口必须是数字");
+
+                if (args.length < 2) {
+                    // 只有名称 -> 从记忆实例读取参数
+                    var saved = napCatLauncher.getSavedInstance(name);
+                    if (saved == null) {
+                        System.out.println("记忆中没有实例 '" + name + "'，需要指定 QQ 号");
+                        System.out.println("用法: /napcat start <名称> <QQ号> [WebUI端口]");
                         return;
+                    }
+                    qqUin = saved.qqUin;
+                    webuiPort = saved.webuiPort;
+                    System.out.println("从记忆启动: " + saved);
+                } else {
+                    qqUin = args[1];
+                    if (args.length >= 3) {
+                        try {
+                            webuiPort = Integer.parseInt(args[2]);
+                        } catch (NumberFormatException e) {
+                            System.out.println("WebUI 端口必须是数字");
+                            return;
+                        }
                     }
                 }
 
@@ -963,6 +1118,8 @@ public class BotConsole {
                         inst.setHttpToken(httpToken);
                         if (wsPort == 0) inst.setMode("http");
                     }
+                    inst.setNapCatInstanceName(name);
+                    inst.setQqUin(qqUin);
                     saveConfig();
                     System.out.println("  Bot '" + botName + "' 已自动配置，使用 /connect 连接");
                 } catch (Exception e) {
@@ -990,13 +1147,25 @@ public class BotConsole {
                 }
             }
             case "list", "ls" -> {
-                var instances = napCatLauncher.listInstances();
-                if (instances.isEmpty()) {
-                    System.out.println("暂无运行中的 NapCat 实例");
+                var running = napCatLauncher.listInstances();
+                var savedAll = napCatLauncher.getSavedInstances();
+                var runningNames = new java.util.HashSet<String>();
+                for (var r : running) runningNames.add(r.name);
+
+                if (running.isEmpty() && savedAll.isEmpty()) {
+                    System.out.println("暂无 NapCat 实例 (运行中或记忆中)");
                 } else {
-                    System.out.println("NapCat 实例列表 (共 " + instances.size() + " 个):");
-                    for (var inst : instances) {
-                        System.out.println("  " + inst);
+                    System.out.println("NapCat 实例列表:");
+                    // 先显示运行中的
+                    for (var inst : running) {
+                        boolean memorized = napCatLauncher.getSavedInstance(inst.name) != null;
+                        System.out.println("  " + inst + (memorized ? " [记忆]" : ""));
+                    }
+                    // 再显示未运行但有记忆的
+                    for (var si : savedAll) {
+                        if (!runningNames.contains(si.name)) {
+                            System.out.println("  [已停止] " + si + " [记忆]");
+                        }
                     }
                 }
                 String dir = napCatLauncher.getNapCatDir();
@@ -1035,6 +1204,34 @@ public class BotConsole {
                     }
                 }
                 System.out.println("实例 '" + name + "' 不存在");
+            }
+            case "memory", "mem" -> {
+                var savedAll = napCatLauncher.getSavedInstances();
+                if (savedAll.isEmpty()) {
+                    System.out.println("暂无记忆的 NapCat 实例");
+                } else {
+                    System.out.println("记忆的 NapCat 实例 (共 " + savedAll.size() + " 个):");
+                    for (var si : savedAll) {
+                        boolean alive = napCatLauncher.isRunning(si.name);
+                        System.out.println("  " + si + (alive ? "  [运行中]" : "  [已停止]"));
+                    }
+                }
+            }
+            case "forget" -> {
+                if (parts.length < 3 || parts[2].isBlank()) {
+                    System.out.println("用法: /napcat forget <名称|all>");
+                    return;
+                }
+                String target = parts[2].trim();
+                if ("all".equalsIgnoreCase(target)) {
+                    var all = new java.util.ArrayList<>(napCatLauncher.getSavedInstances());
+                    for (var si : all) napCatLauncher.forgetInstance(si.name);
+                    System.out.println("已遗忘所有记忆实例 (共 " + all.size() + " 个)");
+                } else if (napCatLauncher.forgetInstance(target)) {
+                    System.out.println("已遗忘实例: " + target);
+                } else {
+                    System.out.println("记忆中没有实例 '" + target + "'");
+                }
             }
             case "attach", "a" -> {
                 if (parts.length < 3 || parts[2].isBlank()) {
@@ -1227,10 +1424,12 @@ public class BotConsole {
         System.out.println("用法: /napcat <子命令>");
         System.out.println("  dir [路径]           查看/设置 NapCat.Shell 目录");
         System.out.println("  workroot [路径]      查看/设置实例工作根目录");
-        System.out.println("  start <名称> <QQ号> <WS端口> <HTTP端口> <WebUI端口>");
-        System.out.println("                       启动 NapCat 实例");
+        System.out.println("  start <名称> [QQ号] [WebUI端口]");
+        System.out.println("                       启动 NapCat 实例 (有记忆时只需名称)");
         System.out.println("  stop <名称|all>      停止 NapCat 实例");
-        System.out.println("  list                 查看运行中的实例");
+        System.out.println("  list                 查看所有实例 (运行中+记忆)");
+        System.out.println("  memory               查看记忆的实例");
+        System.out.println("  forget <名称|all>    遗忘记忆的实例");
         System.out.println("  log <名称>           查看实例日志 (最后30行)");
         System.out.println("  attach <名称>        连接实时日志流 (屏幕切换)");
         System.out.println("  detach               断开日志流");
@@ -1240,9 +1439,12 @@ public class BotConsole {
         System.out.println(IS_WINDOWS
                 ? "  /napcat dir C:\\Users\\Lenovo\\Desktop\\NapCat.Shell"
                 : "  /napcat dir /opt/NapCat.Shell");
-        System.out.println("  /napcat start bot1 2838453502 3001 3003 6101");
-        System.out.println("  /napcat start bot2 3149003262 3002 3004 6102");
+        System.out.println("  /napcat start bot1               (从记忆快速启动)");
+        System.out.println("  /napcat start bot1 2838453502    (首次启动)");
+        System.out.println("  /napcat start bot1 2838453502 6101");
         System.out.println("  /napcat list");
+        System.out.println("  /napcat memory");
+        System.out.println("  /napcat forget bot1");
         System.out.println("  /napcat stop all");
     }
 
@@ -1339,10 +1541,30 @@ public class BotConsole {
         if (result.napCatDir() != null) napCatLauncher.setNapCatDir(result.napCatDir());
         if (result.napCatWorkRoot() != null) napCatLauncher.setWorkRoot(result.napCatWorkRoot());
 
+        // 加载记忆的 NapCat 实例
+        napCatLauncher.loadSavedInstances();
+        var saved = napCatLauncher.getSavedInstances();
+        if (!saved.isEmpty()) {
+            logger.info("已加载 {} 个记忆的 NapCat 实例", saved.size());
+        }
+
         // 旧格式迁移: 如果文件是旧格式，ConfigManager.load() 已解析，但需要保存为新格式
         if (result.bots().size() == 1 && result.bots().containsKey("default")) {
             // 可能是旧格式迁移，保存一次确保新格式
             saveConfig();
+        }
+
+        // 为有 napCatInstanceName 的 Bot 注入自动连接回调并启动调度器
+        // 这样即使 Bot 未连接，定时任务也能在触发时自动启动 NapCat + 连接
+        for (var inst : bots.values()) {
+            if (inst.getNapCatInstanceName() != null && !inst.getNapCatInstanceName().isEmpty()) {
+                inst.getScheduler().setBotConnector(() -> autoConnectBot(inst));
+                if (!inst.getScheduler().getTasks().isEmpty()) {
+                    inst.getScheduler().start();
+                    logger.info("[{}] 调度器已启动 (有 {} 个定时任务，支持自动连接)",
+                            inst.getName(), inst.getScheduler().getTasks().size());
+                }
+            }
         }
     }
 
@@ -1410,7 +1632,9 @@ public class BotConsole {
         System.out.println("  │ /napcat dir [路径]  NapCat.Shell 目录 │");
         System.out.println("  │ /napcat start ...  启动 NapCat 实例   │");
         System.out.println("  │ /napcat stop <名称> 停止 NapCat 实例  │");
-        System.out.println("  │ /napcat list       查看运行中的实例   │");
+        System.out.println("  │ /napcat list       查看所有实例       │");
+        System.out.println("  │ /napcat memory     查看记忆实例       │");
+        System.out.println("  │ /napcat forget ... 遗忘记忆实例       │");
         System.out.println("  │ /napcat log <名称> 查看实例日志       │");
         System.out.println("  │ /napcat attach <名称> 实时日志流      │");
         System.out.println("  │ /napcat detach   断开日志流           │");

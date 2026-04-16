@@ -134,6 +134,9 @@ public class NapCatLauncher {
         np.pid = process.pid();
         processes.put(name, np);
 
+        // 自动记忆实例 (持久化，重启后可快速启动)
+        saveInstance(name, qqUin, webuiPort);
+
         logger.info("NapCat 实例已启动: {} QQ={} PID={} WS={} HTTP={} WebUI={} [{}]",
                 name, qqUin, process.pid(), wsPort, httpPort, webuiPort,
                 IS_WINDOWS ? "Windows" : "Linux");
@@ -374,6 +377,86 @@ public class NapCatLauncher {
         }
 
         throw new IOException("未找到 node，请确认已安装 Node.js (apt install nodejs 或 nvm install --lts)");
+    }
+
+    // ==================== 记忆实例 (持久化) ====================
+
+    private static final String SAVED_INSTANCES_FILE = "napcat_instances.json";
+    private final Map<String, SavedInstance> savedInstances = new ConcurrentHashMap<>();
+
+    /** 保存的实例配置 (持久化到文件，重启后保留) */
+    public static class SavedInstance {
+        public String name = "";
+        public String qqUin = "";
+        public int webuiPort = 6099;
+
+        @Override
+        public String toString() {
+            return String.format("%s QQ=%s WebUI=%d", name, qqUin, webuiPort);
+        }
+    }
+
+    /** 保存记忆实例 */
+    public void saveInstance(String name, String qqUin, int webuiPort) {
+        var si = new SavedInstance();
+        si.name = name;
+        si.qqUin = qqUin;
+        si.webuiPort = webuiPort;
+        savedInstances.put(name, si);
+        persistSavedInstances();
+        logger.info("已记忆 NapCat 实例: {} QQ={}", name, qqUin);
+    }
+
+    /** 移除记忆实例 */
+    public boolean forgetInstance(String name) {
+        var removed = savedInstances.remove(name);
+        if (removed != null) {
+            persistSavedInstances();
+            logger.info("已遗忘 NapCat 实例: {}", name);
+        }
+        return removed != null;
+    }
+
+    /** 获取记忆实例 */
+    public SavedInstance getSavedInstance(String name) {
+        return savedInstances.get(name);
+    }
+
+    /** 获取所有记忆实例 */
+    public Collection<SavedInstance> getSavedInstances() {
+        return Collections.unmodifiableCollection(savedInstances.values());
+    }
+
+    /** 加载持久化文件 */
+    public void loadSavedInstances() {
+        try {
+            Path path = Path.of(SAVED_INSTANCES_FILE);
+            if (Files.exists(path)) {
+                String json = Files.readString(path);
+                java.lang.reflect.Type listType = new com.google.gson.reflect.TypeToken<List<SavedInstance>>(){}.getType();
+                List<SavedInstance> loaded = GsonFactory.gson().fromJson(json, listType);
+                if (loaded != null) {
+                    for (var si : loaded) {
+                        if (si.name != null && !si.name.isEmpty()) {
+                            savedInstances.put(si.name, si);
+                        }
+                    }
+                }
+                logger.debug("已加载 {} 个记忆实例", savedInstances.size());
+            }
+        } catch (Exception e) {
+            logger.warn("加载记忆实例失败: {}", e.getMessage());
+        }
+    }
+
+    /** 持久化到文件 */
+    private void persistSavedInstances() {
+        try {
+            var list = new java.util.ArrayList<>(savedInstances.values());
+            Files.writeString(Path.of(SAVED_INSTANCES_FILE), GsonFactory.gson().toJson(list));
+        } catch (IOException e) {
+            logger.warn("保存记忆实例失败", e);
+        }
     }
 
     // ==================== 数据类 ====================

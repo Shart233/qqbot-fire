@@ -34,7 +34,7 @@ export const sendMessage = (name: string, type: string, target: number, message:
 
 // Schedules
 export const listSchedules = (name: string) => apiCall<ScheduleTask[]>('GET', `/api/bots/${enc(name)}/schedules`)
-export const addSchedule = (name: string, task: { name: string; time: string; targets: number[]; message: string }) =>
+export const addSchedule = (name: string, task: { name: string; time: string; targets: number[]; targetType: 'group' | 'private'; message: string }) =>
   apiCall<{ message: string }>('POST', `/api/bots/${enc(name)}/schedules`, task)
 export const deleteSchedule = (botName: string, taskName: string) =>
   apiCall<{ deleted: string }>('DELETE', `/api/bots/${enc(botName)}/schedules/${enc(taskName)}`)
@@ -46,12 +46,15 @@ export const testSchedule = (botName: string, taskName: string) =>
 // NapCat
 export const getNapCatConfig = () => apiCall<NapCatConfig>('GET', '/api/napcat/config')
 export const setNapCatConfig = (config: Partial<NapCatConfig>) => apiCall<{ message: string }>('PUT', '/api/napcat/config', config)
-export const startNapCat = (name: string, qq: string, webuiPort?: number) =>
-  apiCall<{ name: string; qq: string; wsPort: number; httpPort: number; webuiPort: number; botName: string }>('POST', '/api/napcat/start', { name, qq, webuiPort: webuiPort || 6099 })
+export const startNapCat = (name: string, qq?: string, webuiPort?: number) =>
+  apiCall<{ name: string; qq: string; wsPort: number; httpPort: number; webuiPort: number; botName: string }>('POST', '/api/napcat/start', { name, ...(qq ? { qq } : {}), ...(webuiPort ? { webuiPort } : {}) })
 export const stopNapCat = (name: string) => apiCall<{ stopped?: string; message?: string }>('POST', '/api/napcat/stop', { name })
 export const listNapCatInstances = () => apiCall<NapCatInstance[]>('GET', '/api/napcat/instances')
 export const getNapCatLog = (name: string) => apiCall<{ name: string; lines: string[] }>('GET', `/api/napcat/instances/${enc(name)}/log`)
 export const discoverNapCat = () => apiCall<DiscoverResponse>('POST', '/api/napcat/discover')
+export const forgetNapCat = (name: string) => apiCall<{ forgotten: string | number }>('POST', '/api/napcat/forget', { name })
+export const updateSavedNapCat = (name: string, qqUin: string, webuiPort: number) =>
+  apiCall<{ updated: string }>('PUT', '/api/napcat/saved', { name, qqUin, webuiPort })
 
 // Console
 export const execCommand = (command: string) => apiCall<ConsoleExecResponse>('POST', '/api/console/exec', { command })

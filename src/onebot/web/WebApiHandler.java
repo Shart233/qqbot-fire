@@ -168,6 +168,9 @@ public class WebApiHandler implements HttpHandler {
             subAction = rest.substring(slash);
         }
 
+        if (subAction.isEmpty() && "PUT".equals(method)) {
+            handleUpdateSchedule(ex, botName, taskName); return;
+        }
         if (subAction.isEmpty() && "DELETE".equals(method)) {
             handleDeleteSchedule(ex, botName, taskName); return;
         }
@@ -176,6 +179,9 @@ public class WebApiHandler implements HttpHandler {
         }
         if ("/test".equals(subAction) && "POST".equals(method)) {
             handleTestSchedule(ex, botName, taskName); return;
+        }
+        if ("/autoconnect".equals(subAction) && "PUT".equals(method)) {
+            handleAutoConnectSchedule(ex, botName, taskName); return;
         }
 
         sendError(ex, 404, "未知定时任务 API");
@@ -223,17 +229,13 @@ public class WebApiHandler implements HttpHandler {
             sendError(ex, 400, "缺少 command 参数"); return;
         }
 
-        // 捕获 System.out 输出
+        // 捕获命令输出（线程安全：使用独立输出流，不修改全局 System.out）
         var baos = new java.io.ByteArrayOutputStream();
         var capture = new java.io.PrintStream(baos, true, java.nio.charset.StandardCharsets.UTF_8);
-        var oldOut = System.out;
-        System.setOut(capture);
         try {
-            console.executeCommand(command);
+            console.executeCommand(command, capture);
         } catch (Exception e) {
-            System.out.println("错误: " + e.getMessage());
-        } finally {
-            System.setOut(oldOut);
+            capture.println("错误: " + e.getMessage());
         }
 
         String output = baos.toString(java.nio.charset.StandardCharsets.UTF_8);
@@ -642,6 +644,17 @@ public class WebApiHandler implements HttpHandler {
 
         try {
             inst.getScheduler().addTask(name, time, targets, targetType, message);
+            // 读取 autoConnect，默认 false
+            boolean autoConnect = Boolean.TRUE.equals(body.get("autoConnect"));
+            if (autoConnect) {
+                inst.getScheduler().setAutoConnect(name, true);
+            }
+            boolean autoStopAfterSend = Boolean.TRUE.equals(body.get("autoStopAfterSend"));
+            if (autoStopAfterSend) {
+                inst.getScheduler().setAutoStopAfterSend(name, true);
+            }
+            // 确保调度器已启动（start() 内部有 compareAndSet 保护，重复调用安全）
+            ensureSchedulerStarted(inst);
             sendOk(ex, Map.of("message", "任务已添加"));
         } catch (Exception e) {
             sendError(ex, 400, e.getMessage());
@@ -655,6 +668,45 @@ public class WebApiHandler implements HttpHandler {
             sendOk(ex, Map.of("deleted", taskName));
         } else {
             sendError(ex, 404, "任务 '" + taskName + "' 不存在");
+        }
+    }
+
+    private void handleUpdateSchedule(HttpExchange ex, String botName, String taskName) throws IOException {
+        var inst = requireBot(ex, botName);
+        if (inst == null) return;
+        var scheduler = inst.getScheduler();
+        if (scheduler.getTask(taskName) == null) {
+            sendError(ex, 404, "任务 '" + taskName + "' 不存在"); return;
+        }
+        var body = readBodyAsMap(ex);
+        String time = (String) body.get("time");
+        String message = (String) body.get("message");
+        var rawTargets = body.get("targets");
+        if (time == null || message == null || rawTargets == null) {
+            sendError(ex, 400, "缺少 time, targets 或 message"); return;
+        }
+        String targetType = body.get("targetType") instanceof String tt ? tt : "private";
+        var targets = new ArrayList<Long>();
+        if (rawTargets instanceof List<?> targetList) {
+            for (var t : targetList) {
+                targets.add(ConvertUtil.toLong(t));
+            }
+        }
+        try {
+            scheduler.addTask(taskName, time, targets, targetType, message);
+            // 更新 autoConnect（若请求中包含该字段）
+            if (body.containsKey("autoConnect")) {
+                boolean autoConnect = Boolean.TRUE.equals(body.get("autoConnect"));
+                scheduler.setAutoConnect(taskName, autoConnect);
+            }
+            if (body.containsKey("autoStopAfterSend")) {
+                boolean autoStop = Boolean.TRUE.equals(body.get("autoStopAfterSend"));
+                scheduler.setAutoStopAfterSend(taskName, autoStop);
+            }
+            ensureSchedulerStarted(inst);
+            sendOk(ex, Map.of("updated", taskName));
+        } catch (Exception e) {
+            sendError(ex, 400, e.getMessage());
         }
     }
 
@@ -791,8 +843,15 @@ public class WebApiHandler implements HttpHandler {
         var launcher = console.getNapCatLauncher();
         if ("all".equalsIgnoreCase(name)) {
             launcher.stopAll();
+            // 断开所有有 NapCat 关联的 Bot 连接
+            for (var inst : console.getBots().values()) {
+                if (inst.getNapCatInstanceName() != null && !inst.getNapCatInstanceName().isEmpty() && inst.isConnected()) {
+                    console.disconnectInstance(inst);
+                }
+            }
             sendOk(ex, Map.of("message", "已停止所有实例"));
         } else if (launcher.stop(name)) {
+            console.disconnectByNapCat(name);
             sendOk(ex, Map.of("stopped", name));
         } else {
             sendError(ex, 404, "实例 '" + name + "' 不存在或已停止");
@@ -1006,6 +1065,38 @@ public class WebApiHandler implements HttpHandler {
         return m;
     }
 
+    /** 确保 Bot 实例的调度器已启动，并注入自动连接回调 */
+    private void ensureSchedulerStarted(BotInstance inst) {
+        var scheduler = inst.getScheduler();
+        if (!scheduler.isRunning() && !scheduler.getTasks().isEmpty()) {
+            scheduler.setBotConnector(() -> console.autoConnectBot(inst));
+            scheduler.setAfterSendStopper(() -> {
+                new Thread(() -> {
+                    console.disconnectInstance(inst);
+                    String ncName = inst.getNapCatInstanceName();
+                    if (ncName != null && !ncName.isEmpty()) {
+                        console.getNapCatLauncher().stop(ncName);
+                    }
+                }, "auto-stop-" + inst.getName()).start();
+            });
+            scheduler.start();
+            logger.info("[{}] 通过 Web API 启动调度器 (共 {} 个任务)",
+                    inst.getName(), scheduler.getTasks().size());
+        }
+    }
+
+    private void handleAutoConnectSchedule(HttpExchange ex, String botName, String taskName) throws IOException {
+        var inst = requireBot(ex, botName);
+        if (inst == null) return;
+        var body = readBodyAsMap(ex);
+        boolean autoConnect = Boolean.TRUE.equals(body.get("autoConnect"));
+        if (inst.getScheduler().setAutoConnect(taskName, autoConnect)) {
+            sendOk(ex, Map.of("task", taskName, "autoConnect", autoConnect));
+        } else {
+            sendError(ex, 404, "任务 '" + taskName + "' 不存在");
+        }
+    }
+
     private Map<String, Object> taskToMap(onebot.scheduler.ScheduleManager.ScheduleTask task) {
         var m = new LinkedHashMap<String, Object>();
         m.put("name", task.name);
@@ -1014,6 +1105,8 @@ public class WebApiHandler implements HttpHandler {
         m.put("targetType", task.targetType);
         m.put("message", task.message);
         m.put("enabled", task.enabled);
+        m.put("autoConnect", task.autoConnect);
+        m.put("autoStopAfterSend", task.autoStopAfterSend);
         return m;
     }
 

@@ -49,3 +49,4 @@ build/
 ### Web UI ###
 web-ui/node_modules/
 web-ui/dist/
+c-d.cmd

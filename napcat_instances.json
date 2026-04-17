@@ -1,1 +1,4 @@
-[{"name":"123","qqUin":"3149003262","webuiPort":6099}]
+[
+  { "name": "bot1", "qqUin": "2838453502", "webuiPort": 6099 },
+  { "name": "bot2", "qqUin": "3149003262", "webuiPort": 6099 }
+]

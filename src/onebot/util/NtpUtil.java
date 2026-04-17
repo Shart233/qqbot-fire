@@ -38,7 +38,7 @@ public class NtpUtil {
     private static final int TIMEOUT_MS = 3000;
     private static final long NTP_EPOCH_OFFSET = 2208988800L; // 1900-01-01 到 1970-01-01 的秒数
 
-    /** 本地时钟与 NTP 的偏移量 (毫秒)，正值表示本地时钟快 */
+    /** 本地时钟与 NTP 的偏移量 (毫秒)，正值表示需要加上该值才能得到 NTP 时间 */
     private static volatile long clockOffset = 0;
     private static volatile long lastSyncTime = 0;
     private static volatile String lastServer = "";
@@ -69,7 +69,7 @@ public class NtpUtil {
      * 获取 NTP 校准后的当前时间戳 (毫秒)
      */
     public static long currentTimeMillis() {
-        return System.currentTimeMillis() - clockOffset;
+        return System.currentTimeMillis() + clockOffset;
     }
 
     /**
@@ -162,11 +162,8 @@ public class NtpUtil {
             long t3 = parseNtpTimestamp(buffer, 40);
 
             // 计算偏移量: offset = ((T2 - T1) + (T3 - T4)) / 2
-            // 正值 = 本地时钟比 NTP 快
-            long offset = ((t2 - t1) + (t3 - t4)) / 2;
-
-            // 偏移量取反，因为我们需要 "本地时间 - offset = NTP时间"
-            return -offset;
+            // 正值 = NTP 时间比本地快，即 本地时间 + offset = NTP 时间
+            return ((t2 - t1) + (t3 - t4)) / 2;
         }
     }
 

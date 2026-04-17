@@ -62,6 +62,25 @@ public class BotConsole {
     public void setActiveBotName(String name) { this.activeBotName = name; }
     public NapCatLauncher getNapCatLauncher() { return napCatLauncher; }
 
+    /** 用于 Web API 的同步锁，避免并发 System.setOut 冲突 */
+    private static final Object CONSOLE_EXEC_LOCK = new Object();
+
+    /**
+     * 执行控制台命令并将输出写入指定 PrintStream（线程安全）。
+     * 通过 synchronized 保护 System.setOut/restore，避免并发请求输出串扰。
+     */
+    public void executeCommand(String command, java.io.PrintStream out) {
+        synchronized (CONSOLE_EXEC_LOCK) {
+            var oldOut = System.out;
+            System.setOut(out);
+            try {
+                executeCommand(command);
+            } finally {
+                System.setOut(oldOut);
+            }
+        }
+    }
+
     /**
      * 执行控制台命令 (Web 层调用)。
      * 命令必须以 / 开头。输出会被 System.out 捕获。
@@ -127,6 +146,16 @@ public class BotConsole {
         inst.setNickname("");
     }
 
+    /** 根据 napCatInstanceName 断开所有关联的 Bot 连接 */
+    public void disconnectByNapCat(String napCatName) {
+        for (var inst : bots.values()) {
+            if (napCatName.equals(inst.getNapCatInstanceName()) && inst.isConnected()) {
+                logger.info("[{}] NapCat 实例 {} 已停止，断开 Bot 连接", inst.getName(), napCatName);
+                disconnectInstance(inst);
+            }
+        }
+    }
+
     /**
      * 定时任务自动连接回调：启动 NapCat（如未运行）+ 等待端口就绪 + 连接 Bot。
      * 由 ScheduleManager.BotConnector 调用。
@@ -187,6 +216,12 @@ public class BotConsole {
                     if (wsPort == 0) inst.setMode("http");
                 }
                 saveConfig();
+
+                // 端口为 0 说明 NapCat 未配置 OneBot11 WS/HTTP 服务器
+                if (wsPort == 0 && httpPort == 0) {
+                    logger.warn("[{}] NapCat 配置中无有效的 WS/HTTP 端口，请在 NapCat WebUI 中配置 onebot11 服务器", inst.getName());
+                    return null;
+                }
 
                 // 2) 等待端口就绪（最多 30 秒）
                 int port = wsPort > 0 ? wsPort : httpPort;
@@ -641,6 +676,15 @@ public class BotConsole {
         tryPrintLoginInfo(inst);
         inst.getScheduler().setBot(client);
         inst.getScheduler().setBotConnector(() -> autoConnectBot(inst));
+        inst.getScheduler().setAfterSendStopper(() -> {
+            new Thread(() -> {
+                disconnectInstance(inst);
+                String ncName = inst.getNapCatInstanceName();
+                if (ncName != null && !ncName.isEmpty()) {
+                    napCatLauncher.stop(ncName);
+                }
+            }, "auto-stop-" + inst.getName()).start();
+        });
         inst.getScheduler().start();
         inst.setConnected(true);
 
@@ -661,6 +705,15 @@ public class BotConsole {
         tryPrintLoginInfo(inst);
         inst.getScheduler().setBot(client);
         inst.getScheduler().setBotConnector(() -> autoConnectBot(inst));
+        inst.getScheduler().setAfterSendStopper(() -> {
+            new Thread(() -> {
+                disconnectInstance(inst);
+                String ncName = inst.getNapCatInstanceName();
+                if (ncName != null && !ncName.isEmpty()) {
+                    napCatLauncher.stop(ncName);
+                }
+            }, "auto-stop-" + inst.getName()).start();
+        });
         inst.getScheduler().start();
         inst.setConnected(true);
 
@@ -1554,17 +1607,28 @@ public class BotConsole {
             saveConfig();
         }
 
-        // 为有 napCatInstanceName 的 Bot 注入自动连接回调并启动调度器
-        // 这样即使 Bot 未连接，定时任务也能在触发时自动启动 NapCat + 连接
+        // 为所有有定时任务的 Bot 启动调度器
+        // 有 napCatInstanceName 的 Bot 同时注入自动连接回调
         for (var inst : bots.values()) {
-            if (inst.getNapCatInstanceName() != null && !inst.getNapCatInstanceName().isEmpty()) {
+            if (inst.getScheduler().getTasks().isEmpty()) continue;
+
+            boolean hasNapCat = inst.getNapCatInstanceName() != null && !inst.getNapCatInstanceName().isEmpty();
+            if (hasNapCat) {
                 inst.getScheduler().setBotConnector(() -> autoConnectBot(inst));
-                if (!inst.getScheduler().getTasks().isEmpty()) {
-                    inst.getScheduler().start();
-                    logger.info("[{}] 调度器已启动 (有 {} 个定时任务，支持自动连接)",
-                            inst.getName(), inst.getScheduler().getTasks().size());
-                }
+                inst.getScheduler().setAfterSendStopper(() -> {
+                    new Thread(() -> {
+                        disconnectInstance(inst);
+                        String ncName = inst.getNapCatInstanceName();
+                        if (ncName != null && !ncName.isEmpty()) {
+                            napCatLauncher.stop(ncName);
+                        }
+                    }, "auto-stop-" + inst.getName()).start();
+                });
             }
+            inst.getScheduler().start();
+            logger.info("[{}] 调度器已启动 (有 {} 个定时任务{})",
+                    inst.getName(), inst.getScheduler().getTasks().size(),
+                    hasNapCat ? "，支持自动连接" : "，需手动连接 Bot");
         }
     }
 

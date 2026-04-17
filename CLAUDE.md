@@ -6,9 +6,13 @@
 
 基于 NapCat/OneBot 11 的 QQ Bot 客户端。同一仓库包含两个独立代码库：Java 后端和 React Web UI。项目语言以中文为主（注释、UI 文案、文档）。
 
+## 语言要求
+
+所有输出统一使用中文：对话、文档、代码注释、提交说明、计划和总结。
+
 ## 构建与运行
 
-**环境要求：** JDK 24+（`build.gradle.kts` 强制要求，注意这是较新版本）
+**环境要求：** JDK 24+（`build.gradle.kts` 强制要求，注意这是较新版本）。`JAVA_HOME` 必须指向 JDK 24+，Gradle 通过 toolchain 自动检测，但手动编译（`javac`）需要正确设置。
 
 ```bash
 ./gradlew run              # 构建 + 运行（推荐）
@@ -39,18 +43,6 @@ docker compose up -d --build qqbot-fire  # 代码修改后重新构建
 
 容器间通过内部网络 `qqbot-fire-net` 通信，qqbot-fire 连接 NapCat 使用容器名作为主机名（如 `ws://napcat:3000`），而非 localhost。
 
-## 关键注意事项
-
-- **`Main.java` 在默认包中** — 绝不要添加 `package` 声明。
-- **非标准源码目录结构**：`src/` 而非 `src/main/java/`，在 `build.gradle.kts` 的 sourceSets 中配置。
-- **`src/resources/web/` 是构建产物** — 来自 `web-ui/` 的输出。绝不要直接编辑；始终在 `web-ui/src/` 下修改后运行 `npm run deploy`。
-- **Tailwind v4 CSS-first 配置**：主题 token 通过 `web-ui/src/index.css` 中的 `@theme` 定义，没有 `tailwind.config.js`。
-- **framer-motion v12 类型问题**：cubic-bezier 数组必须转换为元组：`[0.25, 0.1, 0.25, 1] as [number, number, number, number]`。
-- `config.json`、`.keys/`、`schedules*.json`、`logs/` 是 gitignore 的运行时产物。
-- **定时任务文件命名**：`default` Bot 使用 `schedules.json`，其他 Bot 使用 `schedules_<名称>.json`。
-- `lib/` 目录存放手动编译用的 JAR 包，Gradle 构建会忽略它们（从 Maven Central 拉取依赖）。
-- Web 构建产出单个 >500 KB 的 chunk（预期行为，未配置代码拆分）。
-
 ## 架构
 
 ```
@@ -76,6 +68,18 @@ Main -> BotConsole.start()
 
 React 19, Vite 8, TypeScript 6, Tailwind CSS v4, HeroUI v3（原 NextUI）, framer-motion v12, Zustand v5（状态管理）, react-router-dom v7（基于 hash 路由）, next-themes（通过 `class` 属性切换暗色/亮色主题）。
 
+## Git 约定
+
+- **分支命名**：`feature/xxx`、`fix/xxx`、`hotfix/xxx`、`refactor/xxx`。
+- 在 `master` 分支上直接开发或从 feature 分支合并。
+
+## Claude Code 配置
+
+- **自动 ESLint 修复钩子**：`.claude/settings.json` 中配置了 PostToolUse 钩子，对 `web-ui/` 下的 `.ts`/`.tsx` 文件在每次编辑后自动运行 `npx eslint --fix`。
+- **`/verify` 技能**：一键编译 Java 后端 + 检查 Web UI lint，用于提交前验证。
+- **`/deploy-ui` 技能**：构建 Web UI 并复制到 `src/resources/web/`，仅用户手动调用。
+
 ## 补充参考
 
-`AGENTS.md` 包含更详细的包级说明、控制台命令参考和 API 覆盖范围，是深入了解项目的有用补充文档。
+- `AGENTS.md` 包含更详细的包级说明、控制台命令参考和 API 覆盖范围，是深入了解项目的有用补充文档。
+- `.claude/rules/` 包含详细的开发模式规则（编码规范、关键注意事项、HeroUI 组件模式、API 端点模式、调度器回调模式），会被自动加载，无需手动引用。

@@ -1,10 +1,10 @@
-import { cpSync, rmSync, existsSync } from 'fs';
-import { resolve, dirname } from 'path';
-import { fileURLToPath } from 'url';
+import { cpSync, rmSync, existsSync } from "fs";
+import { resolve, dirname } from "path";
+import { fileURLToPath } from "url";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
-const dist = resolve(__dirname, '..', 'dist');
-const target = resolve(__dirname, '..', '..', 'src', 'resources', 'web');
+const dist = resolve(__dirname, "..", "dist");
+const target = resolve(__dirname, "..", "..", "src", "resources", "web");
 
 if (!existsSync(dist)) {
   console.error('dist/ not found. Run "npm run build" first.');

@@ -1,4 +1,4 @@
-import { motion } from 'framer-motion'
+import { motion } from "framer-motion";
 
 export default function EmptyState({ message }: { message: string }) {
   return (
@@ -10,5 +10,5 @@ export default function EmptyState({ message }: { message: string }) {
     >
       {message}
     </motion.div>
-  )
+  );
 }

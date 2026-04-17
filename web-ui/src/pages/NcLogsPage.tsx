@@ -1,59 +1,59 @@
-import { useState, useEffect, useCallback } from 'react'
-import { Button, Spinner, Select, ListBox, Switch } from '@heroui/react'
-import { useSearchParams } from 'react-router-dom'
-import { useInterval } from '../hooks/useInterval'
-import { listNapCatInstances, getNapCatLog } from '../api/endpoints'
-import PageHeader from '../components/shared/PageHeader'
-import LogViewer from '../components/shared/LogViewer'
-import type { NapCatInstance } from '../api/types'
-import type { Key } from 'react-aria-components'
+import { useState, useEffect, useCallback } from "react";
+import { Button, Spinner, Select, ListBox, Switch } from "@heroui/react";
+import { useSearchParams } from "react-router-dom";
+import { useInterval } from "../hooks/useInterval";
+import { listNapCatInstances, getNapCatLog } from "../api/endpoints";
+import PageHeader from "../components/shared/PageHeader";
+import LogViewer from "../components/shared/LogViewer";
+import type { NapCatInstance } from "../api/types";
+import type { Key } from "react-aria-components";
 
 export default function NcLogsPage() {
-  const [searchParams] = useSearchParams()
-  const [instances, setInstances] = useState<NapCatInstance[]>([])
-  const [selected, setSelected] = useState('')
-  const [lines, setLines] = useState<string[]>([])
-  const [autoRefresh, setAutoRefresh] = useState(false)
-  const [loading, setLoading] = useState(true)
+  const [searchParams] = useSearchParams();
+  const [instances, setInstances] = useState<NapCatInstance[]>([]);
+  const [selected, setSelected] = useState("");
+  const [lines, setLines] = useState<string[]>([]);
+  const [autoRefresh, setAutoRefresh] = useState(false);
+  const [loading, setLoading] = useState(true);
 
   // Load instances on mount
   useEffect(() => {
-    listNapCatInstances().then(data => {
-      const list = data || []
-      setInstances(list)
+    listNapCatInstances().then((data) => {
+      const list = data || [];
+      setInstances(list);
       // Auto-select from URL param or localStorage
-      const fromUrl = searchParams.get('instance')
-      const fromStorage = localStorage.getItem('select_ncLogSelect') || ''
-      const initial = fromUrl || fromStorage
-      if (initial && list.some(i => i.name === initial)) {
-        setSelected(initial)
+      const fromUrl = searchParams.get("instance");
+      const fromStorage = localStorage.getItem("select_ncLogSelect") || "";
+      const initial = fromUrl || fromStorage;
+      if (initial && list.some((i) => i.name === initial)) {
+        setSelected(initial);
       }
-      setLoading(false)
-    })
-  }, [searchParams])
+      setLoading(false);
+    });
+  }, [searchParams]);
 
   const loadLog = useCallback(async () => {
-    if (!selected) return
-    localStorage.setItem('select_ncLogSelect', selected)
-    const data = await getNapCatLog(selected)
+    if (!selected) return;
+    localStorage.setItem("select_ncLogSelect", selected);
+    const data = await getNapCatLog(selected);
     if (data && data.lines) {
-      setLines(data.lines)
+      setLines(data.lines);
     }
-  }, [selected])
+  }, [selected]);
 
   useEffect(() => {
-    if (selected) loadLog()
-  }, [selected, loadLog])
+    if (selected) loadLog(); // eslint-disable-line react-hooks/set-state-in-effect
+  }, [selected, loadLog]);
 
   // Auto-refresh every 2s
-  useInterval(loadLog, autoRefresh ? 2000 : null)
+  useInterval(loadLog, autoRefresh ? 2000 : null);
 
   if (loading) {
     return (
       <div className="flex justify-center items-center py-20">
         <Spinner size="lg" color="accent" />
       </div>
-    )
+    );
   }
 
   return (
@@ -62,7 +62,9 @@ export default function NcLogsPage() {
         <div className="flex items-center gap-3">
           <Select
             selectedKey={selected || null}
-            onSelectionChange={(key: Key | null) => setSelected(String(key ?? ''))}
+            onSelectionChange={(key: Key | null) =>
+              setSelected(String(key ?? ""))
+            }
             placeholder="选择实例..."
             className="min-w-[180px]"
           >
@@ -72,9 +74,13 @@ export default function NcLogsPage() {
             </Select.Trigger>
             <Select.Popover>
               <ListBox>
-                {instances.map(i => (
-                  <ListBox.Item key={i.name} id={i.name} textValue={`${i.name} (QQ:${i.qqUin || '?'})`}>
-                    {i.name} (QQ:{i.qqUin || '?'})
+                {instances.map((i) => (
+                  <ListBox.Item
+                    key={i.name}
+                    id={i.name}
+                    textValue={`${i.name} (QQ:${i.qqUin || "?"})`}
+                  >
+                    {i.name} (QQ:{i.qqUin || "?"})
                   </ListBox.Item>
                 ))}
               </ListBox>
@@ -85,13 +91,20 @@ export default function NcLogsPage() {
             isSelected={autoRefresh}
             onChange={(isSelected: boolean) => setAutoRefresh(isSelected)}
           >
-            <span className="text-sm text-text-muted">自动刷新</span>
+            <Switch.Control>
+              <Switch.Thumb />
+            </Switch.Control>
+            <Switch.Content>
+              <span className="text-sm text-text-muted">自动刷新</span>
+            </Switch.Content>
           </Switch>
-          <Button size="sm" variant="ghost" onPress={loadLog}>刷新</Button>
+          <Button size="sm" variant="ghost" onPress={loadLog}>
+            刷新
+          </Button>
         </div>
       </PageHeader>
 
       <LogViewer lines={lines} tall emptyMessage="无日志" />
     </div>
-  )
+  );
 }

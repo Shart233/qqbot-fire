@@ -1,7 +1,13 @@
-import { motion } from 'framer-motion'
-import type { ReactNode } from 'react'
+import { motion } from "framer-motion";
+import type { ReactNode } from "react";
 
-export default function PageHeader({ title, children }: { title: string; children?: ReactNode }) {
+export default function PageHeader({
+  title,
+  children,
+}: {
+  title: string;
+  children?: ReactNode;
+}) {
   return (
     <motion.div
       initial={{ opacity: 0, y: -8 }}
@@ -10,7 +16,9 @@ export default function PageHeader({ title, children }: { title: string; childre
       className="flex items-center justify-between mb-4 flex-wrap gap-2"
     >
       <h2 className="text-xl font-semibold text-text-primary">{title}</h2>
-      {children && <div className="flex items-center gap-2 flex-wrap">{children}</div>}
+      {children && (
+        <div className="flex items-center gap-2 flex-wrap">{children}</div>
+      )}
     </motion.div>
-  )
+  );
 }

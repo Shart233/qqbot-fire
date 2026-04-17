@@ -33,16 +33,16 @@ IDE 运行配置：`qqbot-fire [:run]`（Gradle）或 `QQBot-fire`（Java 应用
 
 ### 关键包说明
 
-| 包 | 用途 |
-|---|---|
-| `onebot.client` | WS + HTTP 连接，API 客户端（170+ 方法，含频道 Guild） |
-| `onebot.config` | `ConfigManager` — 持久化到 `config.json` |
-| `onebot.web` | 内嵌 HTTP 服务器（JDK `HttpServer`），REST API（30+ 端点） |
-| `onebot.napcat` | NapCat 进程管理，配置自动发现 |
-| `onebot.console` | 交互式命令行（`BotConsole`）— 应用主循环入口 |
-| `onebot.handler` | 事件分发器（责任链模式） |
-| `onebot.scheduler` | NTP 同步的定时消息调度器（per-bot） |
-| `onebot.util` | `GsonFactory`、`CryptoUtil`（RSA）、`ConvertUtil`、`NtpUtil` |
+| 包                 | 用途                                                         |
+| ------------------ | ------------------------------------------------------------ |
+| `onebot.client`    | WS + HTTP 连接，API 客户端（170+ 方法，含频道 Guild）        |
+| `onebot.config`    | `ConfigManager` — 持久化到 `config.json`                     |
+| `onebot.web`       | 内嵌 HTTP 服务器（JDK `HttpServer`），REST API（30+ 端点）   |
+| `onebot.napcat`    | NapCat 进程管理，配置自动发现                                |
+| `onebot.console`   | 交互式命令行（`BotConsole`）— 应用主循环入口                 |
+| `onebot.handler`   | 事件分发器（责任链模式）                                     |
+| `onebot.scheduler` | NTP 同步的定时消息调度器（per-bot）                          |
+| `onebot.util`      | `GsonFactory`、`CryptoUtil`（RSA）、`ConvertUtil`、`NtpUtil` |
 
 ## Web UI
 
@@ -70,9 +70,11 @@ npm run lint         # ESLint
 ### TypeScript 注意事项
 
 framer-motion v12 要求 cubic-bezier 数组必须转换为元组类型：
+
 ```ts
-ease: [0.25, 0.1, 0.25, 1] as [number, number, number, number]
+ease: [0.25, 0.1, 0.25, 1] as [number, number, number, number];
 ```
+
 不加类型转换会报 TS 错误：`number[] is not assignable to Easing`。
 
 ## Docker

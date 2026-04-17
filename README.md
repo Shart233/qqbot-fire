@@ -45,27 +45,27 @@ docker compose logs -f
 
 启动后访问：
 
-| 服务 | 地址 | 说明 |
-|------|------|------|
-| QQBot-Fire Web UI | http://localhost:9988 | Bot 管理控制台 |
-| NapCat WebUI | http://localhost:6099/webui | 扫码登录 QQ（默认密码 `napcat`） |
+| 服务              | 地址                        | 说明                             |
+| ----------------- | --------------------------- | -------------------------------- |
+| QQBot-Fire Web UI | http://localhost:9988       | Bot 管理控制台                   |
+| NapCat WebUI      | http://localhost:6099/webui | 扫码登录 QQ（默认密码 `napcat`） |
 
 **配置 Bot 连接（在 QQBot-Fire Web UI 中）：**
 
-| 模式 | 地址 |
-|------|------|
-| WebSocket | `ws://napcat:3000` |
-| HTTP | `http://napcat:3001` |
+| 模式      | 地址                 |
+| --------- | -------------------- |
+| WebSocket | `ws://napcat:3000`   |
+| HTTP      | `http://napcat:3001` |
 
 > 容器之间通过内部网络通信，直接用容器名 `napcat` 作为主机名。
 
 **持久化数据：**
 
-| Docker Volume | 容器路径 | 内容 |
-|---------------|----------|------|
-| `qqbot-fire-data` | `/app/data` | config.json, .keys/, logs/, schedules*.json |
-| `napcat-qq` | `/app/.config/QQ` | QQ 登录数据 |
-| `napcat-config` | `/app/napcat/config` | NapCat 配置 |
+| Docker Volume     | 容器路径             | 内容                                         |
+| ----------------- | -------------------- | -------------------------------------------- |
+| `qqbot-fire-data` | `/app/data`          | config.json, .keys/, logs/, schedules\*.json |
+| `napcat-qq`       | `/app/.config/QQ`    | QQ 登录数据                                  |
+| `napcat-config`   | `/app/napcat/config` | NapCat 配置                                  |
 
 **常用命令：**
 
@@ -227,87 +227,87 @@ NapCat 实例已启动: bot1 QQ=1234567890
 
 ### Bot 管理（多开）
 
-| 命令 | 说明 |
-|---|---|
-| `/bot add <名称>` | 添加新 Bot 实例 |
-| `/bot remove <名称>` | 删除 Bot 实例 |
-| `/bot list` | 列出所有 Bot 及状态 |
-| `/bot use <名称>` | 切换当前操作的 Bot |
-| `/bot rename <旧名> <新名>` | 重命名 Bot |
+| 命令                        | 说明                |
+| --------------------------- | ------------------- |
+| `/bot add <名称>`           | 添加新 Bot 实例     |
+| `/bot remove <名称>`        | 删除 Bot 实例       |
+| `/bot list`                 | 列出所有 Bot 及状态 |
+| `/bot use <名称>`           | 切换当前操作的 Bot  |
+| `/bot rename <旧名> <新名>` | 重命名 Bot          |
 
 ### 配置（作用于当前 Bot）
 
-| 命令 | 说明 |
-|---|---|
-| `/set mode <ws\|http>` | 切换连接模式 |
-| `/set ws <url>` | 设置 WebSocket 地址 |
-| `/set http <url>` | 设置 HTTP API 地址 |
-| `/set wstoken <token>` | 设置 WS Token |
-| `/set httptoken <token>` | 设置 HTTP Token |
-| `/show` | 显示所有 Bot 配置 |
-| `/config clear` | 清除所有 Bot 配置并重置为默认状态 |
-| `/config clear <名称>` | 清除指定 Bot 的连接信息（URL 和 Token 归零） |
+| 命令                     | 说明                                         |
+| ------------------------ | -------------------------------------------- |
+| `/set mode <ws\|http>`   | 切换连接模式                                 |
+| `/set ws <url>`          | 设置 WebSocket 地址                          |
+| `/set http <url>`        | 设置 HTTP API 地址                           |
+| `/set wstoken <token>`   | 设置 WS Token                                |
+| `/set httptoken <token>` | 设置 HTTP Token                              |
+| `/show`                  | 显示所有 Bot 配置                            |
+| `/config clear`          | 清除所有 Bot 配置并重置为默认状态            |
+| `/config clear <名称>`   | 清除指定 Bot 的连接信息（URL 和 Token 归零） |
 
 ### 连接管理
 
-| 命令 | 说明 |
-|---|---|
-| `/connect` | 连接当前 Bot |
-| `/disconnect` | 断开当前 Bot |
-| `/reconnect` | 重新连接当前 Bot |
-| `/connectall` | 连接所有 Bot |
-| `/disconnectall` | 断开所有 Bot |
+| 命令             | 说明             |
+| ---------------- | ---------------- |
+| `/connect`       | 连接当前 Bot     |
+| `/disconnect`    | 断开当前 Bot     |
+| `/reconnect`     | 重新连接当前 Bot |
+| `/connectall`    | 连接所有 Bot     |
+| `/disconnectall` | 断开所有 Bot     |
 
 ### 运行时命令（当前 Bot）
 
-| 命令 | 说明 |
-|---|---|
-| `/status` | 查看 Bot 状态 |
-| `/send group <群号> <消息>` | 发送群消息 |
-| `/send private <QQ> <消息>` | 发送私聊消息 |
-| `/friends` | 获取好友列表 |
-| `/groups` | 获取群列表 |
-| `/members <群号>` | 获取群成员列表 |
+| 命令                        | 说明           |
+| --------------------------- | -------------- |
+| `/status`                   | 查看 Bot 状态  |
+| `/send group <群号> <消息>` | 发送群消息     |
+| `/send private <QQ> <消息>` | 发送私聊消息   |
+| `/friends`                  | 获取好友列表   |
+| `/groups`                   | 获取群列表     |
+| `/members <群号>`           | 获取群成员列表 |
 
 ### NapCat 进程管理
 
-| 命令 | 说明 |
-|---|---|
-| `/napcat dir [路径]` | 查看/设置 NapCat.Shell 目录 |
-| `/napcat workroot [路径]` | 查看/设置实例工作根目录 |
-| `/napcat discover` | 自动发现 NapCat 配置并创建 Bot（优先扫描实例工作目录） |
-| `/napcat start <名称> <QQ号> [WebUI端口]` | 启动 NapCat 实例（端口/Token 按 QQ 号精确读取） |
-| `/napcat stop <名称\|all>` | 停止 NapCat 实例 |
-| `/napcat list` | 查看运行中的 NapCat 实例 |
-| `/napcat log <名称>` | 查看实例日志（缓冲区全部内容） |
-| `/napcat attach <名称>` | 连接实时日志流（屏幕切换） |
-| `/napcat detach` | 断开日志流，回到控制台 |
+| 命令                                      | 说明                                                   |
+| ----------------------------------------- | ------------------------------------------------------ |
+| `/napcat dir [路径]`                      | 查看/设置 NapCat.Shell 目录                            |
+| `/napcat workroot [路径]`                 | 查看/设置实例工作根目录                                |
+| `/napcat discover`                        | 自动发现 NapCat 配置并创建 Bot（优先扫描实例工作目录） |
+| `/napcat start <名称> <QQ号> [WebUI端口]` | 启动 NapCat 实例（端口/Token 按 QQ 号精确读取）        |
+| `/napcat stop <名称\|all>`                | 停止 NapCat 实例                                       |
+| `/napcat list`                            | 查看运行中的 NapCat 实例                               |
+| `/napcat log <名称>`                      | 查看实例日志（缓冲区全部内容）                         |
+| `/napcat attach <名称>`                   | 连接实时日志流（屏幕切换）                             |
+| `/napcat detach`                          | 断开日志流，回到控制台                                 |
 
 ### 定时任务（当前 Bot）
 
-| 命令 | 说明 |
-|---|---|
-| `/schedule list` | 查看定时任务 |
-| `/schedule add <名称> <HH:mm> <QQ,...> <消息>` | 添加定时任务 |
-| `/schedule remove <名称>` | 删除定时任务 |
-| `/schedule on/off <名称>` | 启用/禁用任务 |
-| `/schedule test <名称>` | 立即测试执行 |
+| 命令                                           | 说明          |
+| ---------------------------------------------- | ------------- |
+| `/schedule list`                               | 查看定时任务  |
+| `/schedule add <名称> <HH:mm> <QQ,...> <消息>` | 添加定时任务  |
+| `/schedule remove <名称>`                      | 删除定时任务  |
+| `/schedule on/off <名称>`                      | 启用/禁用任务 |
+| `/schedule test <名称>`                        | 立即测试执行  |
 
 ### Web 控制台
 
-| 命令 | 说明 |
-|---|---|
-| `/web` | 查看 Web 控制台状态 |
+| 命令                | 说明                         |
+| ------------------- | ---------------------------- |
+| `/web`              | 查看 Web 控制台状态          |
 | `/web start [端口]` | 启动 Web 控制台（默认 9988） |
-| `/web stop` | 停止 Web 控制台 |
+| `/web stop`         | 停止 Web 控制台              |
 
 ### 其他
 
-| 命令 | 说明 |
-|---|---|
-| `/logout` | 退出 QQ 登录 |
-| `/quit` | 退出程序（自动停止所有连接和 NapCat 实例） |
-| `/help` | 显示帮助 |
+| 命令      | 说明                                       |
+| --------- | ------------------------------------------ |
+| `/logout` | 退出 QQ 登录                               |
+| `/quit`   | 退出程序（自动停止所有连接和 NapCat 实例） |
+| `/help`   | 显示帮助                                   |
 
 ## Web 管理控制台
 
@@ -357,11 +357,11 @@ http://127.0.0.1:9988
 
 ### 端口分配建议
 
-| 实例 | QQ 号 | WS 端口 | HTTP 端口 | WebUI 端口 |
-|---|---|---|---|---|
-| bot1 | 1234567890 | 3001 | 3003 | 6101 |
-| bot2 | 9876543210 | 3002 | 3004 | 6102 |
-| bot3 | ... | 3005 | 3006 | 6103 |
+| 实例 | QQ 号      | WS 端口 | HTTP 端口 | WebUI 端口 |
+| ---- | ---------- | ------- | --------- | ---------- |
+| bot1 | 1234567890 | 3001    | 3003      | 6101       |
+| bot2 | 9876543210 | 3002    | 3004      | 6102       |
+| bot3 | ...        | 3005    | 3006      | 6103       |
 
 ### 方式一：从控制台管理（推荐）
 
@@ -384,6 +384,7 @@ http://127.0.0.1:9988
 ```
 
 启动时自动完成：
+
 - 创建独立工作目录 `<workroot>/<实例名>/`
 - 生成 `onebot11_<QQ号>.json` 配置文件（分配 WS/HTTP 端口）
 - 启动 NapCat 进程，后台线程实时捕获输出（写日志文件 + 内存缓冲区）
@@ -393,6 +394,7 @@ http://127.0.0.1:9988
 `scripts/` 目录提供独立的启动脚本，可在 BotConsole 外使用：
 
 **Windows:**
+
 ```bat
 cd scripts
 napcat-multi.bat init          REM 生成配置模板
@@ -403,6 +405,7 @@ napcat-multi.bat stop           REM 停止所有
 ```
 
 **Linux:**
+
 ```bash
 cd scripts
 ./napcat-multi.sh init          # 生成配置模板
@@ -416,6 +419,7 @@ vim napcat-instances.conf       # 编辑配置
 **配置文件格式 (`napcat-instances.conf`):**
 
 Windows:
+
 ```conf
 NAPCAT_DIR=C:\NapCat.Shell
 WORK_ROOT=C:\NapCat.Shell\instances
@@ -425,6 +429,7 @@ instance bot2       9876543210    3002    3004      6102
 ```
 
 Linux:
+
 ```conf
 NAPCAT_DIR=/opt/NapCat
 WORK_ROOT=/opt/NapCat/instances
@@ -435,13 +440,13 @@ instance bot2       9876543210    3002    3004      6102
 
 ## 连接模式对比
 
-| | WebSocket | HTTP (标准 OneBot 11) | HTTP (NapCat Debug API) |
-|---|---|---|---|
-| API 调用 | `{action, params, echo}` 通过 WS | `POST /{action}` | `POST /api/Debug/call/debug-primary` |
-| 事件接收 | 实时推送 | 不支持 | 不支持 |
-| Token | URL query `?access_token=xxx` | `Bearer token` | `Bearer "token"` |
-| 自动重连 | 支持 | 无状态 | 无状态 |
-| 模式探测 | - | 自动 | 自动 |
+|          | WebSocket                        | HTTP (标准 OneBot 11) | HTTP (NapCat Debug API)              |
+| -------- | -------------------------------- | --------------------- | ------------------------------------ |
+| API 调用 | `{action, params, echo}` 通过 WS | `POST /{action}`      | `POST /api/Debug/call/debug-primary` |
+| 事件接收 | 实时推送                         | 不支持                | 不支持                               |
+| Token    | URL query `?access_token=xxx`    | `Bearer token`        | `Bearer "token"`                     |
+| 自动重连 | 支持                             | 无状态                | 无状态                               |
+| 模式探测 | -                                | 自动                  | 自动                                 |
 
 HTTP 模式会自动探测：先尝试标准 OneBot 11 接口，失败时回退到 NapCat Debug API。
 
@@ -479,6 +484,7 @@ WS 和 HTTP 的 Token 独立配置（NapCat 中两者可以不同）。
 ### 定时任务文件
 
 每个 Bot 拥有独立的定时任务文件：
+
 - `default` Bot → `schedules.json`
 - 其他 Bot → `schedules_<名称>.json`
 
@@ -486,11 +492,11 @@ WS 和 HTTP 的 Token 独立配置（NapCat 中两者可以不同）。
 
 运行时自动创建 `logs/` 目录，包含以下日志文件：
 
-| 文件 | 内容 | 级别 |
-|------|------|------|
-| `logs/qqbot-fire.log` | 主日志（所有模块） | DEBUG 及以上 |
-| `logs/qqbot-fire-error.log` | 错误日志（单独提取） | WARN 及以上 |
-| `logs/web-api.log` | Web API 请求日志 | DEBUG 及以上 |
+| 文件                        | 内容                 | 级别         |
+| --------------------------- | -------------------- | ------------ |
+| `logs/qqbot-fire.log`       | 主日志（所有模块）   | DEBUG 及以上 |
+| `logs/qqbot-fire-error.log` | 错误日志（单独提取） | WARN 及以上  |
+| `logs/web-api.log`          | Web API 请求日志     | DEBUG 及以上 |
 
 日志按天自动滚动归档（`.log.gz`），主日志保留 30 天，超过 50MB 也会滚动。
 
@@ -618,7 +624,7 @@ docker-entrypoint.sh                           # 容器启动脚本
           │
  ┌────────▼───────┐
  │ OneBotClient   │
- │ (160+ API 方法) │
+ │ (170+ API 方法) │
  └────────┬───────┘
           │
  ┌────────▼────────────────────┐
@@ -638,23 +644,23 @@ docker-entrypoint.sh                           # 容器启动脚本
 
 `OneBotClient` 提供 170+ typed wrapper 方法，完整覆盖：
 
-| 分类 | 端点数 | 说明 |
-|------|--------|------|
-| OneBot 11 标准 | 39 | 消息收发、好友/群管理、系统信息等 |
-| NapCat 消息扩展 | ~15 | 转发消息、已读标记、消息历史 |
-| NapCat 好友扩展 | ~10 | 分类好友、单向好友、最近联系人 |
-| NapCat 群组扩展 | ~25 | 群详情、群搜索、群相册、群公告 |
-| NapCat 群文件 | ~15 | 文件上传/下载/管理/文件夹 |
-| NapCat 精华消息 | 3 | 设置/删除/获取精华消息 |
-| NapCat 表情扩展 | 4 | 表情点赞/获取 |
-| NapCat 个人资料 | ~8 | 头像/资料/在线状态/输入状态 |
-| NapCat AI 语音 | 3 | AI 角色列表、语音生成/发送 |
-| NapCat Ark 分享 | 5 | 群/用户 Ark 分享、小程序 Ark |
-| NapCat 收藏/闪传 | ~10 | 创建收藏、闪传任务/文件 |
-| NapCat 在线文件 | 6 | 发送/接收/拒绝/取消在线文件 |
-| NapCat 系统杂项 | ~15 | RKey、戳一戳、数据包、机型等 |
-| NapCat 流式传输 | 6 | 文件/语音/图片流式上传下载 |
-| QQ 频道 (Guild) | 2 | 频道列表、频道个人资料 |
+| 分类             | 端点数 | 说明                              |
+| ---------------- | ------ | --------------------------------- |
+| OneBot 11 标准   | 39     | 消息收发、好友/群管理、系统信息等 |
+| NapCat 消息扩展  | ~15    | 转发消息、已读标记、消息历史      |
+| NapCat 好友扩展  | ~10    | 分类好友、单向好友、最近联系人    |
+| NapCat 群组扩展  | ~25    | 群详情、群搜索、群相册、群公告    |
+| NapCat 群文件    | ~15    | 文件上传/下载/管理/文件夹         |
+| NapCat 精华消息  | 3      | 设置/删除/获取精华消息            |
+| NapCat 表情扩展  | 4      | 表情点赞/获取                     |
+| NapCat 个人资料  | ~8     | 头像/资料/在线状态/输入状态       |
+| NapCat AI 语音   | 3      | AI 角色列表、语音生成/发送        |
+| NapCat Ark 分享  | 5      | 群/用户 Ark 分享、小程序 Ark      |
+| NapCat 收藏/闪传 | ~10    | 创建收藏、闪传任务/文件           |
+| NapCat 在线文件  | 6      | 发送/接收/拒绝/取消在线文件       |
+| NapCat 系统杂项  | ~15    | RKey、戳一戳、数据包、机型等      |
+| NapCat 流式传输  | 6      | 文件/语音/图片流式上传下载        |
+| QQ 频道 (Guild)  | 2      | 频道列表、频道个人资料            |
 
 即使没有 typed wrapper，插件也可通过 `callApi("action", params)` 调用任意 API。
 

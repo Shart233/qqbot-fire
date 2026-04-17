@@ -9,12 +9,14 @@ import org.apache.logging.log4j.Logger;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.time.Duration;
 import java.time.LocalTime;
 import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;
 import java.time.temporal.ChronoUnit;
 import java.util.*;
 import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
  * 定时消息任务管理器
@@ -37,9 +39,9 @@ public class ScheduleManager {
     private static final long NTP_RESYNC_INTERVAL_MS = 3600_000; // 每小时重新同步 NTP
 
     private final List<ScheduleTask> tasks = new CopyOnWriteArrayList<>();
-    private OneBotClient bot;
+    private volatile OneBotClient bot;
     private volatile Thread schedulerThread;
-    private volatile boolean running = false;
+    private final AtomicBoolean running = new AtomicBoolean(false);
 
     /**
      * Bot 自动连接回调。
@@ -52,6 +54,13 @@ public class ScheduleManager {
     }
 
     private BotConnector botConnector;
+
+    /** 发送完成后停止回调。停止 NapCat 实例并断开 Bot 连接。 */
+    private Runnable afterSendStopper;
+
+    public void setAfterSendStopper(Runnable stopper) {
+        this.afterSendStopper = stopper;
+    }
 
     /** Bot 实例名称，用于区分定时任务文件 (schedules_<botName>.json) */
     private final String botName;
@@ -101,6 +110,19 @@ public class ScheduleManager {
      */
     public void addTask(String name, String time, List<Long> targets, String targetType, String message) {
         LocalTime.parse(time, TIME_FMT); // 验证格式
+
+        // 保留旧任务的 autoConnect、autoStopAfterSend 和 enabled 状态（upsert 语义）
+        boolean prevAutoConnect = false;
+        boolean prevAutoStopAfterSend = false;
+        boolean prevEnabled = true;
+        for (var old : tasks) {
+            if (old.name.equals(name)) {
+                prevAutoConnect = old.autoConnect;
+                prevAutoStopAfterSend = old.autoStopAfterSend;
+                prevEnabled = old.enabled;
+                break;
+            }
+        }
         tasks.removeIf(t -> t.name.equals(name));
 
         var task = new ScheduleTask();
@@ -109,7 +131,9 @@ public class ScheduleManager {
         task.targets = new ArrayList<>(targets);
         task.targetType = "group".equals(targetType) ? "group" : "private";
         task.message = message;
-        task.enabled = true;
+        task.enabled = prevEnabled;
+        task.autoConnect = prevAutoConnect;
+        task.autoStopAfterSend = prevAutoStopAfterSend;
         tasks.add(task);
         saveTasks();
 
@@ -146,6 +170,37 @@ public class ScheduleManager {
         return false;
     }
 
+    /** 设置任务的自动连接开关 */
+    public boolean setAutoConnect(String name, boolean autoConnect) {
+        for (var task : tasks) {
+            if (task.name.equals(name)) {
+                task.autoConnect = autoConnect;
+                saveTasks();
+                logger.info("任务 {} 自动连接: {}", name, autoConnect ? "开启" : "关闭");
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /** 设置任务的发送后自动停止开关 */
+    public boolean setAutoStopAfterSend(String name, boolean autoStop) {
+        for (var task : tasks) {
+            if (task.name.equals(name)) {
+                task.autoStopAfterSend = autoStop;
+                saveTasks();
+                logger.info("任务 {} 发送后自动停止: {}", name, autoStop ? "开启" : "关闭");
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /** 调度器是否正在运行 */
+    public boolean isRunning() {
+        return running.get();
+    }
+
     /** 获取所有任务 */
     public List<ScheduleTask> getTasks() {
         return Collections.unmodifiableList(tasks);
@@ -160,8 +215,7 @@ public class ScheduleManager {
 
     /** 启动调度 */
     public void start() {
-        if (running) return;
-        running = true;
+        if (!running.compareAndSet(false, true)) return;
 
         // 同步 NTP 时间
         System.out.println("正在同步 NTP 时间...");
@@ -182,9 +236,10 @@ public class ScheduleManager {
 
     /** 停止调度 */
     public void stop() {
-        running = false;
-        if (schedulerThread != null) {
-            schedulerThread.interrupt();
+        if (!running.compareAndSet(true, false)) return;
+        var t = schedulerThread;
+        if (t != null) {
+            t.interrupt();
             schedulerThread = null;
         }
         logger.info("调度器已停止");
@@ -208,7 +263,7 @@ public class ScheduleManager {
         Set<String> executedToday = new HashSet<>();
         String lastDate = NtpUtil.now().toLocalDate().toString();
 
-        while (running) {
+        while (running.get()) {
             try {
                 // 定期重新同步 NTP
                 if (System.currentTimeMillis() - lastNtpSync > NTP_RESYNC_INTERVAL_MS) {
@@ -227,11 +282,14 @@ public class ScheduleManager {
                 }
 
                 ZonedDateTime now = NtpUtil.now();
-                String nowTime = now.format(TIME_FMT);
+                LocalTime nowLocal = now.toLocalTime();
 
-                // 检查是否有任务需要立即执行
+                // 60 秒窗口匹配，防止 sleep 抖动导致错过整分钟
                 for (var task : tasks) {
-                    if (task.enabled && task.time.equals(nowTime) && !executedToday.contains(task.name)) {
+                    if (!task.enabled || executedToday.contains(task.name)) continue;
+                    LocalTime target = LocalTime.parse(task.time, TIME_FMT);
+                    long diffSeconds = Duration.between(target, nowLocal).getSeconds();
+                    if (diffSeconds >= 0 && diffSeconds < 60) {
                         executedToday.add(task.name);
                         logger.info("NTP 时间 {} 触发任务: {}", NtpUtil.nowHHmmss(), task.name);
                         executeTask(task);
@@ -252,7 +310,7 @@ public class ScheduleManager {
 
             } catch (InterruptedException e) {
                 // 被中断说明有任务变更或需要停止，重新循环
-                if (running) {
+                if (running.get()) {
                     logger.debug("调度器被中断，重新计算");
                 }
             } catch (Exception e) {
@@ -276,8 +334,12 @@ public class ScheduleManager {
             ZonedDateTime targetDateTime = now.toLocalDate().atTime(targetTime).atZone(now.getZone());
 
             long diffMs = ChronoUnit.MILLIS.between(now, targetDateTime);
-            if (diffMs > 0 && diffMs < minSleep) {
-                minSleep = diffMs;
+            if (diffMs > 0) {
+                // 提前 1 秒唤醒，确保在目标分钟内触发
+                long adjusted = Math.max(diffMs - 1000, 1);
+                if (adjusted < minSleep) {
+                    minSleep = adjusted;
+                }
             }
         }
 
@@ -331,6 +393,17 @@ public class ScheduleManager {
 
         task.lastExecuted = NtpUtil.currentTimeMillis();
         logger.info("任务 {} 执行完成: 成功={}, 失败={}", task.name, success, fail);
+
+        // 发送完自动停止 NapCat + 断开连接
+        if (task.autoStopAfterSend && afterSendStopper != null) {
+            logger.info("任务 [{}] 发送完成，正在自动停止 NapCat 并断开连接...", task.name);
+            try {
+                afterSendStopper.run();
+                this.bot = null;
+            } catch (Exception e) {
+                logger.error("发送后自动停止失败", e);
+            }
+        }
     }
 
     // ==================== 持久化 ====================
@@ -385,15 +458,17 @@ public class ScheduleManager {
         public String message = "";
         public boolean enabled = true;
         public boolean autoConnect = false; // 触发时自动启动 NapCat + 连接 Bot
+        public boolean autoStopAfterSend = false; // 发送完自动停止 NapCat + 断开连接
         public transient long lastExecuted = 0;
 
         @Override
         public String toString() {
-            return String.format("[%s] %s %s -> %d%s \"%s\"%s",
+            return String.format("[%s] %s %s -> %d%s \"%s\"%s%s",
                     enabled ? "ON" : "OFF", name, time, targets.size(),
                     "group".equals(targetType) ? "群" : "人",
                     message.length() > 20 ? message.substring(0, 20) + "..." : message,
-                    autoConnect ? " [自动启动]" : "");
+                    autoConnect ? " [自动启动]" : "",
+                    autoStopAfterSend ? " [发送后停止]" : "");
         }
     }
 }

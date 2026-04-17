@@ -1,23 +1,23 @@
-import { useLocation } from 'react-router-dom'
-import { Button } from '@heroui/react'
-import StatusIndicator from './StatusIndicator'
+import { useLocation } from "react-router-dom";
+import { Button } from "@heroui/react";
+import StatusIndicator from "./StatusIndicator";
 
 const pageTitles: Record<string, string> = {
-  '/dashboard': '仪表盘',
-  '/bots': 'Bot 管理',
-  '/messages': '消息发送',
-  '/contacts': '好友与群',
-  '/schedules': '定时任务',
-  '/napcat': 'NapCat 管理',
-  '/nc-logs': 'NapCat 日志',
-  '/console': '控制台',
-  '/server-logs': '服务端日志',
-  '/logs': '操作日志',
-}
+  "/dashboard": "仪表盘",
+  "/bots": "Bot 管理",
+  "/messages": "消息发送",
+  "/contacts": "好友与群",
+  "/schedules": "定时任务",
+  "/napcat": "NapCat 管理",
+  "/nc-logs": "NapCat 日志",
+  "/console": "控制台",
+  "/server-logs": "服务端日志",
+  "/logs": "操作日志",
+};
 
 export default function Topbar({ onMenuToggle }: { onMenuToggle: () => void }) {
-  const location = useLocation()
-  const title = pageTitles[location.pathname] || '仪表盘'
+  const location = useLocation();
+  const title = pageTitles[location.pathname] || "仪表盘";
 
   return (
     <header className="flex items-center justify-between px-6 bg-topbar-bg backdrop-blur-[var(--glass-blur)] border-b border-border-theme h-[50px] min-h-[50px] shrink-0 transition-colors duration-300">
@@ -37,5 +37,5 @@ export default function Topbar({ onMenuToggle }: { onMenuToggle: () => void }) {
         <StatusIndicator />
       </div>
     </header>
-  )
+  );
 }

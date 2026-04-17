@@ -1,50 +1,52 @@
-import { useState, useEffect, useCallback } from 'react'
-import { Button, Spinner, Select, ListBox, Switch } from '@heroui/react'
-import { useInterval } from '../hooks/useInterval'
-import { listLogFiles, readLog } from '../api/endpoints'
-import PageHeader from '../components/shared/PageHeader'
-import LogViewer from '../components/shared/LogViewer'
-import type { LogFileInfo } from '../api/types'
-import type { Key } from 'react-aria-components'
+import { useState, useEffect, useCallback } from "react";
+import { Button, Spinner, Select, ListBox, Switch } from "@heroui/react";
+import { useInterval } from "../hooks/useInterval";
+import { listLogFiles, readLog } from "../api/endpoints";
+import PageHeader from "../components/shared/PageHeader";
+import LogViewer from "../components/shared/LogViewer";
+import type { LogFileInfo } from "../api/types";
+import type { Key } from "react-aria-components";
 
 export default function ServerLogsPage() {
-  const [files, setFiles] = useState<LogFileInfo[]>([])
-  const [selectedFile, setSelectedFile] = useState('latest.log')
-  const [lineCount, setLineCount] = useState('200')
-  const [lines, setLines] = useState<string[]>([])
-  const [info, setInfo] = useState('')
-  const [autoRefresh, setAutoRefresh] = useState(false)
-  const [loading, setLoading] = useState(true)
+  const [files, setFiles] = useState<LogFileInfo[]>([]);
+  const [selectedFile, setSelectedFile] = useState("latest.log");
+  const [lineCount, setLineCount] = useState("200");
+  const [lines, setLines] = useState<string[]>([]);
+  const [info, setInfo] = useState("");
+  const [autoRefresh, setAutoRefresh] = useState(false);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    listLogFiles().then(data => {
-      setFiles(data || [])
-      setLoading(false)
-    })
-  }, [])
+    listLogFiles().then((data) => {
+      setFiles(data || []);
+      setLoading(false);
+    });
+  }, []);
 
   const loadLog = useCallback(async () => {
-    const numLines = parseInt(lineCount) || 200
-    const data = await readLog(selectedFile, numLines)
+    const numLines = parseInt(lineCount) || 200;
+    const data = await readLog(selectedFile, numLines);
     if (data && data.lines) {
-      setLines(data.lines)
-      setInfo(`${data.file} - 显示第 ${data.from + 1} ~ ${data.from + data.lines.length} 行 (共 ${data.total} 行)`)
+      setLines(data.lines);
+      setInfo(
+        `${data.file} - 显示第 ${data.from + 1} ~ ${data.from + data.lines.length} 行 (共 ${data.total} 行)`,
+      );
     }
-  }, [selectedFile, lineCount])
+  }, [selectedFile, lineCount]);
 
   useEffect(() => {
-    loadLog()
-  }, [loadLog])
+    loadLog(); // eslint-disable-line react-hooks/set-state-in-effect
+  }, [loadLog]);
 
   // Auto-refresh every 3s
-  useInterval(loadLog, autoRefresh ? 3000 : null)
+  useInterval(loadLog, autoRefresh ? 3000 : null);
 
   if (loading) {
     return (
       <div className="flex justify-center items-center py-20">
         <Spinner size="lg" color="accent" />
       </div>
-    )
+    );
   }
 
   return (
@@ -53,7 +55,9 @@ export default function ServerLogsPage() {
         <div className="flex items-center gap-3 flex-wrap">
           <Select
             selectedKey={selectedFile || null}
-            onSelectionChange={(key: Key | null) => setSelectedFile(String(key ?? 'latest.log'))}
+            onSelectionChange={(key: Key | null) =>
+              setSelectedFile(String(key ?? "latest.log"))
+            }
             className="min-w-[160px]"
           >
             <Select.Trigger className="bg-input-bg border border-border-theme text-text-primary rounded-xl px-3 py-2 text-sm outline-none focus:border-accent transition-colors">
@@ -62,7 +66,7 @@ export default function ServerLogsPage() {
             </Select.Trigger>
             <Select.Popover>
               <ListBox>
-                {files.map(f => (
+                {files.map((f) => (
                   <ListBox.Item key={f.name} id={f.name} textValue={f.name}>
                     {f.name}
                   </ListBox.Item>
@@ -74,7 +78,7 @@ export default function ServerLogsPage() {
             className="bg-input-bg border border-border-theme text-text-primary rounded-xl px-3 py-2 text-sm outline-none focus:border-accent transition-colors w-[100px]"
             type="number"
             value={lineCount}
-            onChange={e => setLineCount(e.target.value)}
+            onChange={(e) => setLineCount(e.target.value)}
             placeholder="行数"
           />
           <Switch
@@ -82,9 +86,16 @@ export default function ServerLogsPage() {
             isSelected={autoRefresh}
             onChange={(isSelected: boolean) => setAutoRefresh(isSelected)}
           >
-            <span className="text-sm text-text-muted">自动刷新</span>
+            <Switch.Control>
+              <Switch.Thumb />
+            </Switch.Control>
+            <Switch.Content>
+              <span className="text-sm text-text-muted">自动刷新</span>
+            </Switch.Content>
           </Switch>
-          <Button size="sm" variant="ghost" onPress={loadLog}>刷新</Button>
+          <Button size="sm" variant="ghost" onPress={loadLog}>
+            刷新
+          </Button>
         </div>
       </PageHeader>
 
@@ -92,5 +103,5 @@ export default function ServerLogsPage() {
 
       <LogViewer lines={lines} colorized tall />
     </div>
-  )
+  );
 }

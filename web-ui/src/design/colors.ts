@@ -1,0 +1,58 @@
+// 深色主题色系 - 专业 SaaS 风格
+export const colors = {
+  primary: {
+    50: "#f0f4ff",
+    100: "#e0e9ff",
+    200: "#c1d3ff",
+    300: "#a2bdff",
+    400: "#7a9dff",
+    500: "#5a7dff",
+    600: "#4a6de8",
+    700: "#3a5dd1",
+    800: "#2a4dba",
+    900: "#1a3da3",
+  },
+  accent: {
+    50: "#fdf2f8",
+    100: "#fce7f3",
+    200: "#fbcfe8",
+    300: "#f8b4dd",
+    400: "#f472b6",
+    500: "#ec4899",
+    600: "#db2777",
+    700: "#be185d",
+    800: "#9d174d",
+    900: "#831843",
+  },
+  neutral: {
+    0: "#000000",
+    50: "#fafafa",
+    100: "#f5f5f5",
+    200: "#e5e5e5",
+    300: "#d4d4d4",
+    400: "#a3a3a3",
+    500: "#737373",
+    600: "#525252",
+    700: "#404040",
+    800: "#262626",
+    900: "#171717",
+    950: "#0a0a0a",
+  },
+  bg: {
+    base: "#0f1419",
+    elevated: "#1a1f2e",
+    hover: "#252d3d",
+    active: "#2a3547",
+  },
+  success: "#10b981",
+  warning: "#f59e0b",
+  error: "#ef4444",
+  info: "#3b82f6",
+  glass: {
+    light: "rgba(255, 255, 255, 0.05)",
+    medium: "rgba(255, 255, 255, 0.08)",
+    dark: "rgba(0, 0, 0, 0.3)",
+  },
+};
+
+export type ColorKey = keyof typeof colors;

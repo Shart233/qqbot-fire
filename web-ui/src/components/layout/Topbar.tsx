@@ -1,5 +1,5 @@
 import { useLocation } from "react-router-dom";
-import { Button } from "@heroui/react";
+import { Button } from "../ui";
 import StatusIndicator from "./StatusIndicator";
 
 const pageTitles: Record<string, string> = {
@@ -23,13 +23,12 @@ export default function Topbar({ onMenuToggle }: { onMenuToggle: () => void }) {
     <header className="flex items-center justify-between px-6 bg-topbar-bg backdrop-blur-[var(--glass-blur)] border-b border-border-theme h-[50px] min-h-[50px] shrink-0 transition-colors duration-300">
       <div className="flex items-center gap-3">
         <Button
-          isIconOnly
           variant="ghost"
           size="sm"
-          onPress={onMenuToggle}
-          className="md:hidden text-text-primary"
+          onClick={onMenuToggle}
+          className="md:hidden min-w-0 px-2 text-text-primary"
         >
-          <span className="text-xl">☰</span>
+          <span className="text-xl leading-none">☰</span>
         </Button>
         <h1 className="text-base font-semibold text-text-primary">{title}</h1>
       </div>

@@ -155,6 +155,19 @@ public class OneBotConnection implements ApiProvider {
         return ws != null && !ws.isInputClosed() && !ws.isOutputClosed();
     }
 
+    /**
+     * 阻塞等待连接就绪。
+     * 调度器自动连接等场景下，connect() 返回后 WebSocket 可能还未握手完成，
+     * 直接发 API 会触发 "WebSocket 未连接" 异常。此方法等待 connectedLatch 并
+     * 再次校验 isConnected()，给调用方一个可信的就绪信号。
+     *
+     * @return true 表示已就绪可调用 API；false 表示超时或已断开
+     */
+    public boolean awaitConnected(long timeout, TimeUnit unit) throws InterruptedException {
+        if (!connectedLatch.await(timeout, unit)) return false;
+        return isConnected();
+    }
+
     // ==================== API 调用 (通过 WebSocket) ====================
 
     /**

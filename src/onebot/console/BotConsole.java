@@ -237,6 +237,14 @@ public class BotConsole {
 
             // 3) 连接 Bot
             connectInstance(inst);
+
+            // 4) 等待 WebSocket 真正握手就绪（最多 10 秒）
+            if ("ws".equals(inst.getMode()) && inst.getWsConnection() != null) {
+                if (!inst.getWsConnection().awaitConnected(10, java.util.concurrent.TimeUnit.SECONDS)) {
+                    logger.warn("[{}] WebSocket 未在 10 秒内就绪，自动连接失败", inst.getName());
+                    return null;
+                }
+            }
             if (inst.isConnected() && inst.getClient() != null) {
                 logger.info("[{}] 自动连接成功", inst.getName());
                 return inst.getClient();

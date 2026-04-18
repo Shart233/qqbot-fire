@@ -139,6 +139,7 @@ public class BotConsole {
     public void disconnectInstance(BotInstance inst) {
         if (!inst.isConnected()) return;
         inst.getScheduler().stop();
+        inst.getScheduler().setBot(null);
         if (inst.getProvider() != null) {
             inst.getProvider().close();
         }
@@ -689,6 +690,10 @@ public class BotConsole {
         tryPrintLoginInfo(inst);
         inst.getScheduler().setBot(client);
         inst.getScheduler().setBotConnector(() -> autoConnectBot(inst));
+        inst.getScheduler().setHealthCheck(() -> {
+            var c = inst.getWsConnection();
+            return c != null && c.isConnected();
+        });
         inst.getScheduler().setAfterSendStopper(() -> {
             new Thread(() -> {
                 disconnectInstance(inst);
@@ -718,6 +723,7 @@ public class BotConsole {
         tryPrintLoginInfo(inst);
         inst.getScheduler().setBot(client);
         inst.getScheduler().setBotConnector(() -> autoConnectBot(inst));
+        inst.getScheduler().setHealthCheck(() -> inst.isConnected());
         inst.getScheduler().setAfterSendStopper(() -> {
             new Thread(() -> {
                 disconnectInstance(inst);
@@ -1629,6 +1635,11 @@ public class BotConsole {
             boolean hasNapCat = inst.getNapCatInstanceName() != null && !inst.getNapCatInstanceName().isEmpty();
             if (hasNapCat) {
                 inst.getScheduler().setBotConnector(() -> autoConnectBot(inst));
+                inst.getScheduler().setHealthCheck(() -> {
+                    var c = inst.getWsConnection();
+                    if (c != null) return c.isConnected();
+                    return inst.isConnected();
+                });
                 inst.getScheduler().setAfterSendStopper(() -> {
                     new Thread(() -> {
                         disconnectInstance(inst);

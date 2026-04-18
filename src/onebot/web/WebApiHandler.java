@@ -1222,6 +1222,11 @@ public class WebApiHandler implements HttpHandler {
         var scheduler = inst.getScheduler();
         if (!scheduler.isRunning() && !scheduler.getTasks().isEmpty()) {
             scheduler.setBotConnector(() -> console.autoConnectBot(inst));
+            scheduler.setHealthCheck(() -> {
+                var c = inst.getWsConnection();
+                if (c != null) return c.isConnected();
+                return inst.isConnected();
+            });
             scheduler.setAfterSendStopper(() -> {
                 new Thread(() -> {
                     console.disconnectInstance(inst);

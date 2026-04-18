@@ -17,6 +17,7 @@ import java.time.temporal.ChronoUnit;
 import java.util.*;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.function.Supplier;
 
 /**
  * 定时消息任务管理器
@@ -60,6 +61,28 @@ public class ScheduleManager {
 
     public void setAfterSendStopper(Runnable stopper) {
         this.afterSendStopper = stopper;
+    }
+
+    /**
+     * 连接活性检查回调。判断当前 bot 引用的底层连接是否真正可用。
+     * 用于规避 WS 断开后 onClose 清了 wsRef 但 scheduler.bot 仍残留僵尸引用的场景。
+     * 未注入时默认认为活着（向后兼容）。
+     */
+    private Supplier<Boolean> healthCheck;
+
+    public void setHealthCheck(Supplier<Boolean> healthCheck) {
+        this.healthCheck = healthCheck;
+    }
+
+    /** bot 引用是否真正可用（非空且底层连接活着） */
+    private boolean isBotAlive() {
+        if (bot == null) return false;
+        if (healthCheck == null) return true;
+        try {
+            return Boolean.TRUE.equals(healthCheck.get());
+        } catch (Exception e) {
+            return false;
+        }
     }
 
     /** Bot 实例名称，用于区分定时任务文件 (schedules_<botName>.json) */
@@ -349,6 +372,12 @@ public class ScheduleManager {
     // ==================== 执行任务 ====================
 
     private void executeTask(ScheduleTask task) {
+        // 僵尸引用清理：bot 非空但底层 WS 已断（onClose 清了 wsRef 但 scheduler.bot 没同步）
+        if (bot != null && !isBotAlive()) {
+            logger.info("检测到 Bot 连接已失效，清理僵尸引用，任务: {}", task.name);
+            this.bot = null;
+        }
+
         if (bot == null && task.autoConnect && botConnector != null) {
             logger.info("Bot 未连接，任务 [{}] 已启用自动启动，尝试启动 NapCat 并连接...", task.name);
             try {
@@ -361,9 +390,10 @@ public class ScheduleManager {
                 logger.error("自动连接失败", e);
             }
         }
-        if (bot == null) {
+        if (bot == null || !isBotAlive()) {
             logger.warn("Bot 未连接{}，跳过任务: {}",
                     task.autoConnect ? "且自动连接失败" : "(未启用自动启动)", task.name);
+            this.bot = null;
             return;
         }
 

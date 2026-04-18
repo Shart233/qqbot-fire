@@ -262,11 +262,11 @@ function NapCatRuntimeSection({
             key={inst.name}
             variant="glass"
             padding="md"
-            className="flex flex-col gap-3"
+            className="flex flex-col gap-3 min-w-0"
           >
             <div className="flex items-center justify-between gap-2 flex-wrap">
-              <div className="flex items-center gap-2">
-                <span className="font-semibold text-sm text-[var(--color-text-primary)]">
+              <div className="flex items-center gap-1.5 flex-wrap min-w-0">
+                <span className="font-semibold text-sm text-[var(--color-text-primary)] truncate">
                   {inst.name}
                 </span>
                 <Badge size="sm" variant="primary">
@@ -279,6 +279,7 @@ function NapCatRuntimeSection({
               <Button
                 size="sm"
                 variant="ghost"
+                className="shrink-0"
                 disabled={!inst.webuiToken}
                 onClick={() => onCopy("WebUI Token", inst.webuiToken || "")}
               >

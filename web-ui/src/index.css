@@ -1,62 +1,163 @@
+@import "tailwindcss";
 @import "@heroui/styles";
 
-/* ===== Theme Variables (dark only) ===== */
+/* ============================================
+   设计系统 CSS 变量 - 专业 SaaS 深色模式
+   ============================================ */
 :root {
-  --app-bg: transparent;
-  --content1: #18181b;
-  --content2: #27272a;
-  --content3: #3f3f46;
-  --border: rgba(255, 255, 255, 0.1);
-  --border-hover: rgba(255, 255, 255, 0.2);
-  --text-primary: #fafafa;
-  --text-secondary: #a1a1aa;
-  --text-muted: #71717a;
-  --accent: #e94560;
-  --accent-hover: #ff6b81;
-  --success: #22c55e;
-  --warning: #f59e0b;
-  --sidebar-bg: rgba(0, 0, 0, 0.35);
-  --topbar-bg: rgba(0, 0, 0, 0.25);
-  --card-bg: rgba(0, 0, 0, 0.25);
-  --input-bg: rgba(0, 0, 0, 0.3);
+  color-scheme: dark;
+
+  /* ---- 主色调 primary ---- */
+  --color-primary-50: #f0f4ff;
+  --color-primary-100: #e0e9ff;
+  --color-primary-200: #c1d3ff;
+  --color-primary-300: #a2bdff;
+  --color-primary-400: #7a9dff;
+  --color-primary-500: #5a7dff;
+  --color-primary-600: #4a6de8;
+  --color-primary-700: #3a5dd1;
+  --color-primary-800: #2a4dba;
+  --color-primary-900: #1a3da3;
+
+  /* ---- 强调色 accent ---- */
+  --color-accent-400: #f472b6;
+  --color-accent-500: #ec4899;
+  --color-accent-600: #db2777;
+  --color-accent-700: #be185d;
+
+  /* ---- 中性色 neutral ---- */
+  --color-neutral-50: #fafafa;
+  --color-neutral-100: #f5f5f5;
+  --color-neutral-200: #e5e5e5;
+  --color-neutral-300: #d4d4d4;
+  --color-neutral-400: #a3a3a3;
+  --color-neutral-500: #737373;
+  --color-neutral-600: #525252;
+  --color-neutral-700: #404040;
+  --color-neutral-800: #262626;
+  --color-neutral-900: #171717;
+  --color-neutral-950: #0a0a0a;
+
+  /* ---- 背景层级 ---- */
+  --color-bg-base: #0f1419;
+  --color-bg-elevated: #1a1f2e;
+  --color-bg-hover: #252d3d;
+  --color-bg-active: #2a3547;
+
+  /* ---- 文字色 ---- */
+  --color-text-primary: #fafafa;
+  --color-text-secondary: #a3a3a3;
+  --color-text-muted: #737373;
+
+  /* ---- 状态色 ---- */
+  --color-success: #10b981;
+  --color-warning: #f59e0b;
+  --color-error: #ef4444;
+  --color-info: #3b82f6;
+
+  /* ---- 玻璃态 ---- */
+  --glass-light: rgba(255, 255, 255, 0.05);
+  --glass-medium: rgba(255, 255, 255, 0.08);
+  --glass-border: rgba(255, 255, 255, 0.08);
+  --glass-border-hover: rgba(255, 255, 255, 0.14);
   --glass-blur: 16px;
-  --glass-saturate: 1.3;
-  --shadow-sm: 0 2px 8px rgba(0, 0, 0, 0.3);
-  --shadow-md: 0 4px 16px rgba(0, 0, 0, 0.3);
-  --shadow-lg: 0 8px 32px rgba(0, 0, 0, 0.4);
-  --scrollbar-thumb: #3f3f46;
-  --scrollbar-hover: #52525b;
-  /* Background gradient */
-  --bg-from: #111827;
-  --bg-via: #1f2937;
-  --bg-to: #111827;
-  --orb1-color: rgba(99, 102, 241, 0.25);
-  --orb2-color: rgba(168, 85, 247, 0.25);
-  --orb3-color: rgba(236, 72, 153, 0.2);
+
+  /* ---- 阴影 ---- */
+  --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.3);
+  --shadow-base:
+    0 2px 4px 0 rgba(0, 0, 0, 0.35), 0 1px 2px 0 rgba(0, 0, 0, 0.2);
+  --shadow-md:
+    0 4px 8px -2px rgba(0, 0, 0, 0.4), 0 2px 4px -2px rgba(0, 0, 0, 0.25);
+  --shadow-lg:
+    0 10px 20px -4px rgba(0, 0, 0, 0.45), 0 4px 8px -4px rgba(0, 0, 0, 0.3);
+  --shadow-xl:
+    0 20px 40px -8px rgba(0, 0, 0, 0.5), 0 8px 16px -8px rgba(0, 0, 0, 0.35);
+  --shadow-glow-primary:
+    0 0 0 1px rgba(90, 125, 255, 0.3), 0 4px 16px -4px rgba(90, 125, 255, 0.35);
+  --shadow-glow-accent:
+    0 0 0 1px rgba(236, 72, 153, 0.3), 0 4px 16px -4px rgba(236, 72, 153, 0.35);
+  --shadow-glass-highlight: inset 0 1px 0 0 rgba(255, 255, 255, 0.08);
+
+  /* ---- 圆角 ---- */
+  --radius-sm: 0.25rem;
+  --radius-base: 0.375rem;
+  --radius-md: 0.5rem;
+  --radius-lg: 0.75rem;
+  --radius-xl: 1rem;
+  --radius-2xl: 1.5rem;
+
+  /* ---- 缓动 ---- */
+  --ease-out: cubic-bezier(0.25, 0.1, 0.25, 1);
+  --ease-smooth: cubic-bezier(0.4, 0, 0.2, 1);
+  --transition-fast: all 0.15s var(--ease-out);
+  --transition-base: all 0.2s var(--ease-out);
+  --transition-smooth: all 0.3s var(--ease-smooth);
 }
 
-/* ===== Tailwind v4 Theme Tokens ===== */
+/* ============================================
+   Tailwind v4 @theme - 将 CSS 变量暴露为工具类
+   ============================================ */
 @theme {
-  --color-app-bg: var(--app-bg);
-  --color-content1: var(--content1);
-  --color-content2: var(--content2);
-  --color-content3: var(--content3);
-  --color-border-theme: var(--border);
-  --color-border-hover: var(--border-hover);
-  --color-text-primary: var(--text-primary);
-  --color-text-secondary: var(--text-secondary);
-  --color-text-muted: var(--text-muted);
-  --color-accent: var(--accent);
-  --color-accent-hover: var(--accent-hover);
-  --color-success: var(--success);
-  --color-warning: var(--warning);
-  --color-sidebar-bg: var(--sidebar-bg);
-  --color-topbar-bg: var(--topbar-bg);
-  --color-card-bg: var(--card-bg);
-  --color-input-bg: var(--input-bg);
+  --color-primary-50: var(--color-primary-50);
+  --color-primary-100: var(--color-primary-100);
+  --color-primary-200: var(--color-primary-200);
+  --color-primary-300: var(--color-primary-300);
+  --color-primary-400: var(--color-primary-400);
+  --color-primary-500: var(--color-primary-500);
+  --color-primary-600: var(--color-primary-600);
+  --color-primary-700: var(--color-primary-700);
+  --color-primary-800: var(--color-primary-800);
+  --color-primary-900: var(--color-primary-900);
+
+  --color-accent-400: var(--color-accent-400);
+  --color-accent-500: var(--color-accent-500);
+  --color-accent-600: var(--color-accent-600);
+  --color-accent-700: var(--color-accent-700);
+
+  --color-bg-base: var(--color-bg-base);
+  --color-bg-elevated: var(--color-bg-elevated);
+  --color-bg-hover: var(--color-bg-hover);
+  --color-bg-active: var(--color-bg-active);
+
+  --color-text-primary: var(--color-text-primary);
+  --color-text-secondary: var(--color-text-secondary);
+  --color-text-muted: var(--color-text-muted);
+
+  --color-success: var(--color-success);
+  --color-warning: var(--color-warning);
+  --color-error: var(--color-error);
+  --color-info: var(--color-info);
+
+  --font-sans: "Inter", "PingFang SC", "Microsoft YaHei", system-ui, sans-serif;
+  --font-mono: "JetBrains Mono", "Fira Code", Consolas, monospace;
 }
 
-/* ===== Keyframe Animations ===== */
+/* ============================================
+   全局基础样式
+   ============================================ */
+html,
+body,
+#root {
+  min-height: 100vh;
+  background: transparent;
+}
+
+body {
+  font-family: var(--font-sans);
+  color: var(--color-text-primary);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+  background:
+    radial-gradient(ellipse at top left, #1a1f3a 0%, transparent 50%),
+    radial-gradient(ellipse at bottom right, #2a1f3a 0%, transparent 50%),
+    linear-gradient(180deg, #0a0e17 0%, #0f1419 100%);
+  background-attachment: fixed;
+}
+
+/* ============================================
+   关键帧动画
+   ============================================ */
 @keyframes fade-in {
   from {
     opacity: 0;
@@ -67,34 +168,14 @@
     transform: translateY(0);
   }
 }
-@keyframes slide-in {
-  from {
-    opacity: 0;
-    transform: translateX(-12px);
-  }
-  to {
-    opacity: 1;
-    transform: translateX(0);
-  }
-}
 @keyframes scale-in {
   from {
     opacity: 0;
-    transform: scale(0.95);
+    transform: scale(0.96);
   }
   to {
     opacity: 1;
     transform: scale(1);
-  }
-}
-@keyframes float-up {
-  from {
-    opacity: 0;
-    transform: translateY(16px) scale(0.98);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0) scale(1);
   }
 }
 @keyframes pulse-dot {
@@ -115,7 +196,27 @@
   }
 }
 
-/* ===== Custom Scrollbar ===== */
+/* ============================================
+   玻璃态基础类
+   ============================================ */
+.glass-panel {
+  background: var(--glass-medium);
+  backdrop-filter: blur(var(--glass-blur)) saturate(1.3);
+  -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(1.3);
+  border: 1px solid var(--glass-border);
+  box-shadow: var(--shadow-md), var(--shadow-glass-highlight);
+}
+
+.glass-panel-subtle {
+  background: var(--glass-light);
+  backdrop-filter: blur(var(--glass-blur));
+  -webkit-backdrop-filter: blur(var(--glass-blur));
+  border: 1px solid var(--glass-border);
+}
+
+/* ============================================
+   滚动条
+   ============================================ */
 ::-webkit-scrollbar {
   width: 6px;
   height: 6px;
@@ -124,14 +225,22 @@
   background: transparent;
 }
 ::-webkit-scrollbar-thumb {
-  background: var(--scrollbar-thumb);
+  background: var(--color-neutral-700);
   border-radius: 3px;
   transition: background 0.2s;
 }
 ::-webkit-scrollbar-thumb:hover {
-  background: var(--scrollbar-hover);
+  background: var(--color-neutral-600);
 }
 * {
   scrollbar-width: thin;
-  scrollbar-color: var(--scrollbar-thumb) transparent;
+  scrollbar-color: var(--color-neutral-700) transparent;
+}
+
+/* ============================================
+   选中文字
+   ============================================ */
+::selection {
+  background: rgba(90, 125, 255, 0.3);
+  color: var(--color-text-primary);
 }

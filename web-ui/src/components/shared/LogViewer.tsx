@@ -17,7 +17,7 @@ function colorize(line: string): string {
   if (/ WARN /.test(line))
     return `<span class="text-yellow-400">${escaped}</span>`;
   if (/ DEBUG /.test(line))
-    return `<span class="text-gray-500">${escaped}</span>`;
+    return `<span class="text-neutral-500">${escaped}</span>`;
   return escaped;
 }
 
@@ -51,12 +51,17 @@ export default function LogViewer({
       ref={containerRef}
       initial={{ opacity: 0, y: 8 }}
       animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.35, ease: [0.25, 0.1, 0.25, 1] }}
-      className={`bg-input-bg border border-border-theme rounded-xl ${height} overflow-y-auto mt-2`}
+      transition={{
+        duration: 0.35,
+        ease: [0.25, 0.1, 0.25, 1] as [number, number, number, number],
+      }}
+      className={`rounded-xl border border-white/10 bg-[rgba(0,0,0,0.3)] backdrop-blur-sm ${height} overflow-y-auto mt-2`}
     >
-      <pre className="font-mono text-[0.82rem] leading-relaxed p-3.5 m-0 whitespace-pre-wrap break-all text-text-secondary">
+      <pre className="font-mono text-[0.82rem] leading-relaxed p-3.5 m-0 whitespace-pre-wrap break-all text-neutral-300">
         {lines.length === 0 ? (
-          emptyMessage
+          <span className="block text-center text-neutral-500 text-sm">
+            {emptyMessage}
+          </span>
         ) : colorized ? (
           <span
             dangerouslySetInnerHTML={{ __html: lines.map(colorize).join("\n") }}

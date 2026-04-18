@@ -1,12 +1,11 @@
 import { useState, useEffect, useCallback } from "react";
-import { Button, Spinner, Select, ListBox, Switch } from "@heroui/react";
 import { useSearchParams } from "react-router-dom";
 import { useInterval } from "../hooks/useInterval";
 import { listNapCatInstances, getNapCatLog } from "../api/endpoints";
-import PageHeader from "../components/shared/PageHeader";
+import { PageContainer, PageHeader } from "../components/layout-new";
+import { Button, Select, Spinner } from "../components/ui";
 import LogViewer from "../components/shared/LogViewer";
 import type { NapCatInstance } from "../api/types";
-import type { Key } from "react-aria-components";
 
 export default function NcLogsPage() {
   const [searchParams] = useSearchParams();
@@ -16,12 +15,10 @@ export default function NcLogsPage() {
   const [autoRefresh, setAutoRefresh] = useState(false);
   const [loading, setLoading] = useState(true);
 
-  // Load instances on mount
   useEffect(() => {
     listNapCatInstances().then((data) => {
       const list = data || [];
       setInstances(list);
-      // Auto-select from URL param or localStorage
       const fromUrl = searchParams.get("instance");
       const fromStorage = localStorage.getItem("select_ncLogSelect") || "";
       const initial = fromUrl || fromStorage;
@@ -45,66 +42,54 @@ export default function NcLogsPage() {
     if (selected) loadLog(); // eslint-disable-line react-hooks/set-state-in-effect
   }, [selected, loadLog]);
 
-  // Auto-refresh every 2s
   useInterval(loadLog, autoRefresh ? 2000 : null);
 
-  if (loading) {
-    return (
-      <div className="flex justify-center items-center py-20">
-        <Spinner size="lg" color="accent" />
-      </div>
-    );
-  }
+  const options = [
+    { value: "", label: "选择实例..." },
+    ...instances.map((i) => ({
+      value: i.name,
+      label: `${i.name} (QQ:${i.qqUin || "?"})`,
+    })),
+  ];
 
   return (
-    <div>
-      <PageHeader title="NapCat 日志">
-        <div className="flex items-center gap-3">
-          <Select
-            selectedKey={selected || null}
-            onSelectionChange={(key: Key | null) =>
-              setSelected(String(key ?? ""))
-            }
-            placeholder="选择实例..."
-            className="min-w-[180px]"
-          >
-            <Select.Trigger className="bg-input-bg border border-border-theme text-text-primary rounded-xl px-3 py-2 text-sm outline-none focus:border-accent transition-colors">
-              <Select.Value />
-              <Select.Indicator />
-            </Select.Trigger>
-            <Select.Popover>
-              <ListBox>
-                {instances.map((i) => (
-                  <ListBox.Item
-                    key={i.name}
-                    id={i.name}
-                    textValue={`${i.name} (QQ:${i.qqUin || "?"})`}
-                  >
-                    {i.name} (QQ:{i.qqUin || "?"})
-                  </ListBox.Item>
-                ))}
-              </ListBox>
-            </Select.Popover>
-          </Select>
-          <Switch
-            size="sm"
-            isSelected={autoRefresh}
-            onChange={(isSelected: boolean) => setAutoRefresh(isSelected)}
-          >
-            <Switch.Control>
-              <Switch.Thumb />
-            </Switch.Control>
-            <Switch.Content>
-              <span className="text-sm text-text-muted">自动刷新</span>
-            </Switch.Content>
-          </Switch>
-          <Button size="sm" variant="ghost" onPress={loadLog}>
-            刷新
-          </Button>
-        </div>
-      </PageHeader>
+    <PageContainer>
+      <PageHeader
+        title="NapCat 日志"
+        description="NapCat 实例运行日志"
+        actions={
+          <div className="flex items-center gap-2 flex-wrap">
+            <div className="min-w-[200px]">
+              <Select
+                options={options}
+                value={selected}
+                onChange={(e) => setSelected(e.target.value)}
+                fullWidth
+              />
+            </div>
+            <label className="flex items-center gap-2 text-xs text-neutral-400 select-none">
+              <input
+                type="checkbox"
+                checked={autoRefresh}
+                onChange={(e) => setAutoRefresh(e.target.checked)}
+                className="accent-[#5a7dff]"
+              />
+              <span>自动刷新</span>
+            </label>
+            <Button size="sm" variant="ghost" onClick={loadLog}>
+              刷新
+            </Button>
+          </div>
+        }
+      />
 
-      <LogViewer lines={lines} tall emptyMessage="无日志" />
-    </div>
+      {loading ? (
+        <div className="flex items-center justify-center py-20">
+          <Spinner size="lg" />
+        </div>
+      ) : (
+        <LogViewer lines={lines} tall emptyMessage="无日志" />
+      )}
+    </PageContainer>
   );
 }

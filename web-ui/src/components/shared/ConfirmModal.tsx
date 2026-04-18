@@ -1,4 +1,5 @@
-import { AlertDialog, Button } from "@heroui/react";
+import { Button } from "../ui";
+import SimpleModal from "./SimpleModal";
 
 interface Props {
   isOpen: boolean;
@@ -16,39 +17,29 @@ export default function ConfirmModal({
   onClose,
 }: Props) {
   return (
-    <AlertDialog
+    <SimpleModal
       isOpen={isOpen}
-      onOpenChange={(open) => {
-        if (!open) onClose();
-      }}
+      onClose={onClose}
+      title={title}
+      footer={
+        <div className="flex justify-end gap-2">
+          <Button size="sm" variant="ghost" onClick={onClose}>
+            取消
+          </Button>
+          <Button
+            size="sm"
+            variant="danger"
+            onClick={() => {
+              onConfirm();
+              onClose();
+            }}
+          >
+            确定
+          </Button>
+        </div>
+      }
     >
-      <AlertDialog.Backdrop />
-      <AlertDialog.Container>
-        <AlertDialog.Dialog>
-          <AlertDialog.Header>
-            <AlertDialog.Heading>{title}</AlertDialog.Heading>
-            <AlertDialog.CloseTrigger />
-          </AlertDialog.Header>
-          <AlertDialog.Body>
-            <p>{message}</p>
-          </AlertDialog.Body>
-          <AlertDialog.Footer>
-            <Button size="sm" variant="ghost" onPress={onClose}>
-              取消
-            </Button>
-            <Button
-              size="sm"
-              variant="danger"
-              onPress={() => {
-                onConfirm();
-                onClose();
-              }}
-            >
-              确定
-            </Button>
-          </AlertDialog.Footer>
-        </AlertDialog.Dialog>
-      </AlertDialog.Container>
-    </AlertDialog>
+      <p className="text-sm text-text-primary">{message}</p>
+    </SimpleModal>
   );
 }

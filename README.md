@@ -132,27 +132,71 @@ tail -f logs/qqbot-fire.log
 ### Linux 部署说明
 
 ```bash
-# 1. 上传项目到服务器
-scp -r qqbot-fire/ user@server:/opt/qqbot-fire/
+# 1. 从 Github 拉取
+git clone https://github.com/Shart233/qqbot-fire.git /opt/qqbot-fire
+cd /opt/qqbot-fire
 
 # 2. 确认 JDK 24+
+export JAVA_HOME=/opt/jdk-24.0.2+12   # 按实际路径调整
+export PATH=$JAVA_HOME/bin:$PATH
 java -version
 
-# 3. 编译
-cd /opt/qqbot-fire
-javac -cp "lib/*" -d out -sourcepath src src/Main.java
+# 3. 构建发行包 (生成 build/install/qqbot-fire/)
+./gradlew installDist
 
-# 4. 启动
-java -cp "out:lib/*:src/resources" Main
+# 4. 前台启动 (调试用)
+./build/install/qqbot-fire/bin/qqbot-fire
 
-# 5. 后台运行 (推荐用 screen 或 tmux)
-screen -S qqbot
-java -cp "out:lib/*:src/resources" Main
-# Ctrl+A D 脱离 screen，screen -r qqbot 恢复
+# 5. 推荐: systemd 托管 (开机自启 + 崩溃重启 + 日志接管)
+cat > /etc/systemd/system/qqbot-fire.service <<'EOF'
+[Unit]
+Description=QQBot-Fire Service
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=root
+WorkingDirectory=/opt/qqbot-fire
+Environment=JAVA_HOME=/opt/jdk-24.0.2+12
+Environment=PATH=/opt/jdk-24.0.2+12/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+ExecStart=/opt/qqbot-fire/build/install/qqbot-fire/bin/qqbot-fire
+Restart=on-failure
+RestartSec=5s
+StandardInput=null
+StandardOutput=append:/var/log/qqbot-fire.log
+StandardError=append:/var/log/qqbot-fire.log
+KillMode=process
+TimeoutStopSec=15
+
+[Install]
+WantedBy=multi-user.target
+EOF
+systemctl daemon-reload
+systemctl enable --now qqbot-fire.service
 
 # 6. 浏览器访问 Web 控制台
 http://服务器IP:9988
 ```
+
+### Linux 下 NapCat 管理策略
+
+fire 支持在 Linux 上**自管 NapCat 子进程**（启动/停止/日志均通过 Web UI），与 Windows 行为一致。启动命令按优先级自动探测：
+
+1. **`<napCatDir>/napcat-run.sh`** — 用户自定义脚本（通常封装 `xvfb-run` + QQ NT）
+2. **`<napCatDir>/napcat.sh`** — NapCat 官方启动脚本
+3. **`xvfb-run /opt/QQ/qq --no-sandbox -q <QQ号> <napCatDir>/napcat.mjs`** — QQ NT Electron 模式（无头服务器推荐）
+4. **`node napcat.mjs <QQ号>`** — 纯 Node 模式（需要 NapCat Node 版）
+
+⚠️ **切勿同时用 systemd 和 fire 管理同一个 NapCat**。如果已有 `napcat.service`，部署 fire 前请关闭：
+
+```bash
+systemctl disable --now napcat.service
+```
+
+否则 fire 的"停止"按钮无法杀死 systemd 拉起的进程，会出现 NapCat 僵尸进程抢登录。
+
+停止逻辑除了 `destroyForcibly` 主进程外，还会按实例 workdir 和 QQ 号用 `pkill -f` 清理脱离父子关系的 QQ NT 子进程（xvfb-run 启动时常见），保证"停止"按钮真正停干净。
 
 ### 场景一：已有 NapCat 实例，直接连接
 

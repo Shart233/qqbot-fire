@@ -34,7 +34,8 @@ public class ConfigManager {
             Map<String, BotInstance> bots,
             String activeBotName,
             String napCatDir,
-            String napCatWorkRoot
+            String napCatWorkRoot,
+            String adminPasswordHash
     ) {}
 
     /**
@@ -45,11 +46,12 @@ public class ConfigManager {
     public static LoadResult load() {
         try {
             CryptoUtil.init();
+            onebot.auth.JwtUtil.init();
             Path path = Path.of(CONFIG_FILE);
             if (!Files.exists(path)) {
                 var bots = new LinkedHashMap<String, BotInstance>();
                 bots.put(DEFAULT_BOT_NAME, new BotInstance(DEFAULT_BOT_NAME));
-                return new LoadResult(bots, DEFAULT_BOT_NAME, null, null);
+                return new LoadResult(bots, DEFAULT_BOT_NAME, null, null, null);
             }
 
             String json = Files.readString(path);
@@ -60,6 +62,13 @@ public class ConfigManager {
             String activeBotName = null;
             String napCatDir = null;
             String napCatWorkRoot = null;
+            String adminPasswordHash = null;
+
+            // 读取顶层 admin.passwordHash
+            if (cfg.get("admin") instanceof Map adminMap) {
+                Object ph = ((Map<String, Object>) adminMap).get("passwordHash");
+                if (ph instanceof String v && !v.isEmpty()) adminPasswordHash = v;
+            }
 
             if (cfg.containsKey("bots") && cfg.get("bots") instanceof Map botsMap) {
                 for (var entry : ((Map<String, Object>) botsMap).entrySet()) {
@@ -108,19 +117,29 @@ public class ConfigManager {
             }
 
             logger.debug("已加载 {} 个 Bot 配置", bots.size());
-            return new LoadResult(bots, activeBotName, napCatDir, napCatWorkRoot);
+            return new LoadResult(bots, activeBotName, napCatDir, napCatWorkRoot, adminPasswordHash);
         } catch (Exception e) {
             logger.warn("加载配置文件失败，使用默认配置: {}", e.getMessage());
             var bots = new LinkedHashMap<String, BotInstance>();
             bots.put(DEFAULT_BOT_NAME, new BotInstance(DEFAULT_BOT_NAME));
-            return new LoadResult(bots, DEFAULT_BOT_NAME, null, null);
+            return new LoadResult(bots, DEFAULT_BOT_NAME, null, null, null);
         }
     }
 
     /**
-     * 保存配置到 config.json
+     * 保存配置到 config.json（兼容旧签名，不写 admin 字段）
      */
     public static void save(Map<String, BotInstance> bots, String activeBotName, NapCatLauncher launcher) {
+        save(bots, activeBotName, launcher, null);
+    }
+
+    /**
+     * 保存配置到 config.json
+     *
+     * @param adminPasswordHash bcrypt 哈希；null 或空则不写 admin 字段（保留首次启动未设置密码的状态）
+     */
+    public static void save(Map<String, BotInstance> bots, String activeBotName, NapCatLauncher launcher,
+                            String adminPasswordHash) {
         try {
             var botsMap = new LinkedHashMap<String, Object>();
             for (var inst : bots.values()) {
@@ -144,6 +163,12 @@ public class ConfigManager {
             }
             if (launcher.getWorkRoot() != null) {
                 cfg.put("napCatWorkRoot", launcher.getWorkRoot());
+            }
+
+            if (adminPasswordHash != null && !adminPasswordHash.isEmpty()) {
+                var admin = new LinkedHashMap<String, Object>();
+                admin.put("passwordHash", adminPasswordHash);
+                cfg.put("admin", admin);
             }
 
             Files.writeString(Path.of(CONFIG_FILE), GsonFactory.pretty().toJson(cfg));

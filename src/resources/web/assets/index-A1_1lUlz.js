@@ -30237,7 +30237,48 @@ var mC = {
   hC = { layout: { ProjectionNode: cx, MeasureLayout: QS } },
   gC = dS({ ...hS, ...mC, ...$S, ...hC }, fS),
   _C = u(y(), 1),
-  vC = {
+  vC = `adminToken`;
+function yC() {
+  try {
+    return localStorage.getItem(vC);
+  } catch {
+    return null;
+  }
+}
+function bC(e) {
+  try {
+    localStorage.setItem(vC, e);
+  } catch {}
+}
+function xC() {
+  try {
+    localStorage.removeItem(vC);
+  } catch {}
+}
+function SC() {
+  let e = `#/login`;
+  window.location.hash !== e && (window.location.hash = e);
+}
+async function Q(e, t, n) {
+  try {
+    let r = { "Content-Type": `application/json` },
+      i = yC();
+    i && (r.Authorization = `Bearer ${i}`);
+    let a = { method: e, headers: r };
+    n && (a.body = JSON.stringify(n));
+    let o = await fetch(t, a);
+    if (o.status === 401 && (xC(), !t.startsWith(`/api/auth/`)))
+      return (SC(), null);
+    let s = await o.json();
+    return s.ok
+      ? s.data
+      : (uf.danger(`请求失败`, { description: s.error || `未知错误` }), null);
+  } catch (e) {
+    let t = e instanceof Error ? e.message : `未知错误`;
+    return (uf.danger(`网络错误`, { description: t }), null);
+  }
+}
+var CC = {
     dashboard: (0, X.jsxs)(`svg`, {
       width: `18`,
       height: `18`,
@@ -30447,25 +30488,29 @@ var mC = {
       ],
     }),
   },
-  yC = [
-    { to: `/dashboard`, label: `仪表盘`, icon: vC.dashboard, group: `概览` },
-    { to: `/bots`, label: `Bot 实例`, icon: vC.bots, group: `机器人` },
-    { to: `/messages`, label: `消息`, icon: vC.messages, group: `机器人` },
-    { to: `/contacts`, label: `联系人`, icon: vC.contacts, group: `机器人` },
-    { to: `/schedules`, label: `定时任务`, icon: vC.schedule, group: `机器人` },
-    { to: `/napcat`, label: `NapCat`, icon: vC.napcat, group: `系统` },
-    { to: `/console`, label: `控制台`, icon: vC.console, group: `系统` },
-    { to: `/nc-logs`, label: `NapCat 日志`, icon: vC.ncLogs, group: `日志` },
+  wC = [
+    { to: `/dashboard`, label: `仪表盘`, icon: CC.dashboard, group: `概览` },
+    { to: `/bots`, label: `Bot 实例`, icon: CC.bots, group: `机器人` },
+    { to: `/messages`, label: `消息`, icon: CC.messages, group: `机器人` },
+    { to: `/contacts`, label: `联系人`, icon: CC.contacts, group: `机器人` },
+    { to: `/schedules`, label: `定时任务`, icon: CC.schedule, group: `机器人` },
+    { to: `/napcat`, label: `NapCat`, icon: CC.napcat, group: `系统` },
+    { to: `/console`, label: `控制台`, icon: CC.console, group: `系统` },
+    { to: `/nc-logs`, label: `NapCat 日志`, icon: CC.ncLogs, group: `日志` },
     {
       to: `/server-logs`,
       label: `服务端日志`,
-      icon: vC.serverLogs,
+      icon: CC.serverLogs,
       group: `日志`,
     },
-    { to: `/logs`, label: `操作日志`, icon: vC.logs, group: `日志` },
+    { to: `/logs`, label: `操作日志`, icon: CC.logs, group: `日志` },
   ];
-function bC({ open: e, onClose: t }) {
-  let n = Array.from(new Set(yC.map((e) => e.group ?? ``))).filter(Boolean);
+function TC({ open: e, onClose: t }) {
+  let n = rr(),
+    r = Array.from(new Set(wC.map((e) => e.group ?? ``))).filter(Boolean);
+  function i() {
+    (xC(), t(), n(`/login`, { replace: !0 }));
+  }
   return (0, X.jsxs)(X.Fragment, {
     children: [
       e &&
@@ -30511,7 +30556,7 @@ function bC({ open: e, onClose: t }) {
           }),
           (0, X.jsx)(`nav`, {
             className: `flex-1 overflow-y-auto px-3 py-4 space-y-5`,
-            children: n.map((e) =>
+            children: r.map((e) =>
               (0, X.jsxs)(
                 `div`,
                 {
@@ -30522,7 +30567,7 @@ function bC({ open: e, onClose: t }) {
                     }),
                     (0, X.jsx)(`ul`, {
                       className: `space-y-0.5`,
-                      children: yC
+                      children: wC
                         .filter((t) => t.group === e)
                         .map((e) =>
                           (0, X.jsx)(
@@ -30558,24 +30603,83 @@ function bC({ open: e, onClose: t }) {
               ),
             ),
           }),
-          (0, X.jsx)(`div`, {
-            className: `p-3 border-t border-[var(--glass-border)]`,
-            children: (0, X.jsxs)(`div`, {
-              className: `flex items-center gap-2 px-2 h-8 text-[11px] text-[var(--color-text-muted)]`,
-              children: [
-                (0, X.jsx)(`span`, {
-                  className: `w-1.5 h-1.5 rounded-full bg-[var(--color-success)] animate-pulse`,
-                }),
-                (0, X.jsx)(`span`, { children: `系统运行中` }),
-              ],
-            }),
+          (0, X.jsxs)(`div`, {
+            className: `p-3 border-t border-[var(--glass-border)] space-y-1`,
+            children: [
+              (0, X.jsxs)(R, {
+                to: `/settings`,
+                onClick: t,
+                className: ({ isActive: e }) => `
+              flex items-center gap-3 px-3 h-9 rounded-md text-sm transition-all
+              ${e ? `bg-gradient-to-r from-[rgba(90,125,255,0.18)] to-[rgba(236,72,153,0.08)] text-white` : `text-[var(--color-text-secondary)] hover:bg-[rgba(255,255,255,0.05)] hover:text-[var(--color-text-primary)]`}
+            `,
+                children: [
+                  (0, X.jsxs)(`svg`, {
+                    width: `18`,
+                    height: `18`,
+                    viewBox: `0 0 24 24`,
+                    fill: `none`,
+                    stroke: `currentColor`,
+                    strokeWidth: `1.8`,
+                    strokeLinecap: `round`,
+                    strokeLinejoin: `round`,
+                    children: [
+                      (0, X.jsx)(`circle`, { cx: `12`, cy: `12`, r: `3` }),
+                      (0, X.jsx)(`path`, {
+                        d: `M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z`,
+                      }),
+                    ],
+                  }),
+                  (0, X.jsx)(`span`, { children: `设置` }),
+                ],
+              }),
+              (0, X.jsxs)(`button`, {
+                type: `button`,
+                onClick: i,
+                className: `w-full flex items-center gap-3 px-3 h-9 rounded-md text-sm text-[var(--color-text-secondary)] hover:bg-[rgba(255,255,255,0.05)] hover:text-[var(--color-text-primary)] transition-all`,
+                children: [
+                  (0, X.jsxs)(`svg`, {
+                    width: `18`,
+                    height: `18`,
+                    viewBox: `0 0 24 24`,
+                    fill: `none`,
+                    stroke: `currentColor`,
+                    strokeWidth: `1.8`,
+                    strokeLinecap: `round`,
+                    strokeLinejoin: `round`,
+                    children: [
+                      (0, X.jsx)(`path`, {
+                        d: `M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4`,
+                      }),
+                      (0, X.jsx)(`polyline`, { points: `16 17 21 12 16 7` }),
+                      (0, X.jsx)(`line`, {
+                        x1: `21`,
+                        y1: `12`,
+                        x2: `9`,
+                        y2: `12`,
+                      }),
+                    ],
+                  }),
+                  (0, X.jsx)(`span`, { children: `退出登录` }),
+                ],
+              }),
+              (0, X.jsxs)(`div`, {
+                className: `flex items-center gap-2 px-3 h-7 text-[11px] text-[var(--color-text-muted)]`,
+                children: [
+                  (0, X.jsx)(`span`, {
+                    className: `w-1.5 h-1.5 rounded-full bg-[var(--color-success)] animate-pulse`,
+                  }),
+                  (0, X.jsx)(`span`, { children: `系统运行中` }),
+                ],
+              }),
+            ],
           }),
         ],
       }),
     ],
   });
 }
-var xC = {
+var EC = {
     default: `bg-[rgba(255,255,255,0.08)] text-[var(--color-text-secondary)] border-[var(--glass-border)]`,
     primary: `bg-[rgba(90,125,255,0.15)] text-[#a2bdff] border-[rgba(90,125,255,0.3)]`,
     accent: `bg-[rgba(236,72,153,0.15)] text-[#f8b4dd] border-[rgba(236,72,153,0.3)]`,
@@ -30584,7 +30688,7 @@ var xC = {
     error: `bg-[rgba(239,68,68,0.15)] text-[#fca5a5] border-[rgba(239,68,68,0.3)]`,
     info: `bg-[rgba(59,130,246,0.15)] text-[#93c5fd] border-[rgba(59,130,246,0.3)]`,
   },
-  SC = {
+  DC = {
     default: `bg-[var(--color-neutral-400)]`,
     primary: `bg-[var(--color-primary-500)]`,
     accent: `bg-[var(--color-accent-500)]`,
@@ -30593,8 +30697,8 @@ var xC = {
     error: `bg-[var(--color-error)]`,
     info: `bg-[var(--color-info)]`,
   },
-  CC = { sm: `h-5 px-2 text-[10px] gap-1`, md: `h-6 px-2.5 text-xs gap-1.5` };
-function wC({
+  OC = { sm: `h-5 px-2 text-[10px] gap-1`, md: `h-6 px-2.5 text-xs gap-1.5` };
+function kC({
   variant: e = `default`,
   size: t = `sm`,
   dot: n = !1,
@@ -30607,8 +30711,8 @@ function wC({
     className: `
         inline-flex items-center justify-center
         font-medium rounded-full border
-        ${xC[e]}
-        ${CC[t]}
+        ${EC[e]}
+        ${OC[t]}
         ${i}
       `,
     ...o,
@@ -30619,10 +30723,10 @@ function wC({
           children: [
             r &&
               (0, X.jsx)(`span`, {
-                className: `absolute inline-flex h-2 w-2 rounded-full opacity-60 animate-ping ${SC[e]}`,
+                className: `absolute inline-flex h-2 w-2 rounded-full opacity-60 animate-ping ${DC[e]}`,
               }),
             (0, X.jsx)(`span`, {
-              className: `relative inline-flex h-1.5 w-1.5 rounded-full ${SC[e]}`,
+              className: `relative inline-flex h-1.5 w-1.5 rounded-full ${DC[e]}`,
             }),
           ],
         }),
@@ -30630,7 +30734,7 @@ function wC({
     ],
   });
 }
-var TC = {
+var AC = {
   "/dashboard": { title: `仪表盘`, desc: `系统概览与实时状态` },
   "/bots": { title: `Bot 实例`, desc: `管理多个 Bot 连接与配置` },
   "/messages": { title: `消息`, desc: `收发消息与事件追踪` },
@@ -30640,8 +30744,8 @@ var TC = {
   "/console": { title: `控制台`, desc: `交互式命令行` },
   "/logs": { title: `日志`, desc: `服务端与 NapCat 日志查看` },
 };
-function EC({ onMenuToggle: e }) {
-  let t = TC[er().pathname] ?? { title: ``, desc: `` };
+function jC({ onMenuToggle: e }) {
+  let t = AC[er().pathname] ?? { title: ``, desc: `` };
   return (0, X.jsxs)(`header`, {
     className: `h-16 shrink-0 flex items-center justify-between px-5 lg:px-7 border-b border-[var(--glass-border)] bg-[rgba(15,20,25,0.6)] backdrop-blur-[16px]`,
     children: [
@@ -30684,7 +30788,7 @@ function EC({ onMenuToggle: e }) {
       }),
       (0, X.jsx)(`div`, {
         className: `flex items-center gap-3`,
-        children: (0, X.jsx)(wC, {
+        children: (0, X.jsx)(kC, {
           variant: `success`,
           dot: !0,
           pulse: !0,
@@ -30695,7 +30799,7 @@ function EC({ onMenuToggle: e }) {
     ],
   });
 }
-function DC() {
+function MC() {
   let [e, t] = (0, w.useState)(!1);
   return (0, X.jsxs)(`div`, {
     className: `relative flex h-screen overflow-hidden`,
@@ -30718,11 +30822,11 @@ function DC() {
           }),
         ],
       }),
-      (0, X.jsx)(bC, { open: e, onClose: () => t(!1) }),
+      (0, X.jsx)(TC, { open: e, onClose: () => t(!1) }),
       (0, X.jsxs)(`div`, {
         className: `relative z-10 flex flex-1 flex-col overflow-hidden`,
         children: [
-          (0, X.jsx)(EC, { onMenuToggle: () => t(!0) }),
+          (0, X.jsx)(jC, { onMenuToggle: () => t(!0) }),
           (0, X.jsx)(`main`, {
             className: `flex-1 overflow-y-auto`,
             children: (0, X.jsx)(Vr, {}),
@@ -30732,7 +30836,7 @@ function DC() {
     ],
   });
 }
-function OC(e, t) {
+function NC(e, t) {
   let n = (0, w.useRef)(e);
   ((0, w.useEffect)(() => {
     n.current = e;
@@ -30743,7 +30847,7 @@ function OC(e, t) {
       return () => clearInterval(e);
     }, [t]));
 }
-var kC = (e) => {
+var PC = (e) => {
     let t,
       n = new Set(),
       r = (e, r) => {
@@ -30765,9 +30869,9 @@ var kC = (e) => {
       o = (t = e(r, i, a));
     return a;
   },
-  AC = (e) => (e ? kC(e) : kC),
-  jC = (e) => e;
-function MC(e, t = jC) {
+  FC = (e) => (e ? PC(e) : PC),
+  IC = (e) => e;
+function LC(e, t = IC) {
   let n = w.useSyncExternalStore(
     e.subscribe,
     w.useCallback(() => t(e.getState()), [e, t]),
@@ -30775,12 +30879,12 @@ function MC(e, t = jC) {
   );
   return (w.useDebugValue(n), n);
 }
-var NC = (e) => {
-    let t = AC(e),
-      n = (e) => MC(t, e);
+var RC = (e) => {
+    let t = FC(e),
+      n = (e) => LC(t, e);
     return (Object.assign(n, t), n);
   },
-  PC = ((e) => (e ? NC(e) : NC))((e) => ({
+  zC = ((e) => (e ? RC(e) : RC))((e) => ({
     cachedBots: [],
     activeBotName: null,
     setCachedBots: (t, n) => e({ cachedBots: t, activeBotName: n }),
@@ -30793,67 +30897,54 @@ var NC = (e) => {
         ].slice(-500),
       })),
     clearLogs: () => e({ operationLogs: [] }),
-  }));
-async function Q(e, t, n) {
-  try {
-    let r = { method: e, headers: { "Content-Type": `application/json` } };
-    n && (r.body = JSON.stringify(n));
-    let i = await (await fetch(t, r)).json();
-    return i.ok
-      ? i.data
-      : (uf.danger(`请求失败`, { description: i.error || `未知错误` }), null);
-  } catch (e) {
-    let t = e instanceof Error ? e.message : `未知错误`;
-    return (uf.danger(`网络错误`, { description: t }), null);
-  }
-}
-var FC = encodeURIComponent,
-  IC = () => Q(`GET`, `/api/bots`),
-  LC = (e) => Q(`POST`, `/api/bots`, { name: e }),
-  RC = (e) => Q(`DELETE`, `/api/bots/${FC(e)}`),
-  zC = (e) => Q(`GET`, `/api/bots/${FC(e)}/config`),
-  BC = (e, t) => Q(`PUT`, `/api/bots/${FC(e)}/config`, t),
-  VC = (e) => Q(`POST`, `/api/bots/${FC(e)}/connect`),
-  HC = (e) => Q(`POST`, `/api/bots/${FC(e)}/disconnect`),
-  UC = () => Q(`POST`, `/api/connect-all`),
-  WC = () => Q(`POST`, `/api/disconnect-all`),
-  GC = (e) => Q(`GET`, `/api/bots/${FC(e)}/friends`),
-  KC = (e) => Q(`GET`, `/api/bots/${FC(e)}/groups`),
-  qC = (e, t) => Q(`GET`, `/api/bots/${FC(e)}/groups/${t}/members`),
-  JC = (e, t, n, r) =>
-    Q(`POST`, `/api/bots/${FC(e)}/send`, { type: t, target: n, message: r }),
-  YC = (e) => Q(`GET`, `/api/bots/${FC(e)}/schedules`),
-  XC = (e, t) => Q(`POST`, `/api/bots/${FC(e)}/schedules`, t),
-  ZC = (e, t) => Q(`DELETE`, `/api/bots/${FC(e)}/schedules/${FC(t)}`),
-  QC = (e, t, n) =>
-    Q(`PUT`, `/api/bots/${FC(e)}/schedules/${FC(t)}/toggle`, { enabled: n }),
-  $C = (e, t) => Q(`POST`, `/api/bots/${FC(e)}/schedules/${FC(t)}/test`),
-  ew = (e, t, n) => Q(`PUT`, `/api/bots/${FC(e)}/schedules/${FC(t)}`, n),
-  tw = () => Q(`GET`, `/api/napcat/config`),
-  nw = (e) => Q(`PUT`, `/api/napcat/config`, e),
+  })),
+  BC = encodeURIComponent,
+  VC = () => Q(`GET`, `/api/bots`),
+  HC = (e) => Q(`POST`, `/api/bots`, { name: e }),
+  UC = (e) => Q(`DELETE`, `/api/bots/${BC(e)}`),
+  WC = (e) => Q(`GET`, `/api/bots/${BC(e)}/config`),
+  GC = (e, t) => Q(`PUT`, `/api/bots/${BC(e)}/config`, t),
+  KC = (e) => Q(`POST`, `/api/bots/${BC(e)}/connect`),
+  qC = (e) => Q(`POST`, `/api/bots/${BC(e)}/disconnect`),
+  JC = () => Q(`POST`, `/api/connect-all`),
+  YC = () => Q(`POST`, `/api/disconnect-all`),
+  XC = (e) => Q(`GET`, `/api/bots/${BC(e)}/friends`),
+  ZC = (e) => Q(`GET`, `/api/bots/${BC(e)}/groups`),
+  QC = (e, t) => Q(`GET`, `/api/bots/${BC(e)}/groups/${t}/members`),
+  $C = (e, t, n, r) =>
+    Q(`POST`, `/api/bots/${BC(e)}/send`, { type: t, target: n, message: r }),
+  ew = (e) => Q(`GET`, `/api/bots/${BC(e)}/schedules`),
+  tw = (e, t) => Q(`POST`, `/api/bots/${BC(e)}/schedules`, t),
+  nw = (e, t) => Q(`DELETE`, `/api/bots/${BC(e)}/schedules/${BC(t)}`),
   rw = (e, t, n) =>
+    Q(`PUT`, `/api/bots/${BC(e)}/schedules/${BC(t)}/toggle`, { enabled: n }),
+  iw = (e, t) => Q(`POST`, `/api/bots/${BC(e)}/schedules/${BC(t)}/test`),
+  aw = (e, t, n) => Q(`PUT`, `/api/bots/${BC(e)}/schedules/${BC(t)}`, n),
+  ow = () => Q(`GET`, `/api/napcat/config`),
+  sw = (e) => Q(`PUT`, `/api/napcat/config`, e),
+  cw = (e, t, n) =>
     Q(`POST`, `/api/napcat/start`, {
       name: e,
       ...(t ? { qq: t } : {}),
       ...(n ? { webuiPort: n } : {}),
     }),
-  iw = (e) => Q(`POST`, `/api/napcat/stop`, { name: e }),
-  aw = () => Q(`GET`, `/api/napcat/instances`),
-  ow = (e) => Q(`GET`, `/api/napcat/instances/${FC(e)}/log`),
-  sw = () => Q(`POST`, `/api/napcat/discover`),
-  cw = (e) => Q(`POST`, `/api/napcat/forget`, { name: e }),
-  lw = (e, t, n) =>
+  lw = (e) => Q(`POST`, `/api/napcat/stop`, { name: e }),
+  uw = () => Q(`GET`, `/api/napcat/instances`),
+  dw = (e) => Q(`GET`, `/api/napcat/instances/${BC(e)}/log`),
+  fw = () => Q(`POST`, `/api/napcat/discover`),
+  pw = (e) => Q(`POST`, `/api/napcat/forget`, { name: e }),
+  mw = (e, t, n) =>
     Q(`PUT`, `/api/napcat/saved`, { name: e, qqUin: t, webuiPort: n }),
-  uw = (e) => Q(`POST`, `/api/console/exec`, { command: e }),
-  dw = () => Q(`GET`, `/api/logs/list`),
-  fw = (e, t) => Q(`GET`, `/api/logs/read?file=${FC(e)}&lines=${t}`);
-function pw({ children: e, className: t = `` }) {
+  hw = (e) => Q(`POST`, `/api/console/exec`, { command: e }),
+  gw = () => Q(`GET`, `/api/logs/list`),
+  _w = (e, t) => Q(`GET`, `/api/logs/read?file=${BC(e)}&lines=${t}`);
+function vw({ children: e, className: t = `` }) {
   return (0, X.jsx)(`div`, {
     className: `mx-auto max-w-7xl p-6 lg:p-8 ${t}`,
     children: e,
   });
 }
-function mw({ title: e, description: t, actions: n }) {
+function yw({ title: e, description: t, actions: n }) {
   return (0, X.jsxs)(`div`, {
     className: `mb-8 flex items-start justify-between gap-4`,
     children: [
@@ -30879,14 +30970,14 @@ function mw({ title: e, description: t, actions: n }) {
     ],
   });
 }
-var hw = {
+var bw = {
     primary: `bg-gradient-to-b from-[#6a8dff] to-[#4a6de8] text-white border border-[rgba(255,255,255,0.12)] hover:from-[#7a9dff] hover:to-[#5a7dff] active:from-[#4a6de8] active:to-[#3a5dd1] shadow-[0_4px_12px_-2px_rgba(90,125,255,0.4),inset_0_1px_0_0_rgba(255,255,255,0.15)]`,
     secondary: `bg-[rgba(255,255,255,0.06)] text-[var(--color-text-primary)] border border-[var(--glass-border)] hover:bg-[rgba(255,255,255,0.1)] hover:border-[var(--glass-border-hover)] backdrop-blur-md`,
     ghost: `bg-transparent text-[var(--color-text-secondary)] hover:bg-[rgba(255,255,255,0.06)] hover:text-[var(--color-text-primary)]`,
     danger: `bg-gradient-to-b from-[#f87171] to-[#dc2626] text-white border border-[rgba(255,255,255,0.12)] hover:from-[#fca5a5] hover:to-[#ef4444] shadow-[0_4px_12px_-2px_rgba(239,68,68,0.4),inset_0_1px_0_0_rgba(255,255,255,0.15)]`,
     success: `bg-gradient-to-b from-[#34d399] to-[#059669] text-white border border-[rgba(255,255,255,0.12)] hover:from-[#6ee7b7] hover:to-[#10b981] shadow-[0_4px_12px_-2px_rgba(16,185,129,0.4),inset_0_1px_0_0_rgba(255,255,255,0.15)]`,
   },
-  gw = {
+  xw = {
     sm: `h-8 px-3 text-xs rounded-md gap-1.5`,
     md: `h-10 px-4 text-sm rounded-lg gap-2`,
     lg: `h-12 px-6 text-base rounded-lg gap-2.5`,
@@ -30916,8 +31007,8 @@ var hw = {
         focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-primary-500)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--color-bg-base)]
         disabled:opacity-50 disabled:cursor-not-allowed
         active:scale-[0.98]
-        ${hw[e]}
-        ${gw[t]}
+        ${bw[e]}
+        ${xw[t]}
         ${a ? `w-full` : ``}
         ${c}
       `,
@@ -30951,13 +31042,13 @@ var hw = {
       ],
     });
   }),
-  _w = {
+  Sw = {
     glass: `bg-[var(--glass-medium)] backdrop-blur-[var(--glass-blur)] backdrop-saturate-150 border border-[var(--glass-border)] shadow-[var(--shadow-md),var(--shadow-glass-highlight)]`,
     solid: `bg-[var(--color-bg-elevated)] border border-[var(--glass-border)] shadow-[var(--shadow-base)]`,
     outline: `bg-transparent border border-[var(--glass-border)]`,
   },
-  vw = { none: ``, sm: `p-3`, md: `p-5`, lg: `p-7` },
-  yw = (0, w.forwardRef)(function (
+  Cw = { none: ``, sm: `p-3`, md: `p-5`, lg: `p-7` },
+  ww = (0, w.forwardRef)(function (
     {
       variant: e = `glass`,
       interactive: t = !1,
@@ -30973,8 +31064,8 @@ var hw = {
       className: `
         rounded-xl
         transition-all duration-300 ease-[cubic-bezier(0.4,0,0.2,1)]
-        ${_w[e]}
-        ${vw[n]}
+        ${Sw[e]}
+        ${Cw[n]}
         ${t ? `hover:border-[var(--glass-border-hover)] hover:-translate-y-0.5 hover:shadow-[var(--shadow-lg),var(--shadow-glass-highlight)] cursor-pointer` : ``}
         ${r}
       `,
@@ -30982,7 +31073,7 @@ var hw = {
       children: i,
     });
   }),
-  bw = (0, w.forwardRef)(function (
+  Tw = (0, w.forwardRef)(function (
     {
       label: e,
       hint: t,
@@ -30996,14 +31087,15 @@ var hw = {
     },
     l,
   ) {
-    let u = s || `input-${Math.random().toString(36).slice(2, 9)}`,
-      d = !!n;
+    let u = (0, w.useId)(),
+      d = s || `input-${u}`,
+      f = !!n;
     return (0, X.jsxs)(`div`, {
       className: a ? `w-full` : ``,
       children: [
         e &&
           (0, X.jsx)(`label`, {
-            htmlFor: u,
+            htmlFor: d,
             className: `block text-xs font-medium text-[var(--color-text-secondary)] mb-1.5`,
             children: e,
           }),
@@ -31017,7 +31109,7 @@ var hw = {
               }),
             (0, X.jsx)(`input`, {
               ref: l,
-              id: u,
+              id: d,
               className: `
             w-full h-10 rounded-lg
             bg-[rgba(0,0,0,0.25)] backdrop-blur-sm
@@ -31028,7 +31120,7 @@ var hw = {
             disabled:opacity-50 disabled:cursor-not-allowed
             ${r ? `pl-10` : `pl-3.5`}
             ${i ? `pr-10` : `pr-3.5`}
-            ${d ? `border-[var(--color-error)] focus:border-[var(--color-error)] focus:shadow-[0_0_0_3px_rgba(239,68,68,0.15)]` : `border-[var(--glass-border)] hover:border-[var(--glass-border-hover)] focus:border-[var(--color-primary-500)] focus:shadow-[0_0_0_3px_rgba(90,125,255,0.15)]`}
+            ${f ? `border-[var(--color-error)] focus:border-[var(--color-error)] focus:shadow-[0_0_0_3px_rgba(239,68,68,0.15)]` : `border-[var(--glass-border)] hover:border-[var(--glass-border-hover)] focus:border-[var(--color-primary-500)] focus:shadow-[0_0_0_3px_rgba(90,125,255,0.15)]`}
             ${o}
           `,
               ...c,
@@ -31042,25 +31134,25 @@ var hw = {
         }),
         (t || n) &&
           (0, X.jsx)(`p`, {
-            className: `mt-1.5 text-xs ${d ? `text-[var(--color-error)]` : `text-[var(--color-text-muted)]`}`,
+            className: `mt-1.5 text-xs ${f ? `text-[var(--color-error)]` : `text-[var(--color-text-muted)]`}`,
             children: n || t,
           }),
       ],
     });
   }),
-  xw = {
+  Ew = {
     sm: `h-4 w-4 border-2`,
     md: `h-6 w-6 border-2`,
     lg: `h-10 w-10 border-[3px]`,
   };
-function Sw({ size: e = `md`, className: t = `` }) {
+function Dw({ size: e = `md`, className: t = `` }) {
   return (0, X.jsx)(`div`, {
     role: `status`,
     "aria-label": `加载中`,
-    className: `inline-block animate-spin rounded-full border-white/15 border-t-[#5a7dff] ${xw[e]} ${t}`,
+    className: `inline-block animate-spin rounded-full border-white/15 border-t-[#5a7dff] ${Ew[e]} ${t}`,
   });
 }
-var Cw = (0, w.forwardRef)(function (
+var Ow = (0, w.forwardRef)(function (
     {
       label: e,
       hint: t,
@@ -31073,13 +31165,14 @@ var Cw = (0, w.forwardRef)(function (
     },
     c,
   ) {
-    let l = o ?? `sel-${Math.random().toString(36).slice(2, 8)}`;
+    let l = (0, w.useId)(),
+      u = o ?? `sel-${l}`;
     return (0, X.jsxs)(`div`, {
       className: i ? `w-full` : ``,
       children: [
         e &&
           (0, X.jsx)(`label`, {
-            htmlFor: l,
+            htmlFor: u,
             className: `mb-1.5 block text-xs font-medium text-neutral-300`,
             children: e,
           }),
@@ -31088,7 +31181,7 @@ var Cw = (0, w.forwardRef)(function (
           children: [
             (0, X.jsx)(`select`, {
               ref: c,
-              id: l,
+              id: u,
               className: `h-10 w-full appearance-none rounded-lg border bg-[rgba(0,0,0,0.25)] px-3 pr-9 text-sm text-white backdrop-blur-sm transition outline-none ${n ? `border-[#ef4444] focus:ring-2 focus:ring-[rgba(239,68,68,0.25)]` : `border-white/10 focus:border-[#5a7dff] focus:ring-[3px] focus:ring-[rgba(90,125,255,0.25)]`} ${a}`,
               ...s,
               children: r.map((e) =>
@@ -31132,9 +31225,9 @@ var Cw = (0, w.forwardRef)(function (
       ],
     });
   }),
-  ww = { sm: `max-w-md`, md: `max-w-lg`, lg: `max-w-2xl` },
-  Tw = [0.25, 0.1, 0.25, 1];
-function Ew({
+  kw = { sm: `max-w-md`, md: `max-w-lg`, lg: `max-w-2xl` },
+  Aw = [0.25, 0.1, 0.25, 1];
+function jw({
   open: e,
   onClose: t,
   title: n,
@@ -31168,7 +31261,7 @@ function Ew({
           initial: { opacity: 0 },
           animate: { opacity: 1 },
           exit: { opacity: 0 },
-          transition: { duration: 0.18, ease: Tw },
+          transition: { duration: 0.18, ease: Aw },
           children: [
             (0, X.jsx)(`div`, {
               className: `absolute inset-0 bg-black/60 backdrop-blur-sm`,
@@ -31181,11 +31274,11 @@ function Ew({
               role: `dialog`,
               "aria-modal": `true`,
               "aria-label": n,
-              className: `relative w-full ${ww[o]} overflow-hidden rounded-xl border border-white/10 bg-[rgba(26,31,46,0.88)] backdrop-blur-[20px] shadow-[0_20px_60px_-20px_rgba(0,0,0,0.6)]`,
+              className: `relative w-full ${kw[o]} overflow-hidden rounded-xl border border-white/10 bg-[rgba(26,31,46,0.88)] backdrop-blur-[20px] shadow-[0_20px_60px_-20px_rgba(0,0,0,0.6)]`,
               initial: { opacity: 0, scale: 0.96, y: 8 },
               animate: { opacity: 1, scale: 1, y: 0 },
               exit: { opacity: 0, scale: 0.97, y: 4 },
-              transition: { duration: 0.22, ease: Tw },
+              transition: { duration: 0.22, ease: Aw },
               children: [
                 (n || r) &&
                   (0, X.jsxs)(`div`, {
@@ -31246,37 +31339,37 @@ function Ew({
     })
   );
 }
-function Dw() {
+function Mw() {
   let e = rr(),
-    { cachedBots: t, setCachedBots: n, appendLog: r } = PC(),
+    { cachedBots: t, setCachedBots: n, appendLog: r } = zC(),
     [i, a] = (0, w.useState)(!0),
     [o, s] = (0, w.useState)(null),
     c = (0, w.useCallback)(async () => {
-      let e = await IC();
+      let e = await VC();
       (e && n(e.bots || [], e.activeBot), a(!1));
     }, [n]);
   ((0, w.useEffect)(() => {
     c();
   }, [c]),
-    OC(c, 5e3));
+    NC(c, 5e3));
   let l = async (e, t) => {
       (s(e),
-        (t ? await VC(e) : await HC(e)) !== null &&
+        (t ? await KC(e) : await qC(e)) !== null &&
           (r(`${e} ${t ? `连接成功` : `已断开`}`), c()),
         s(null));
     },
     u = async () => {
-      (s(`__all__`), (await UC()) !== null && c(), s(null));
+      (s(`__all__`), (await JC()) !== null && c(), s(null));
     },
     d = async () => {
-      (s(`__all__`), (await WC()) !== null && c(), s(null));
+      (s(`__all__`), (await YC()) !== null && c(), s(null));
     },
     f = t.length,
     p = t.filter((e) => e.connected).length,
     m = f - p;
-  return (0, X.jsxs)(pw, {
+  return (0, X.jsxs)(vw, {
     children: [
-      (0, X.jsx)(mw, {
+      (0, X.jsx)(yw, {
         title: `仪表盘`,
         description: `Bot 实例概览与连接状态`,
         actions: (0, X.jsxs)(X.Fragment, {
@@ -31301,18 +31394,18 @@ function Dw() {
       (0, X.jsxs)(`div`, {
         className: `grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6`,
         children: [
-          (0, X.jsx)(Ow, { label: `Bot 总数`, value: f, tone: `primary` }),
-          (0, X.jsx)(Ow, { label: `在线`, value: p, tone: `success` }),
-          (0, X.jsx)(Ow, { label: `离线`, value: m, tone: `neutral` }),
+          (0, X.jsx)(Nw, { label: `Bot 总数`, value: f, tone: `primary` }),
+          (0, X.jsx)(Nw, { label: `在线`, value: p, tone: `success` }),
+          (0, X.jsx)(Nw, { label: `离线`, value: m, tone: `neutral` }),
         ],
       }),
       i
         ? (0, X.jsx)(`div`, {
             className: `flex items-center justify-center py-20`,
-            children: (0, X.jsx)(Sw, { size: `lg` }),
+            children: (0, X.jsx)(Dw, { size: `lg` }),
           })
         : t.length === 0
-          ? (0, X.jsx)(yw, {
+          ? (0, X.jsx)(ww, {
               variant: `glass`,
               padding: `lg`,
               children: (0, X.jsxs)(`div`, {
@@ -31348,7 +31441,7 @@ function Dw() {
                       hidden: { opacity: 0, y: 12 },
                       visible: { opacity: 1, y: 0 },
                     },
-                    children: (0, X.jsxs)(yw, {
+                    children: (0, X.jsxs)(ww, {
                       variant: `glass`,
                       padding: `md`,
                       interactive: !0,
@@ -31361,7 +31454,7 @@ function Dw() {
                               className: `font-semibold text-sm text-[var(--color-text-primary)] truncate`,
                               children: t.name,
                             }),
-                            (0, X.jsx)(wC, {
+                            (0, X.jsx)(kC, {
                               variant: t.mode === `ws` ? `primary` : `warning`,
                               size: `sm`,
                               children: t.mode.toUpperCase(),
@@ -31373,7 +31466,7 @@ function Dw() {
                           children: [
                             (0, X.jsx)(`div`, {
                               className: `flex items-center gap-2`,
-                              children: (0, X.jsx)(wC, {
+                              children: (0, X.jsx)(kC, {
                                 variant: t.connected ? `success` : `default`,
                                 size: `sm`,
                                 dot: !0,
@@ -31450,8 +31543,8 @@ function Dw() {
     ],
   });
 }
-function Ow({ label: e, value: t, tone: n }) {
-  return (0, X.jsxs)(yw, {
+function Nw({ label: e, value: t, tone: n }) {
+  return (0, X.jsxs)(ww, {
     variant: `glass`,
     padding: `md`,
     children: [
@@ -31466,13 +31559,13 @@ function Ow({ label: e, value: t, tone: n }) {
     ],
   });
 }
-function kw() {
+function Pw() {
   let {
       cachedBots: e,
       activeBotName: t,
       setCachedBots: n,
       appendLog: r,
-    } = PC(),
+    } = zC(),
     [i, a] = (0, w.useState)(!0),
     [o, s] = (0, w.useState)(``),
     [c, l] = (0, w.useState)(null),
@@ -31480,7 +31573,7 @@ function kw() {
     [f, p] = (0, w.useState)(null),
     [m, h] = (0, w.useState)(!1),
     g = (0, w.useCallback)(async () => {
-      let e = await IC();
+      let e = await VC();
       (e && n(e.bots || [], e.activeBot), a(!1));
     }, [n]);
   (0, w.useEffect)(() => {
@@ -31488,23 +31581,23 @@ function kw() {
   }, [g]);
   let _ = async () => {
       let e = o.trim();
-      e && (await LC(e)) !== null && (s(``), r(`添加 Bot: ${e}`), g());
+      e && (await HC(e)) !== null && (s(``), r(`添加 Bot: ${e}`), g());
     },
     v = async () => {
-      c && (await RC(c)) !== null && (r(`删除 Bot: ${c}`), l(null), g());
+      c && (await UC(c)) !== null && (r(`删除 Bot: ${c}`), l(null), g());
     },
     y = async (e, t) => {
-      (t ? await VC(e) : await HC(e)) !== null &&
+      (t ? await KC(e) : await qC(e)) !== null &&
         (r(`${e} ${t ? `连接成功` : `已断开`}`), g());
     },
     b = async (e) => {
-      let t = await zC(e);
+      let t = await WC(e);
       t && (p({ ...t }), d(e));
     },
     x = async () => {
       if (!u || !f) return;
       h(!0);
-      let e = await BC(u, {
+      let e = await GC(u, {
         mode: f.mode,
         wsUrl: f.wsUrl,
         httpUrl: f.httpUrl,
@@ -31516,15 +31609,15 @@ function kw() {
     S = (e) => {
       f && p({ ...f, ...e });
     };
-  return (0, X.jsxs)(pw, {
+  return (0, X.jsxs)(vw, {
     children: [
-      (0, X.jsx)(mw, {
+      (0, X.jsx)(yw, {
         title: `Bot 实例`,
         description: `管理多个 Bot 连接与配置`,
         actions: (0, X.jsxs)(`div`, {
           className: `flex items-center gap-2`,
           children: [
-            (0, X.jsx)(bw, {
+            (0, X.jsx)(Tw, {
               placeholder: `新 Bot 名称`,
               value: o,
               onChange: (e) => s(e.target.value),
@@ -31544,10 +31637,10 @@ function kw() {
       i
         ? (0, X.jsx)(`div`, {
             className: `flex items-center justify-center py-20`,
-            children: (0, X.jsx)(Sw, { size: `lg` }),
+            children: (0, X.jsx)(Dw, { size: `lg` }),
           })
         : e.length === 0
-          ? (0, X.jsx)(yw, {
+          ? (0, X.jsx)(ww, {
               variant: `glass`,
               padding: `lg`,
               children: (0, X.jsx)(`p`, {
@@ -31559,7 +31652,7 @@ function kw() {
               initial: { opacity: 0, y: 8 },
               animate: { opacity: 1, y: 0 },
               transition: { duration: 0.3 },
-              children: (0, X.jsx)(yw, {
+              children: (0, X.jsx)(ww, {
                 variant: `glass`,
                 padding: `none`,
                 className: `overflow-hidden`,
@@ -31612,7 +31705,7 @@ function kw() {
                                         children: e.name,
                                       }),
                                       e.name === t &&
-                                        (0, X.jsx)(wC, {
+                                        (0, X.jsx)(kC, {
                                           variant: `success`,
                                           size: `sm`,
                                           children: `当前`,
@@ -31622,7 +31715,7 @@ function kw() {
                                 }),
                                 (0, X.jsx)(`td`, {
                                   className: `px-5 py-3`,
-                                  children: (0, X.jsx)(wC, {
+                                  children: (0, X.jsx)(kC, {
                                     variant:
                                       e.mode === `ws` ? `primary` : `warning`,
                                     size: `sm`,
@@ -31639,7 +31732,7 @@ function kw() {
                                 }),
                                 (0, X.jsx)(`td`, {
                                   className: `px-5 py-3`,
-                                  children: (0, X.jsx)(wC, {
+                                  children: (0, X.jsx)(kC, {
                                     variant: e.connected
                                       ? `success`
                                       : `default`,
@@ -31693,7 +31786,7 @@ function kw() {
                 }),
               }),
             }),
-      (0, X.jsx)(Ew, {
+      (0, X.jsx)(jw, {
         open: c !== null,
         onClose: () => l(null),
         title: `确认删除`,
@@ -31720,7 +31813,7 @@ function kw() {
           children: `相关配置和调度任务将一同移除。`,
         }),
       }),
-      (0, X.jsx)(Ew, {
+      (0, X.jsx)(jw, {
         open: u !== null,
         onClose: () => d(null),
         title: `配置 · ${u ?? ``}`,
@@ -31747,7 +31840,7 @@ function kw() {
           (0, X.jsxs)(`div`, {
             className: `space-y-4`,
             children: [
-              (0, X.jsx)(Cw, {
+              (0, X.jsx)(Ow, {
                 label: `连接模式`,
                 value: f.mode,
                 onChange: (e) => S({ mode: e.target.value }),
@@ -31756,13 +31849,13 @@ function kw() {
                   { value: `http`, label: `HTTP` },
                 ],
               }),
-              (0, X.jsx)(bw, {
+              (0, X.jsx)(Tw, {
                 label: `WebSocket 地址`,
                 value: f.wsUrl || ``,
                 onChange: (e) => S({ wsUrl: e.target.value }),
                 placeholder: `ws://host:port`,
               }),
-              (0, X.jsx)(bw, {
+              (0, X.jsx)(Tw, {
                 label: `HTTP 地址`,
                 value: f.httpUrl || ``,
                 onChange: (e) => S({ httpUrl: e.target.value }),
@@ -31771,13 +31864,13 @@ function kw() {
               (0, X.jsxs)(`div`, {
                 className: `grid grid-cols-1 sm:grid-cols-2 gap-4`,
                 children: [
-                  (0, X.jsx)(bw, {
+                  (0, X.jsx)(Tw, {
                     label: `WS Token`,
                     type: `password`,
                     value: f.wsToken || ``,
                     onChange: (e) => S({ wsToken: e.target.value }),
                   }),
-                  (0, X.jsx)(bw, {
+                  (0, X.jsx)(Tw, {
                     label: `HTTP Token`,
                     type: `password`,
                     value: f.httpToken || ``,
@@ -31791,7 +31884,7 @@ function kw() {
     ],
   });
 }
-function Aw(e, t) {
+function Fw(e, t) {
   let [n, r] = (0, w.useState)(() => {
     try {
       let n = localStorage.getItem(e);
@@ -31816,9 +31909,9 @@ function Aw(e, t) {
     ),
   ];
 }
-function jw({ storageKey: e, connectedOnly: t = !1, value: n, onChange: r }) {
-  let i = PC((e) => e.cachedBots),
-    [a, o] = Aw(e, ``),
+function Iw({ storageKey: e, connectedOnly: t = !1, value: n, onChange: r }) {
+  let i = zC((e) => e.cachedBots),
+    [a, o] = Fw(e, ``),
     s = (0, w.useMemo)(() => (t ? i.filter((e) => e.connected) : i), [i, t]);
   (0, w.useEffect)(() => {
     !n && a && s.some((e) => e.name === a) && r(a);
@@ -31835,7 +31928,7 @@ function jw({ storageKey: e, connectedOnly: t = !1, value: n, onChange: r }) {
   );
   return (0, X.jsx)(`div`, {
     className: `min-w-[180px]`,
-    children: (0, X.jsx)(Cw, {
+    children: (0, X.jsx)(Ow, {
       options: c,
       value: n,
       onChange: (e) => {
@@ -31846,14 +31939,14 @@ function jw({ storageKey: e, connectedOnly: t = !1, value: n, onChange: r }) {
     }),
   });
 }
-function Mw({
+function Lw({
   storageKey: e,
   placeholder: t = `QQ 号`,
   value: n,
   onChange: r,
   className: i = ``,
 }) {
-  let [a, o] = Aw(`qqHistory_` + e, []),
+  let [a, o] = Fw(`qqHistory_` + e, []),
     [s, c] = (0, w.useState)(!1),
     l = (0, w.useRef)(null);
   (0, w.useEffect)(() => {
@@ -31941,15 +32034,15 @@ function Mw({
     ],
   });
 }
-function Nw() {
-  let { setCachedBots: e, appendLog: t } = PC(),
+function Rw() {
+  let { setCachedBots: e, appendLog: t } = zC(),
     [n, r] = (0, w.useState)(``),
-    [i, a] = Aw(`msgType`, `group`),
+    [i, a] = Fw(`msgType`, `group`),
     [o, s] = (0, w.useState)(``),
     [c, l] = (0, w.useState)(``),
     [u, d] = (0, w.useState)(!1);
   (0, w.useEffect)(() => {
-    IC().then((t) => {
+    VC().then((t) => {
       t && e(t.bots || [], t.activeBot);
     });
   }, [e]);
@@ -31969,7 +32062,7 @@ function Nw() {
         return;
       }
       d(!0);
-      let a = await JC(n, i, e, r);
+      let a = await $C(n, i, e, r);
       (d(!1),
         a !== null &&
           (t(`[${n}] ${i === `group` ? `群` : `私聊`}消息 -> ${o}: ${r}`),
@@ -31979,9 +32072,9 @@ function Nw() {
     p = `h-9 px-4 rounded-md text-xs border transition-colors cursor-pointer`,
     m = `bg-[rgba(90,125,255,0.15)] text-[#a2bdff] border-[rgba(90,125,255,0.4)]`,
     h = `bg-white/[0.04] text-neutral-300 border-white/10 hover:bg-white/[0.08]`;
-  return (0, X.jsxs)(pw, {
+  return (0, X.jsxs)(vw, {
     children: [
-      (0, X.jsx)(mw, {
+      (0, X.jsx)(yw, {
         title: `消息发送`,
         description: `发送群消息或私聊消息`,
       }),
@@ -31989,7 +32082,7 @@ function Nw() {
         initial: { opacity: 0, y: 12 },
         animate: { opacity: 1, y: 0 },
         transition: { duration: 0.4, ease: [0.25, 0.1, 0.25, 1] },
-        children: (0, X.jsx)(yw, {
+        children: (0, X.jsx)(ww, {
           variant: `glass`,
           padding: `lg`,
           className: `max-w-2xl`,
@@ -32002,7 +32095,7 @@ function Nw() {
                     className: `text-xs text-neutral-400 mb-1.5 block`,
                     children: `选择 Bot`,
                   }),
-                  (0, X.jsx)(jw, {
+                  (0, X.jsx)(Iw, {
                     storageKey: `select_msgBotSelect`,
                     connectedOnly: !0,
                     value: n,
@@ -32048,7 +32141,7 @@ function Nw() {
                       }),
                     ],
                   }),
-                  (0, X.jsx)(Mw, {
+                  (0, X.jsx)(Lw, {
                     storageKey: `msgTarget`,
                     placeholder: i === `group` ? `群号` : `QQ号`,
                     value: o,
@@ -32083,7 +32176,7 @@ function Nw() {
     ],
   });
 }
-function Pw({ message: e, icon: t, action: n }) {
+function zw({ message: e, icon: t, action: n }) {
   return (0, X.jsxs)(gC.div, {
     initial: { opacity: 0, scale: 0.95 },
     animate: { opacity: 1, scale: 1 },
@@ -32104,11 +32197,11 @@ function Pw({ message: e, icon: t, action: n }) {
     ],
   });
 }
-var Fw = [0.25, 0.1, 0.25, 1];
-function Iw() {
-  let { setCachedBots: e } = PC(),
+var Bw = [0.25, 0.1, 0.25, 1];
+function Vw() {
+  let { setCachedBots: e } = zC(),
     [t, n] = (0, w.useState)(``),
-    [r, i] = Aw(`contactTab`, `friends`),
+    [r, i] = Fw(`contactTab`, `friends`),
     [a, o] = (0, w.useState)(!1),
     [s, c] = (0, w.useState)([]),
     [l, u] = (0, w.useState)([]),
@@ -32116,7 +32209,7 @@ function Iw() {
     [p, m] = (0, w.useState)([]),
     [h, g] = (0, w.useState)(!1);
   (0, w.useEffect)(() => {
-    IC().then((t) => {
+    VC().then((t) => {
       t && e(t.bots || [], t.activeBot);
     });
   }, [e]);
@@ -32127,7 +32220,7 @@ function Iw() {
     }
     (o(!0),
       f(null),
-      r === `friends` ? c((await GC(t)) || []) : u((await KC(t)) || []),
+      r === `friends` ? c((await XC(t)) || []) : u((await ZC(t)) || []),
       o(!1));
   }, [t, r]);
   (0, w.useEffect)(() => {
@@ -32135,7 +32228,7 @@ function Iw() {
   }, [_]);
   let v = async (e, n) => {
       (g(!0),
-        m((await qC(t, e)) || []),
+        m((await QC(t, e)) || []),
         f({ groupId: e, groupName: n }),
         g(!1));
     },
@@ -32144,12 +32237,12 @@ function Iw() {
     b = (e) =>
       e === `owner` ? `error` : e === `admin` ? `warning` : `default`,
     x = (e) => (e === `owner` ? `群主` : e === `admin` ? `管理员` : `成员`);
-  return (0, X.jsxs)(pw, {
+  return (0, X.jsxs)(vw, {
     children: [
-      (0, X.jsx)(mw, {
+      (0, X.jsx)(yw, {
         title: `好友与群`,
         description: `查看 Bot 的好友和群组`,
-        actions: (0, X.jsx)(jw, {
+        actions: (0, X.jsx)(Iw, {
           storageKey: `select_contactBotSelect`,
           connectedOnly: !0,
           value: t,
@@ -32191,11 +32284,11 @@ function Iw() {
             ? a
               ? (0, X.jsx)(`div`, {
                   className: `flex justify-center py-12`,
-                  children: (0, X.jsx)(Sw, { size: `lg` }),
+                  children: (0, X.jsx)(Dw, { size: `lg` }),
                 })
               : s.length === 0
-                ? (0, X.jsx)(Pw, { message: `暂无好友` })
-                : (0, X.jsx)(yw, {
+                ? (0, X.jsx)(zw, { message: `暂无好友` })
+                : (0, X.jsx)(ww, {
                     variant: `glass`,
                     padding: `none`,
                     className: `overflow-hidden`,
@@ -32250,7 +32343,7 @@ function Iw() {
                       ],
                     }),
                   })
-            : (0, X.jsx)(Pw, { message: `请选择 Bot` }),
+            : (0, X.jsx)(zw, { message: `请选择 Bot` }),
         }),
       r === `groups` &&
         (0, X.jsx)(X.Fragment, {
@@ -32258,13 +32351,13 @@ function Iw() {
             ? a
               ? (0, X.jsx)(`div`, {
                   className: `flex justify-center py-12`,
-                  children: (0, X.jsx)(Sw, { size: `lg` }),
+                  children: (0, X.jsx)(Dw, { size: `lg` }),
                 })
               : l.length === 0
-                ? (0, X.jsx)(Pw, { message: `暂无群组` })
+                ? (0, X.jsx)(zw, { message: `暂无群组` })
                 : (0, X.jsxs)(X.Fragment, {
                     children: [
-                      (0, X.jsx)(yw, {
+                      (0, X.jsx)(ww, {
                         variant: `glass`,
                         padding: `none`,
                         className: `overflow-hidden`,
@@ -32341,7 +32434,7 @@ function Iw() {
                         (0, X.jsxs)(gC.div, {
                           initial: { opacity: 0, y: 12 },
                           animate: { opacity: 1, y: 0 },
-                          transition: { duration: 0.35, ease: Fw },
+                          transition: { duration: 0.35, ease: Bw },
                           className: `mt-6`,
                           children: [
                             (0, X.jsxs)(`div`, {
@@ -32368,11 +32461,11 @@ function Iw() {
                             h
                               ? (0, X.jsx)(`div`, {
                                   className: `flex justify-center py-8`,
-                                  children: (0, X.jsx)(Sw, { size: `md` }),
+                                  children: (0, X.jsx)(Dw, { size: `md` }),
                                 })
                               : p.length === 0
-                                ? (0, X.jsx)(Pw, { message: `暂无成员` })
-                                : (0, X.jsx)(yw, {
+                                ? (0, X.jsx)(zw, { message: `暂无成员` })
+                                : (0, X.jsx)(ww, {
                                     variant: `glass`,
                                     padding: `none`,
                                     className: `overflow-hidden`,
@@ -32424,7 +32517,7 @@ function Iw() {
                                                   }),
                                                   (0, X.jsx)(`td`, {
                                                     className: `px-4 py-3`,
-                                                    children: (0, X.jsx)(wC, {
+                                                    children: (0, X.jsx)(kC, {
                                                       size: `sm`,
                                                       variant: b(e.role),
                                                       children: x(e.role),
@@ -32443,13 +32536,13 @@ function Iw() {
                         }),
                     ],
                   })
-            : (0, X.jsx)(Pw, { message: `请选择 Bot` }),
+            : (0, X.jsx)(zw, { message: `请选择 Bot` }),
         }),
     ],
   });
 }
-function Lw({ isOpen: e, onClose: t, title: n, children: r, footer: i }) {
-  return (0, X.jsx)(Ew, {
+function Hw({ isOpen: e, onClose: t, title: n, children: r, footer: i }) {
+  return (0, X.jsx)(jw, {
     open: e,
     onClose: t,
     title: n,
@@ -32458,9 +32551,9 @@ function Lw({ isOpen: e, onClose: t, title: n, children: r, footer: i }) {
     children: r,
   });
 }
-var Rw = [0.25, 0.1, 0.25, 1];
-function zw() {
-  let { setCachedBots: e, appendLog: t } = PC(),
+var Uw = [0.25, 0.1, 0.25, 1];
+function Ww() {
+  let { setCachedBots: e, appendLog: t } = zC(),
     [n, r] = (0, w.useState)(``),
     [i, a] = (0, w.useState)([]),
     [o, s] = (0, w.useState)(!1),
@@ -32479,7 +32572,7 @@ function zw() {
     [M, N] = (0, w.useState)(!1),
     [te, P] = (0, w.useState)(!1);
   (0, w.useEffect)(() => {
-    IC().then((t) => {
+    VC().then((t) => {
       t && e(t.bots || [], t.activeBot);
     });
   }, [e]);
@@ -32488,7 +32581,7 @@ function zw() {
       a([]);
       return;
     }
-    (s(!0), a((await YC(n)) || []), s(!1));
+    (s(!0), a((await ew(n)) || []), s(!1));
   }, [n]);
   (0, w.useEffect)(() => {
     F();
@@ -32510,7 +32603,7 @@ function zw() {
         t(`[错误] 目标格式错误`);
         return;
       }
-      (await XC(n, {
+      (await tw(n, {
         name: c.trim(),
         time: u,
         targets: e,
@@ -32546,7 +32639,7 @@ function zw() {
         return;
       }
       P(!0);
-      let r = await ew(n, b.name, {
+      let r = await aw(n, b.name, {
         time: S,
         targets: e,
         targetType: D,
@@ -32557,22 +32650,22 @@ function zw() {
       (P(!1), r !== null && (t(`编辑定时任务: ${b.name}`), x(null), F()));
     },
     ie = async (e, r) => {
-      ((await QC(n, e, r)) === null && t(`[错误] 切换失败`), F());
+      ((await rw(n, e, r)) === null && t(`[错误] 切换失败`), F());
     },
     ae = async (e) => {
-      (await $C(n, e)) !== null && t(`[成功] 测试定时任务: ${e}`);
+      (await iw(n, e)) !== null && t(`[成功] 测试定时任务: ${e}`);
     },
     L = async (e) => {
-      (await ZC(n, e)) !== null && (t(`[成功] 删除定时任务: ${e}`), F());
+      (await nw(n, e)) !== null && (t(`[成功] 删除定时任务: ${e}`), F());
     },
     oe = (e) =>
       `h-9 px-4 rounded-md text-xs border transition-colors ${e ? `bg-[rgba(90,125,255,0.15)] text-[#a2bdff] border-[rgba(90,125,255,0.4)]` : `bg-white/[0.04] text-neutral-300 border-white/10 hover:bg-white/[0.08]`}`;
-  return (0, X.jsxs)(pw, {
+  return (0, X.jsxs)(vw, {
     children: [
-      (0, X.jsx)(mw, {
+      (0, X.jsx)(yw, {
         title: `定时任务`,
         description: `Bot 定时消息管理`,
-        actions: (0, X.jsx)(jw, {
+        actions: (0, X.jsx)(Iw, {
           storageKey: `select_scheduleBotSelect`,
           value: n,
           onChange: r,
@@ -32582,13 +32675,13 @@ function zw() {
         ? o
           ? (0, X.jsx)(`div`, {
               className: `flex justify-center py-12`,
-              children: (0, X.jsx)(Sw, { size: `lg` }),
+              children: (0, X.jsx)(Dw, { size: `lg` }),
             })
           : (0, X.jsxs)(X.Fragment, {
               children: [
                 i.length === 0
-                  ? (0, X.jsx)(Pw, { message: `暂无定时任务` })
-                  : (0, X.jsx)(yw, {
+                  ? (0, X.jsx)(zw, { message: `暂无定时任务` })
+                  : (0, X.jsx)(ww, {
                       variant: `glass`,
                       padding: `none`,
                       className: `overflow-hidden mb-6`,
@@ -32645,7 +32738,7 @@ function zw() {
                                     (0, X.jsxs)(`td`, {
                                       className: `px-4 py-3 text-text-primary`,
                                       children: [
-                                        (0, X.jsx)(wC, {
+                                        (0, X.jsx)(kC, {
                                           variant:
                                             e.targetType === `group`
                                               ? `info`
@@ -32715,8 +32808,8 @@ function zw() {
                 (0, X.jsx)(gC.div, {
                   initial: { opacity: 0, y: 16 },
                   animate: { opacity: 1, y: 0 },
-                  transition: { duration: 0.4, ease: Rw },
-                  children: (0, X.jsxs)(yw, {
+                  transition: { duration: 0.4, ease: Uw },
+                  children: (0, X.jsxs)(ww, {
                     variant: `glass`,
                     padding: `md`,
                     children: [
@@ -32727,13 +32820,13 @@ function zw() {
                       (0, X.jsxs)(`div`, {
                         className: `grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4`,
                         children: [
-                          (0, X.jsx)(bw, {
+                          (0, X.jsx)(Tw, {
                             label: `任务名称`,
                             placeholder: `任务名称`,
                             value: c,
                             onChange: (e) => l(e.target.value),
                           }),
-                          (0, X.jsx)(bw, {
+                          (0, X.jsx)(Tw, {
                             label: `执行时间 (HH:mm)`,
                             type: `time`,
                             value: u,
@@ -32764,7 +32857,7 @@ function zw() {
                               }),
                             ],
                           }),
-                          (0, X.jsx)(bw, {
+                          (0, X.jsx)(Tw, {
                             label:
                               m === `group`
                                 ? `群号 (逗号分隔)`
@@ -32773,7 +32866,7 @@ function zw() {
                             value: f,
                             onChange: (e) => p(e.target.value),
                           }),
-                          (0, X.jsx)(bw, {
+                          (0, X.jsx)(Tw, {
                             label: `消息内容`,
                             placeholder: `消息内容`,
                             value: g,
@@ -32806,8 +32899,8 @@ function zw() {
                 }),
               ],
             })
-        : (0, X.jsx)(Pw, { message: `请选择 Bot` }),
-      (0, X.jsx)(Lw, {
+        : (0, X.jsx)(zw, { message: `请选择 Bot` }),
+      (0, X.jsx)(Hw, {
         isOpen: b !== null,
         onClose: () => x(null),
         title: `编辑定时任务`,
@@ -32830,12 +32923,12 @@ function zw() {
         children: (0, X.jsxs)(`div`, {
           className: `grid grid-cols-1 gap-4`,
           children: [
-            (0, X.jsx)(bw, {
+            (0, X.jsx)(Tw, {
               label: `任务名称`,
               value: b?.name || ``,
               disabled: !0,
             }),
-            (0, X.jsx)(bw, {
+            (0, X.jsx)(Tw, {
               label: `执行时间 (HH:mm)`,
               type: `time`,
               value: S,
@@ -32866,13 +32959,13 @@ function zw() {
                 }),
               ],
             }),
-            (0, X.jsx)(bw, {
+            (0, X.jsx)(Tw, {
               label: D === `group` ? `群号 (逗号分隔)` : `QQ号 (逗号分隔)`,
               placeholder: `123456,789012`,
               value: T,
               onChange: (e) => E(e.target.value),
             }),
-            (0, X.jsx)(bw, {
+            (0, X.jsx)(Tw, {
               label: `消息内容`,
               placeholder: `消息内容`,
               value: ee,
@@ -32914,10 +33007,10 @@ function zw() {
     ],
   });
 }
-var Bw = [0.25, 0.1, 0.25, 1];
-function Vw() {
+var Gw = [0.25, 0.1, 0.25, 1];
+function Kw() {
   let e = rr(),
-    { appendLog: t } = PC(),
+    { appendLog: t } = zC(),
     [n, r] = (0, w.useState)({ napCatDir: ``, workRoot: `` }),
     [i, a] = (0, w.useState)([]),
     [o, s] = (0, w.useState)(!0),
@@ -32932,7 +33025,7 @@ function Vw() {
       return (e && i.find((t) => t.name === e && t.saved && !t.alive)) || null;
     }, [c, i]),
     x = (0, w.useCallback)(async () => {
-      let [e, t] = await Promise.all([tw(), aw()]);
+      let [e, t] = await Promise.all([ow(), uw()]);
       (e && r(e), a(t || []), s(!1));
     }, []);
   (0, w.useEffect)(() => {
@@ -32941,7 +33034,7 @@ function Vw() {
   let S = (0, w.useMemo)(() => i.filter((e) => e.alive), [i]),
     C = (0, w.useMemo)(() => i.filter((e) => !e.alive && e.saved), [i]),
     T = async () => {
-      (await nw(n)) !== null && t(`[成功] NapCat 配置已保存`);
+      (await sw(n)) !== null && t(`[成功] NapCat 配置已保存`);
     },
     E = async () => {
       let e = c.trim();
@@ -32950,7 +33043,7 @@ function Vw() {
         return;
       }
       if (b) {
-        (await rw(e)) !== null &&
+        (await cw(e)) !== null &&
           (t(`[成功] 从记忆启动: ${e}`),
           t(`NapCat ${e} 从记忆启动`),
           l(``),
@@ -32964,7 +33057,7 @@ function Vw() {
         return;
       }
       let n = parseInt(f) || 6099;
-      (await rw(e, u.trim(), n)) !== null &&
+      (await cw(e, u.trim(), n)) !== null &&
         (t(`[成功] NapCat 实例 ${e} 已启动`),
         t(`NapCat ${e} (QQ:${u.trim()}) 已启动`),
         l(``),
@@ -32973,40 +33066,40 @@ function Vw() {
         x());
     },
     D = async (e) => {
-      (await rw(e)) !== null &&
+      (await cw(e)) !== null &&
         (t(`[成功] 从记忆启动: ${e}`), t(`NapCat ${e} 从记忆启动`), x());
     },
     O = async (e) => {
-      (await iw(e)) !== null &&
-        ((await rw(e)) !== null &&
+      (await lw(e)) !== null &&
+        ((await cw(e)) !== null &&
           (t(`[成功] 已重新启动: ${e}`), t(`NapCat ${e} 已重新启动`)),
         x());
     },
     ee = async (e) => {
-      (await iw(e)) !== null && (t(`[成功] 已停止 ${e}`), x());
+      (await lw(e)) !== null && (t(`[成功] 已停止 ${e}`), x());
     },
     k = async () => {
-      (await iw(`all`)) !== null && (t(`[成功] 已停止所有实例`), x());
+      (await lw(`all`)) !== null && (t(`[成功] 已停止所有实例`), x());
     },
     A = async (e) => {
-      (await cw(e)) !== null && (t(`[成功] 已删除: ${e}`), x());
+      (await pw(e)) !== null && (t(`[成功] 已删除: ${e}`), x());
     },
     j = async () => {
-      (await cw(`all`)) !== null && (t(`[成功] 已删除全部实例`), x());
+      (await pw(`all`)) !== null && (t(`[成功] 已删除全部实例`), x());
     },
     M = (e) => {
       (_({ qqUin: e.qqUin, webuiPort: String(e.webuiPort || 6099) }),
         h(e.name));
     },
     N = async (e) => {
-      (await iw(e.name)) !== null &&
+      (await lw(e.name)) !== null &&
         (t(`[成功] 已停止 ${e.name}，请编辑后重新启动`), await x(), M(e));
     },
     te = async () => {
       if (!m || !g) return;
       y(!0);
       let e = parseInt(g.webuiPort) || 6099,
-        n = await lw(m, g.qqUin, e);
+        n = await mw(m, g.qqUin, e);
       (y(!1),
         n !== null &&
           (t(`[成功] 已更新: ${m}`),
@@ -33015,7 +33108,7 @@ function Vw() {
           x()));
     },
     P = async () => {
-      let e = await sw();
+      let e = await fw();
       e !== null &&
         (t(
           `[成功] 发现完成: 新建 ${e.created || 0} 个，共 ${e.total || 0} 个 Bot`,
@@ -33025,9 +33118,9 @@ function Vw() {
     F = (t) => {
       e(`/nc-logs?instance=${encodeURIComponent(t)}`);
     };
-  return (0, X.jsxs)(pw, {
+  return (0, X.jsxs)(vw, {
     children: [
-      (0, X.jsx)(mw, {
+      (0, X.jsx)(yw, {
         title: `NapCat 管理`,
         description: `NapCat 进程与配置管理`,
         actions: (0, X.jsx)($, {
@@ -33040,7 +33133,7 @@ function Vw() {
       o
         ? (0, X.jsx)(`div`, {
             className: `flex justify-center items-center py-20`,
-            children: (0, X.jsx)(Sw, { size: `lg` }),
+            children: (0, X.jsx)(Dw, { size: `lg` }),
           })
         : (0, X.jsxs)(`div`, {
             className: `space-y-6`,
@@ -33048,8 +33141,8 @@ function Vw() {
               (0, X.jsx)(gC.div, {
                 initial: { opacity: 0, y: 16 },
                 animate: { opacity: 1, y: 0 },
-                transition: { duration: 0.4, ease: Bw },
-                children: (0, X.jsxs)(yw, {
+                transition: { duration: 0.4, ease: Gw },
+                children: (0, X.jsxs)(ww, {
                   variant: `glass`,
                   padding: `lg`,
                   children: [
@@ -33060,14 +33153,14 @@ function Vw() {
                     (0, X.jsxs)(`div`, {
                       className: `grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4`,
                       children: [
-                        (0, X.jsx)(bw, {
+                        (0, X.jsx)(Tw, {
                           label: `NapCat 目录`,
                           placeholder: `NapCat 安装目录`,
                           value: n.napCatDir,
                           onChange: (e) =>
                             r({ ...n, napCatDir: e.target.value }),
                         }),
-                        (0, X.jsx)(bw, {
+                        (0, X.jsx)(Tw, {
                           label: `工作目录`,
                           placeholder: `工作目录根路径`,
                           value: n.workRoot,
@@ -33088,8 +33181,8 @@ function Vw() {
               (0, X.jsx)(gC.div, {
                 initial: { opacity: 0, y: 16 },
                 animate: { opacity: 1, y: 0 },
-                transition: { duration: 0.4, delay: 0.06, ease: Bw },
-                children: (0, X.jsxs)(yw, {
+                transition: { duration: 0.4, delay: 0.06, ease: Gw },
+                children: (0, X.jsxs)(ww, {
                   variant: `glass`,
                   padding: `lg`,
                   children: [
@@ -33111,8 +33204,8 @@ function Vw() {
                       ],
                     }),
                     S.length === 0
-                      ? (0, X.jsx)(Pw, { message: `暂无运行中的实例` })
-                      : (0, X.jsx)(yw, {
+                      ? (0, X.jsx)(zw, { message: `暂无运行中的实例` })
+                      : (0, X.jsx)(ww, {
                           variant: `glass`,
                           padding: `none`,
                           className: `overflow-hidden`,
@@ -33185,7 +33278,7 @@ function Vw() {
                                         (0, X.jsx)(`td`, {
                                           className: `px-4 py-3 text-neutral-200`,
                                           children: e.saved
-                                            ? (0, X.jsx)(wC, {
+                                            ? (0, X.jsx)(kC, {
                                                 variant: `primary`,
                                                 size: `sm`,
                                                 children: `已记忆`,
@@ -33243,8 +33336,8 @@ function Vw() {
                 (0, X.jsx)(gC.div, {
                   initial: { opacity: 0, y: 16 },
                   animate: { opacity: 1, y: 0 },
-                  transition: { duration: 0.4, delay: 0.09, ease: Bw },
-                  children: (0, X.jsxs)(yw, {
+                  transition: { duration: 0.4, delay: 0.09, ease: Gw },
+                  children: (0, X.jsxs)(ww, {
                     variant: `glass`,
                     padding: `lg`,
                     children: [
@@ -33265,7 +33358,7 @@ function Vw() {
                             : null,
                         ],
                       }),
-                      (0, X.jsx)(yw, {
+                      (0, X.jsx)(ww, {
                         variant: `glass`,
                         padding: `none`,
                         className: `overflow-hidden`,
@@ -33356,8 +33449,8 @@ function Vw() {
               (0, X.jsx)(gC.div, {
                 initial: { opacity: 0, y: 16 },
                 animate: { opacity: 1, y: 0 },
-                transition: { duration: 0.4, delay: 0.12, ease: Bw },
-                children: (0, X.jsxs)(yw, {
+                transition: { duration: 0.4, delay: 0.12, ease: Gw },
+                children: (0, X.jsxs)(ww, {
                   variant: `glass`,
                   padding: `lg`,
                   children: [
@@ -33380,7 +33473,7 @@ function Vw() {
                     (0, X.jsxs)(`div`, {
                       className: `grid grid-cols-1 sm:grid-cols-3 gap-4 mb-4`,
                       children: [
-                        (0, X.jsx)(bw, {
+                        (0, X.jsx)(Tw, {
                           label: `实例名称`,
                           placeholder: `实例名称`,
                           value: c,
@@ -33400,7 +33493,7 @@ function Vw() {
                                   }),
                               ],
                             }),
-                            (0, X.jsx)(Mw, {
+                            (0, X.jsx)(Lw, {
                               storageKey: `ncQQ`,
                               placeholder: b ? b.qqUin : `QQ 号`,
                               value: u,
@@ -33408,7 +33501,7 @@ function Vw() {
                             }),
                           ],
                         }),
-                        (0, X.jsx)(bw, {
+                        (0, X.jsx)(Tw, {
                           label: b ? `WebUI 端口 (自动填充)` : `WebUI 端口`,
                           placeholder: b ? String(b.webuiPort) : `6099`,
                           value: f,
@@ -33426,7 +33519,7 @@ function Vw() {
               }),
             ],
           }),
-      (0, X.jsx)(Ew, {
+      (0, X.jsx)(jw, {
         open: m !== null,
         onClose: () => h(null),
         title: `编辑实例 - ${m}`,
@@ -33451,14 +33544,14 @@ function Vw() {
         children: (0, X.jsxs)(`div`, {
           className: `space-y-4`,
           children: [
-            (0, X.jsx)(bw, { label: `实例名称`, value: m || ``, disabled: !0 }),
+            (0, X.jsx)(Tw, { label: `实例名称`, value: m || ``, disabled: !0 }),
             (0, X.jsxs)(`div`, {
               children: [
                 (0, X.jsx)(`label`, {
                   className: `text-xs font-medium text-neutral-300 mb-1.5 block`,
                   children: `QQ 号`,
                 }),
-                (0, X.jsx)(Mw, {
+                (0, X.jsx)(Lw, {
                   storageKey: `ncQQ`,
                   placeholder: `QQ 号`,
                   value: g?.qqUin || ``,
@@ -33466,7 +33559,7 @@ function Vw() {
                 }),
               ],
             }),
-            (0, X.jsx)(bw, {
+            (0, X.jsx)(Tw, {
               label: `WebUI 端口`,
               placeholder: `6099`,
               value: g?.webuiPort || ``,
@@ -33478,7 +33571,7 @@ function Vw() {
     ],
   });
 }
-function Hw(e) {
+function qw(e) {
   return e
     .replace(/&/g, `&amp;`)
     .replace(/</g, `&lt;`)
@@ -33486,8 +33579,8 @@ function Hw(e) {
     .replace(/"/g, `&quot;`)
     .replace(/'/g, `&#39;`);
 }
-function Uw(e) {
-  let t = Hw(e);
+function Jw(e) {
+  let t = qw(e);
   return / ERROR /.test(e)
     ? `<span class="text-red-400">${t}</span>`
     : / WARN /.test(e)
@@ -33496,7 +33589,7 @@ function Uw(e) {
         ? `<span class="text-neutral-500">${t}</span>`
         : t;
 }
-function Ww({
+function Yw({
   lines: e,
   colorized: t = !1,
   tall: n = !1,
@@ -33524,7 +33617,7 @@ function Ww({
           : t
             ? (0, X.jsx)(`span`, {
                 dangerouslySetInnerHTML: {
-                  __html: e.map(Uw).join(`
+                  __html: e.map(Jw).join(`
 `),
                 },
               })
@@ -33533,7 +33626,7 @@ function Ww({
     }),
   });
 }
-function Gw() {
+function Xw() {
   let [e] = Hi(),
     [t, n] = (0, w.useState)([]),
     [r, i] = (0, w.useState)(``),
@@ -33541,7 +33634,7 @@ function Gw() {
     [s, c] = (0, w.useState)(!1),
     [l, u] = (0, w.useState)(!0);
   (0, w.useEffect)(() => {
-    aw().then((t) => {
+    uw().then((t) => {
       let r = t || [];
       n(r);
       let a = e.get(`instance`),
@@ -33553,17 +33646,17 @@ function Gw() {
   let d = (0, w.useCallback)(async () => {
     if (!r) return;
     localStorage.setItem(`select_ncLogSelect`, r);
-    let e = await ow(r);
+    let e = await dw(r);
     e && e.lines && o(e.lines);
   }, [r]);
   return (
     (0, w.useEffect)(() => {
       r && d();
     }, [r, d]),
-    OC(d, s ? 2e3 : null),
-    (0, X.jsxs)(pw, {
+    NC(d, s ? 2e3 : null),
+    (0, X.jsxs)(vw, {
       children: [
-        (0, X.jsx)(mw, {
+        (0, X.jsx)(yw, {
           title: `NapCat 日志`,
           description: `NapCat 实例运行日志`,
           actions: (0, X.jsxs)(`div`, {
@@ -33571,7 +33664,7 @@ function Gw() {
             children: [
               (0, X.jsx)(`div`, {
                 className: `min-w-[200px]`,
-                children: (0, X.jsx)(Cw, {
+                children: (0, X.jsx)(Ow, {
                   options: [
                     { value: ``, label: `选择实例...` },
                     ...t.map((e) => ({
@@ -33608,15 +33701,15 @@ function Gw() {
         l
           ? (0, X.jsx)(`div`, {
               className: `flex items-center justify-center py-20`,
-              children: (0, X.jsx)(Sw, { size: `lg` }),
+              children: (0, X.jsx)(Dw, { size: `lg` }),
             })
-          : (0, X.jsx)(Ww, { lines: a, tall: !0, emptyMessage: `无日志` }),
+          : (0, X.jsx)(Yw, { lines: a, tall: !0, emptyMessage: `无日志` }),
       ],
     })
   );
 }
-function Kw(e = `cmdHistory`, t = 50) {
-  let [n, r] = Aw(e, []),
+function Zw(e = `cmdHistory`, t = 50) {
+  let [n, r] = Fw(e, []),
     [i, a] = (0, w.useState)(-1);
   return {
     history: n,
@@ -33639,21 +33732,21 @@ function Kw(e = `cmdHistory`, t = 50) {
     reset: (0, w.useCallback)(() => a(-1), []),
   };
 }
-var qw = 1e5,
-  Jw = `QQBot-Fire Web 控制台
+var Qw = 1e5,
+  $w = `QQBot-Fire Web 控制台
 输入 /help 查看命令列表
 `,
-  Yw = [0.25, 0.1, 0.25, 1];
-function Xw() {
-  let [e, t] = (0, w.useState)(Jw),
+  eT = [0.25, 0.1, 0.25, 1];
+function tT() {
+  let [e, t] = (0, w.useState)($w),
     [n, r] = (0, w.useState)(``),
     [i, a] = (0, w.useState)(`>`),
     o = (0, w.useRef)(null),
     s = (0, w.useRef)(null),
-    c = Kw(),
+    c = Zw(),
     l = (0, w.useCallback)(async () => {
       try {
-        let e = (await IC())?.bots || [];
+        let e = (await VC())?.bots || [];
         if (e.length === 0) {
           a(`>`);
           return;
@@ -33675,7 +33768,7 @@ function Xw() {
   let u = (0, w.useCallback)((e) => {
       t((t) => {
         let n = t + e;
-        return n.length > qw ? n.slice(n.length - qw) : n;
+        return n.length > Qw ? n.slice(n.length - Qw) : n;
       });
     }, []),
     d = (0, w.useCallback)(async () => {
@@ -33684,7 +33777,7 @@ function Xw() {
       let t = e.startsWith(`/`) ? e : `/` + e;
       (c.push(t), u(`${i} ${t}\n`), r(``));
       try {
-        let e = await uw(t);
+        let e = await hw(t);
         e && typeof e.output == `string` && u(e.output);
       } catch (e) {
         u(`错误: ${e.message}\n`);
@@ -33705,14 +33798,14 @@ function Xw() {
       [d, c],
     ),
     p = (0, w.useCallback)(() => {
-      t(Jw);
+      t($w);
     }, []),
     m = (0, w.useCallback)(() => {
       s.current?.focus();
     }, []);
-  return (0, X.jsxs)(pw, {
+  return (0, X.jsxs)(vw, {
     children: [
-      (0, X.jsx)(mw, {
+      (0, X.jsx)(yw, {
         title: `控制台`,
         description: `交互式命令行`,
         actions: (0, X.jsx)($, {
@@ -33732,7 +33825,7 @@ function Xw() {
             className: `flex-1 rounded-t-xl border border-white/10 bg-[rgba(0,0,0,0.35)] backdrop-blur-sm overflow-y-auto`,
             initial: { opacity: 0, y: 8 },
             animate: { opacity: 1, y: 0 },
-            transition: { duration: 0.35, ease: Yw },
+            transition: { duration: 0.35, ease: eT },
             children: (0, X.jsx)(`pre`, {
               className: `font-mono text-[0.82rem] leading-relaxed p-3.5 m-0 whitespace-pre-wrap break-all text-emerald-300`,
               children: e,
@@ -33742,7 +33835,7 @@ function Xw() {
             className: `flex items-center rounded-b-xl border border-t-0 border-white/10 bg-[rgba(0,0,0,0.35)] px-3.5 py-2`,
             initial: { opacity: 0, y: 8 },
             animate: { opacity: 1, y: 0 },
-            transition: { duration: 0.35, delay: 0.1, ease: Yw },
+            transition: { duration: 0.35, delay: 0.1, ease: eT },
             children: [
               (0, X.jsx)(`span`, {
                 className: `font-mono text-[0.82rem] text-[#a2bdff] mr-2 select-none whitespace-nowrap`,
@@ -33763,7 +33856,7 @@ function Xw() {
     ],
   });
 }
-function Zw() {
+function nT() {
   let [e, t] = (0, w.useState)([]),
     [n, r] = (0, w.useState)(`latest.log`),
     [i, a] = (0, w.useState)(`200`),
@@ -33772,12 +33865,12 @@ function Zw() {
     [u, d] = (0, w.useState)(!1),
     [f, p] = (0, w.useState)(!0);
   (0, w.useEffect)(() => {
-    dw().then((e) => {
+    gw().then((e) => {
       (t(e || []), p(!1));
     });
   }, []);
   let m = (0, w.useCallback)(async () => {
-    let e = await fw(n, parseInt(i) || 200);
+    let e = await _w(n, parseInt(i) || 200);
     e &&
       e.lines &&
       (s(e.lines),
@@ -33789,29 +33882,29 @@ function Zw() {
     (0, w.useEffect)(() => {
       m();
     }, [m]),
-    OC(m, u ? 3e3 : null),
+    NC(m, u ? 3e3 : null),
     f
-      ? (0, X.jsx)(pw, {
+      ? (0, X.jsx)(vw, {
           children: (0, X.jsx)(`div`, {
             className: `flex items-center justify-center py-20`,
-            children: (0, X.jsx)(Sw, { size: `lg` }),
+            children: (0, X.jsx)(Dw, { size: `lg` }),
           }),
         })
-      : (0, X.jsxs)(pw, {
+      : (0, X.jsxs)(vw, {
           children: [
-            (0, X.jsx)(mw, {
+            (0, X.jsx)(yw, {
               title: `服务端日志`,
               description: `查看应用运行日志并支持自动刷新`,
               actions: (0, X.jsxs)(`div`, {
                 className: `flex items-end gap-3 flex-wrap`,
                 children: [
-                  (0, X.jsx)(Cw, {
+                  (0, X.jsx)(Ow, {
                     value: n,
                     onChange: (e) => r(e.target.value),
                     options: e.map((e) => ({ value: e.name, label: e.name })),
                     className: `min-w-[180px]`,
                   }),
-                  (0, X.jsx)(bw, {
+                  (0, X.jsx)(Tw, {
                     type: `number`,
                     value: i,
                     onChange: (e) => a(e.target.value),
@@ -33844,16 +33937,16 @@ function Zw() {
                 className: `mb-1 text-xs text-text-muted`,
                 children: c,
               }),
-            (0, X.jsx)(Ww, { lines: o, colorized: !0, tall: !0 }),
+            (0, X.jsx)(Yw, { lines: o, colorized: !0, tall: !0 }),
           ],
         })
   );
 }
-function Qw() {
-  let { operationLogs: e, clearLogs: t } = PC();
-  return (0, X.jsxs)(pw, {
+function rT() {
+  let { operationLogs: e, clearLogs: t } = zC();
+  return (0, X.jsxs)(vw, {
     children: [
-      (0, X.jsx)(mw, {
+      (0, X.jsx)(yw, {
         title: `操作日志`,
         description: `Web 操作记录`,
         actions: (0, X.jsx)($, {
@@ -33863,11 +33956,217 @@ function Qw() {
           children: `清空日志`,
         }),
       }),
-      (0, X.jsx)(Ww, { lines: e, tall: !0, emptyMessage: `等待日志...` }),
+      (0, X.jsx)(Yw, { lines: e, tall: !0, emptyMessage: `等待日志...` }),
     ],
   });
 }
-var $w = {
+function iT() {
+  let e = rr(),
+    [t, n] = (0, w.useState)(``),
+    [r, i] = (0, w.useState)(!1);
+  async function a(n) {
+    if ((n.preventDefault(), !t)) return;
+    i(!0);
+    let r = await Q(`POST`, `/api/auth/login`, { password: t });
+    (i(!1),
+      r?.token &&
+        (bC(r.token),
+        uf.success(`登录成功`),
+        e(`/dashboard`, { replace: !0 })));
+  }
+  return (0, X.jsx)(`div`, {
+    className: `min-h-screen flex items-center justify-center px-4`,
+    children: (0, X.jsxs)(`form`, {
+      onSubmit: a,
+      className: `w-full max-w-sm rounded-xl p-8 bg-[rgba(15,20,25,0.72)] backdrop-blur-[20px] border border-[var(--glass-border)] shadow-xl space-y-6`,
+      children: [
+        (0, X.jsxs)(`div`, {
+          className: `space-y-1 text-center`,
+          children: [
+            (0, X.jsx)(`h1`, {
+              className: `text-lg font-semibold text-[var(--color-text-primary)]`,
+              children: `管理员登录`,
+            }),
+            (0, X.jsx)(`p`, {
+              className: `text-xs text-[var(--color-text-muted)]`,
+              children: `请输入管理员密码以进入控制台`,
+            }),
+          ],
+        }),
+        (0, X.jsx)(Tw, {
+          label: `管理员密码`,
+          type: `password`,
+          placeholder: `请输入管理员密码`,
+          value: t,
+          onChange: (e) => n(e.target.value),
+          autoFocus: !0,
+          fullWidth: !0,
+        }),
+        (0, X.jsx)($, {
+          type: `submit`,
+          variant: `primary`,
+          disabled: r || !t,
+          fullWidth: !0,
+          children: r ? `登录中…` : `登录`,
+        }),
+      ],
+    }),
+  });
+}
+function aT() {
+  let e = rr(),
+    [t, n] = (0, w.useState)(``),
+    [r, i] = (0, w.useState)(``),
+    [a, o] = (0, w.useState)(!1);
+  async function s(n) {
+    if ((n.preventDefault(), t.length < 6)) {
+      uf.danger(`密码至少 6 位`);
+      return;
+    }
+    if (t !== r) {
+      uf.danger(`两次输入的密码不一致`);
+      return;
+    }
+    o(!0);
+    let i = await Q(`POST`, `/api/auth/setup`, { password: t });
+    (o(!1),
+      i?.token &&
+        (bC(i.token),
+        uf.success(`密码已设置`),
+        e(`/dashboard`, { replace: !0 })));
+  }
+  return (0, X.jsx)(`div`, {
+    className: `min-h-screen flex items-center justify-center px-4`,
+    children: (0, X.jsxs)(`form`, {
+      onSubmit: s,
+      className: `w-full max-w-sm rounded-xl p-8 bg-[rgba(15,20,25,0.72)] backdrop-blur-[20px] border border-[var(--glass-border)] shadow-xl space-y-5`,
+      children: [
+        (0, X.jsxs)(`div`, {
+          className: `space-y-1 text-center`,
+          children: [
+            (0, X.jsx)(`h1`, {
+              className: `text-lg font-semibold text-[var(--color-text-primary)]`,
+              children: `初始化管理员密码`,
+            }),
+            (0, X.jsx)(`p`, {
+              className: `text-xs text-[var(--color-text-muted)]`,
+              children: `首次启动请设置管理员密码（至少 6 位）`,
+            }),
+          ],
+        }),
+        (0, X.jsx)(Tw, {
+          label: `新密码`,
+          type: `password`,
+          placeholder: `至少 6 位`,
+          value: t,
+          onChange: (e) => n(e.target.value),
+          autoFocus: !0,
+          fullWidth: !0,
+        }),
+        (0, X.jsx)(Tw, {
+          label: `确认新密码`,
+          type: `password`,
+          placeholder: `再次输入新密码`,
+          value: r,
+          onChange: (e) => i(e.target.value),
+          fullWidth: !0,
+        }),
+        (0, X.jsx)($, {
+          type: `submit`,
+          variant: `primary`,
+          disabled: a || !t || !r,
+          fullWidth: !0,
+          children: a ? `设置中…` : `确认并进入控制台`,
+        }),
+      ],
+    }),
+  });
+}
+function oT() {
+  let e = rr(),
+    [t, n] = (0, w.useState)(``),
+    [r, i] = (0, w.useState)(``),
+    [a, o] = (0, w.useState)(``),
+    [s, c] = (0, w.useState)(!1);
+  async function l(n) {
+    if ((n.preventDefault(), r.length < 6)) {
+      uf.danger(`新密码至少 6 位`);
+      return;
+    }
+    if (r !== a) {
+      uf.danger(`两次输入的新密码不一致`);
+      return;
+    }
+    c(!0);
+    let i = await Q(`POST`, `/api/auth/change-password`, {
+      oldPassword: t,
+      newPassword: r,
+    });
+    (c(!1),
+      i?.changed &&
+        (uf.success(`密码已修改，请重新登录`),
+        xC(),
+        e(`/login`, { replace: !0 })));
+  }
+  return (0, X.jsx)(`div`, {
+    className: `p-6 max-w-xl mx-auto`,
+    children: (0, X.jsxs)(`div`, {
+      className: `rounded-xl p-6 bg-[rgba(15,20,25,0.72)] backdrop-blur-[20px] border border-[var(--glass-border)] space-y-5`,
+      children: [
+        (0, X.jsxs)(`div`, {
+          children: [
+            (0, X.jsx)(`h1`, {
+              className: `text-lg font-semibold text-[var(--color-text-primary)]`,
+              children: `修改管理员密码`,
+            }),
+            (0, X.jsx)(`p`, {
+              className: `text-xs text-[var(--color-text-muted)] mt-1`,
+              children: `修改成功后会立即吊销当前登录，需用新密码重新登录。`,
+            }),
+          ],
+        }),
+        (0, X.jsxs)(`form`, {
+          onSubmit: l,
+          className: `space-y-4`,
+          children: [
+            (0, X.jsx)(Tw, {
+              label: `当前密码`,
+              type: `password`,
+              placeholder: `请输入当前密码`,
+              value: t,
+              onChange: (e) => n(e.target.value),
+              autoFocus: !0,
+              fullWidth: !0,
+            }),
+            (0, X.jsx)(Tw, {
+              label: `新密码`,
+              type: `password`,
+              placeholder: `至少 6 位`,
+              value: r,
+              onChange: (e) => i(e.target.value),
+              fullWidth: !0,
+            }),
+            (0, X.jsx)(Tw, {
+              label: `确认新密码`,
+              type: `password`,
+              placeholder: `再次输入新密码`,
+              value: a,
+              onChange: (e) => o(e.target.value),
+              fullWidth: !0,
+            }),
+            (0, X.jsx)($, {
+              type: `submit`,
+              variant: `primary`,
+              disabled: s || !t || !r || !a,
+              children: s ? `提交中…` : `修改密码`,
+            }),
+          ],
+        }),
+      ],
+    }),
+  });
+}
+var sT = {
   initial: { opacity: 0, y: 10 },
   animate: {
     opacity: 1,
@@ -33876,14 +34175,14 @@ var $w = {
   },
   exit: { opacity: 0, y: -6, transition: { duration: 0.15 } },
 };
-function eT() {
+function cT() {
   let e = er();
   return (0, X.jsx)(bx, {
     mode: `wait`,
     children: (0, X.jsx)(
       gC.div,
       {
-        variants: $w,
+        variants: sT,
         initial: `initial`,
         animate: `animate`,
         exit: `exit`,
@@ -33894,33 +34193,76 @@ function eT() {
     ),
   });
 }
-function tT() {
-  return (0, X.jsx)(DC, {});
+function lT({ children: e }) {
+  let t = rr(),
+    n = er(),
+    [r, i] = (0, w.useState)(!1);
+  return (
+    (0, w.useEffect)(() => {
+      let e = !1;
+      return (
+        (async () => {
+          let r = await Q(`GET`, `/api/auth/status`);
+          if (e) return;
+          let a = r?.initialized ?? !1,
+            o = yC(),
+            s = n.pathname;
+          (a
+            ? o
+              ? (s === `/login` || s === `/setup`) &&
+                t(`/dashboard`, { replace: !0 })
+              : s !== `/login` && s !== `/setup` && t(`/login`, { replace: !0 })
+            : s !== `/setup` && t(`/setup`, { replace: !0 }),
+            i(!0));
+        })(),
+        () => {
+          e = !0;
+        }
+      );
+    }, []),
+    r
+      ? (0, X.jsx)(X.Fragment, { children: e })
+      : (0, X.jsx)(`div`, {
+          className: `min-h-screen flex items-center justify-center text-sm text-[var(--color-text-muted)]`,
+          children: `加载中…`,
+        })
+  );
 }
-var nT = Ai([
+function uT() {
+  return (0, X.jsx)(lT, { children: (0, X.jsx)(Vr, {}) });
+}
+var dT = Ai([
   {
-    element: (0, X.jsx)(tT, {}),
+    element: (0, X.jsx)(uT, {}),
     children: [
+      { path: `login`, element: (0, X.jsx)(iT, {}) },
+      { path: `setup`, element: (0, X.jsx)(aT, {}) },
       {
-        element: (0, X.jsx)(eT, {}),
+        element: (0, X.jsx)(MC, {}),
         children: [
           {
-            index: !0,
-            element: (0, X.jsx)(Br, { to: `/dashboard`, replace: !0 }),
-          },
-          { path: `dashboard`, element: (0, X.jsx)(Dw, {}) },
-          { path: `bots`, element: (0, X.jsx)(kw, {}) },
-          { path: `messages`, element: (0, X.jsx)(Nw, {}) },
-          { path: `contacts`, element: (0, X.jsx)(Iw, {}) },
-          { path: `schedules`, element: (0, X.jsx)(zw, {}) },
-          { path: `napcat`, element: (0, X.jsx)(Vw, {}) },
-          { path: `nc-logs`, element: (0, X.jsx)(Gw, {}) },
-          { path: `console`, element: (0, X.jsx)(Xw, {}) },
-          { path: `server-logs`, element: (0, X.jsx)(Zw, {}) },
-          { path: `logs`, element: (0, X.jsx)(Qw, {}) },
-          {
-            path: `*`,
-            element: (0, X.jsx)(Br, { to: `/dashboard`, replace: !0 }),
+            element: (0, X.jsx)(cT, {}),
+            children: [
+              {
+                index: !0,
+                element: (0, X.jsx)(Br, { to: `/dashboard`, replace: !0 }),
+              },
+              { path: `dashboard`, element: (0, X.jsx)(Mw, {}) },
+              { path: `bots`, element: (0, X.jsx)(Pw, {}) },
+              { path: `messages`, element: (0, X.jsx)(Rw, {}) },
+              { path: `contacts`, element: (0, X.jsx)(Vw, {}) },
+              { path: `schedules`, element: (0, X.jsx)(Ww, {}) },
+              { path: `napcat`, element: (0, X.jsx)(Kw, {}) },
+              { path: `nc-logs`, element: (0, X.jsx)(Xw, {}) },
+              { path: `console`, element: (0, X.jsx)(tT, {}) },
+              { path: `server-logs`, element: (0, X.jsx)(nT, {}) },
+              { path: `logs`, element: (0, X.jsx)(rT, {}) },
+              { path: `settings`, element: (0, X.jsx)(oT, {}) },
+              {
+                path: `*`,
+                element: (0, X.jsx)(Br, { to: `/dashboard`, replace: !0 }),
+              },
+            ],
           },
         ],
       },
@@ -33931,7 +34273,7 @@ var nT = Ai([
   _C.createRoot(document.getElementById(`root`)).render(
     (0, X.jsxs)(w.StrictMode, {
       children: [
-        (0, X.jsx)(ea, { router: nT }),
+        (0, X.jsx)(ea, { router: dT }),
         (0, X.jsx)(wf.Provider, { placement: `top end` }),
       ],
     }),

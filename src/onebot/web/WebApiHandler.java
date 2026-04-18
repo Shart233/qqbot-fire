@@ -54,6 +54,15 @@ public class WebApiHandler implements HttpHandler {
         String api = path.startsWith("/api") ? path.substring(4) : path;
         if (api.isEmpty()) api = "/";
 
+        // ---- Auth (公开端点，无需 token) ----
+        if (api.startsWith("/auth")) {
+            routeAuth(ex, method, api);
+            return;
+        }
+
+        // ---- 全局鉴权守卫：未初始化时只放行 /auth/*；已初始化时校验 Bearer token ----
+        if (!requireAuth(ex)) return;
+
         // ---- Console ----
         if (api.startsWith("/console")) {
             routeConsole(ex, method, api);
@@ -96,6 +105,143 @@ public class WebApiHandler implements HttpHandler {
         }
 
         sendError(ex, 404, "未知 API: " + path);
+    }
+
+    // ==================== 鉴权 ====================
+
+    /**
+     * 路由 /auth/* 端点（全部无需 token）。
+     * 注意：change-password 与 logout 虽在此分派，但内部会自行校验 token。
+     */
+    private void routeAuth(HttpExchange ex, String method, String api) throws IOException {
+        String sub = api.substring(5); // 去掉 /auth
+        switch (sub) {
+            case "/status" -> { if ("GET".equals(method))  { handleAuthStatus(ex); return; } }
+            case "/setup"  -> { if ("POST".equals(method)) { handleAuthSetup(ex); return; } }
+            case "/login"  -> { if ("POST".equals(method)) { handleAuthLogin(ex); return; } }
+            case "/change-password" -> { if ("POST".equals(method)) { handleAuthChangePassword(ex); return; } }
+            case "/logout" -> { if ("POST".equals(method)) { handleAuthLogout(ex); return; } }
+        }
+        sendError(ex, 404, "未知鉴权端点: " + api);
+    }
+
+    /** 从请求头提取 Bearer token，取不到返回 null */
+    private String extractToken(HttpExchange ex) {
+        var h = ex.getRequestHeaders().getFirst("Authorization");
+        if (h == null) return null;
+        h = h.trim();
+        if (h.regionMatches(true, 0, "Bearer ", 0, 7)) return h.substring(7).trim();
+        return null;
+    }
+
+    /**
+     * 全局鉴权守卫：
+     *  - 未初始化密码 → 拒绝除 /auth/* 外的一切请求（上层已放行 /auth）
+     *  - 已初始化 → 必须带合法 Bearer token
+     *  失败时返回 false 并已写 401 响应。
+     */
+    private boolean requireAuth(HttpExchange ex) throws IOException {
+        String hash = console.getAdminPasswordHash();
+        if (hash == null || hash.isEmpty()) {
+            sendError(ex, 401, "管理员密码未初始化");
+            return false;
+        }
+        String token = extractToken(ex);
+        if (token == null) {
+            sendError(ex, 401, "未登录");
+            return false;
+        }
+        String subject = onebot.auth.JwtUtil.verify(token, onebot.auth.PasswordUtil.passwordVersion(hash));
+        if (subject == null) {
+            sendError(ex, 401, "登录已过期");
+            return false;
+        }
+        return true;
+    }
+
+    private void handleAuthStatus(HttpExchange ex) throws IOException {
+        String hash = console.getAdminPasswordHash();
+        var data = new LinkedHashMap<String, Object>();
+        data.put("initialized", hash != null && !hash.isEmpty());
+        sendOk(ex, data);
+    }
+
+    private void handleAuthSetup(HttpExchange ex) throws IOException {
+        if (console.getAdminPasswordHash() != null && !console.getAdminPasswordHash().isEmpty()) {
+            sendError(ex, 409, "密码已初始化，请改用修改密码");
+            return;
+        }
+        var body = readBodyAsMap(ex);
+        String pwd = (String) body.get("password");
+        if (pwd == null || pwd.length() < 6) {
+            sendError(ex, 400, "密码长度至少 6 位");
+            return;
+        }
+        String hash = onebot.auth.PasswordUtil.hash(pwd);
+        console.setAdminPasswordHash(hash);
+        console.saveConfig();
+        String token = onebot.auth.JwtUtil.sign("admin", onebot.auth.PasswordUtil.passwordVersion(hash));
+        var data = new LinkedHashMap<String, Object>();
+        data.put("token", token);
+        data.put("expiresAt", System.currentTimeMillis() + onebot.auth.JwtUtil.defaultTtlMs());
+        sendOk(ex, data);
+    }
+
+    private void handleAuthLogin(HttpExchange ex) throws IOException {
+        String hash = console.getAdminPasswordHash();
+        if (hash == null || hash.isEmpty()) {
+            sendError(ex, 409, "密码尚未初始化");
+            return;
+        }
+        var body = readBodyAsMap(ex);
+        String pwd = (String) body.get("password");
+        if (pwd == null || pwd.isEmpty()) {
+            sendError(ex, 400, "密码不能为空");
+            return;
+        }
+        if (!onebot.auth.PasswordUtil.verify(pwd, hash)) {
+            sendError(ex, 401, "密码错误");
+            return;
+        }
+        String token = onebot.auth.JwtUtil.sign("admin", onebot.auth.PasswordUtil.passwordVersion(hash));
+        var data = new LinkedHashMap<String, Object>();
+        data.put("token", token);
+        data.put("expiresAt", System.currentTimeMillis() + onebot.auth.JwtUtil.defaultTtlMs());
+        sendOk(ex, data);
+    }
+
+    private void handleAuthChangePassword(HttpExchange ex) throws IOException {
+        String hash = console.getAdminPasswordHash();
+        if (hash == null || hash.isEmpty()) {
+            sendError(ex, 409, "密码尚未初始化");
+            return;
+        }
+        String token = extractToken(ex);
+        if (token == null
+            || onebot.auth.JwtUtil.verify(token, onebot.auth.PasswordUtil.passwordVersion(hash)) == null) {
+            sendError(ex, 401, "未登录或登录已过期");
+            return;
+        }
+        var body = readBodyAsMap(ex);
+        String oldPwd = (String) body.get("oldPassword");
+        String newPwd = (String) body.get("newPassword");
+        if (oldPwd == null || newPwd == null || newPwd.length() < 6) {
+            sendError(ex, 400, "新密码长度至少 6 位");
+            return;
+        }
+        if (!onebot.auth.PasswordUtil.verify(oldPwd, hash)) {
+            sendError(ex, 401, "原密码错误");
+            return;
+        }
+        String newHash = onebot.auth.PasswordUtil.hash(newPwd);
+        console.setAdminPasswordHash(newHash);
+        console.saveConfig();
+        sendOk(ex, Map.of("changed", true));
+    }
+
+    private void handleAuthLogout(HttpExchange ex) throws IOException {
+        // JWT 无状态，前端清 token 即可；这里幂等返回 ok
+        sendOk(ex, Map.of("loggedOut", true));
     }
 
     private void routeBot(HttpExchange ex, String method, String rest) throws IOException {

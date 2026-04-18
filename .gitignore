@@ -50,3 +50,9 @@ build/
 web-ui/node_modules/
 web-ui/dist/
 c-d.cmd
+
+### 临时/本地产物 ###
+tmp/
+tmp_*.js
+memory/
+plan-*.md

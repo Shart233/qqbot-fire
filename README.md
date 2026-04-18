@@ -16,6 +16,7 @@
 - **事件驱动架构** — EventDispatcher 责任链分发，自定义 Handler 扩展
 - **NTP 精确定时** — 基于网络时间的定时消息调度器
 - **安全存储** — RSA 2048 加密 Token，配置持久化
+- **管理员鉴权** — Web 控制台强制 BCrypt(10) 密码 + JWT(HS256) 会话，改密即时吊销旧 token
 - **消息构建器** — 链式 API，支持 20+ 消息段类型
 - **完整 API 覆盖** — 170+ typed wrapper 方法，覆盖 OneBot 11 标准 39 个 + NapCat 扩展 120+ 个 + QQ 频道 (Guild) 端点
 - **Web 管理控制台** — React SPA（暗色/亮色主题），浏览器端完整管理（JDK 内置 HttpServer 托管）
@@ -313,6 +314,16 @@ NapCat 实例已启动: bot1 QQ=1234567890
 
 启动后自动在 http://127.0.0.1:9988 提供 Web 管理界面，功能与控制台命令完全对应。
 
+### 管理员鉴权
+
+首次访问时 Web 会先请求 `/api/auth/status`：
+
+- 未初始化（`config.json` 无 `admin.passwordHash`）→ 强制跳转 `/setup` 设置首个管理员密码（≥6 位）
+- 已初始化 → 跳 `/login` 输入密码换取 JWT；token 保存在浏览器 `localStorage.adminToken`，有效期 7 天
+- 改密成功后立即吊销旧 token（靠密码哈希前 8 位作为 `pwdVer` 签入 JWT，改密后所有旧 token 验签失败）
+
+密码用 Spring Security 的 `BCryptPasswordEncoder(10)` 哈希后写入 `config.json` 的 `admin.passwordHash`。JWT 密钥首次启动随机生成 32 字节，存放在 `.keys/jwt.secret`。
+
 ### 功能
 
 - **仪表盘** — Bot 状态卡片一览，快速连接/断开，5 秒自动刷新
@@ -570,6 +581,9 @@ src/
 │   ├── web/
 │   │   ├── WebConsoleServer.java      # 内嵌 HTTP 服务器 (JDK HttpServer)
 │   │   └── WebApiHandler.java         # REST API 处理器 (30+ 端点)
+│   ├── auth/
+│   │   ├── PasswordUtil.java          # BCrypt(10) 密码哈希
+│   │   └── JwtUtil.java               # HS256 JWT 签发/校验 (pwdVer 即时吊销)
 │   ├── config/
 │   │   └── ConfigManager.java         # 配置持久化 (config.json)
 │   └── util/

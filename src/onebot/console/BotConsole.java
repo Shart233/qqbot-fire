@@ -45,6 +45,9 @@ public class BotConsole {
     private String activeBotName = null;
     private final String commandPrefix = "/";
 
+    // 管理员密码哈希 (bcrypt)，null/空 表示尚未初始化
+    private volatile String adminPasswordHash;
+
     // NapCat 进程管理
     private final NapCatLauncher napCatLauncher = new NapCatLauncher();
 
@@ -61,6 +64,8 @@ public class BotConsole {
     public String getActiveBotName() { return activeBotName; }
     public void setActiveBotName(String name) { this.activeBotName = name; }
     public NapCatLauncher getNapCatLauncher() { return napCatLauncher; }
+    public String getAdminPasswordHash() { return adminPasswordHash; }
+    public void setAdminPasswordHash(String hash) { this.adminPasswordHash = hash; }
 
     /** 用于 Web API 的同步锁，避免并发 System.setOut 冲突 */
     private static final Object CONSOLE_EXEC_LOCK = new Object();
@@ -1599,6 +1604,7 @@ public class BotConsole {
         var result = ConfigManager.load();
         result.bots().forEach(bots::put);
         activeBotName = result.activeBotName();
+        adminPasswordHash = result.adminPasswordHash();
         if (result.napCatDir() != null) napCatLauncher.setNapCatDir(result.napCatDir());
         if (result.napCatWorkRoot() != null) napCatLauncher.setWorkRoot(result.napCatWorkRoot());
 
@@ -1641,7 +1647,7 @@ public class BotConsole {
     }
 
     public void saveConfig() {
-        ConfigManager.save(bots, activeBotName, napCatLauncher);
+        ConfigManager.save(bots, activeBotName, napCatLauncher, adminPasswordHash);
     }
 
     // ==================== 辅助方法 ====================

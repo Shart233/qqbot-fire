@@ -1,5 +1,6 @@
-import { NavLink } from "react-router-dom";
+import { NavLink, useNavigate } from "react-router-dom";
 import type { ReactNode } from "react";
+import { clearAdminToken } from "../../api/client";
 
 interface NavItem {
   to: string;
@@ -208,9 +209,16 @@ interface SidebarProps {
 }
 
 export default function Sidebar({ open, onClose }: SidebarProps) {
+  const navigate = useNavigate();
   const groups = Array.from(new Set(navItems.map((i) => i.group ?? ""))).filter(
     Boolean,
   ) as string[];
+
+  function handleLogout() {
+    clearAdminToken();
+    onClose();
+    navigate("/login", { replace: true });
+  }
 
   return (
     <>
@@ -283,9 +291,57 @@ export default function Sidebar({ open, onClose }: SidebarProps) {
           ))}
         </nav>
 
-        {/* 底部状态 */}
-        <div className="p-3 border-t border-[var(--glass-border)]">
-          <div className="flex items-center gap-2 px-2 h-8 text-[11px] text-[var(--color-text-muted)]">
+        {/* 底部：设置 / 退出 / 状态 */}
+        <div className="p-3 border-t border-[var(--glass-border)] space-y-1">
+          <NavLink
+            to="/settings"
+            onClick={onClose}
+            className={({ isActive }) => `
+              flex items-center gap-3 px-3 h-9 rounded-md text-sm transition-all
+              ${
+                isActive
+                  ? "bg-gradient-to-r from-[rgba(90,125,255,0.18)] to-[rgba(236,72,153,0.08)] text-white"
+                  : "text-[var(--color-text-secondary)] hover:bg-[rgba(255,255,255,0.05)] hover:text-[var(--color-text-primary)]"
+              }
+            `}
+          >
+            <svg
+              width="18"
+              height="18"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="1.8"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            >
+              <circle cx="12" cy="12" r="3" />
+              <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" />
+            </svg>
+            <span>设置</span>
+          </NavLink>
+          <button
+            type="button"
+            onClick={handleLogout}
+            className="w-full flex items-center gap-3 px-3 h-9 rounded-md text-sm text-[var(--color-text-secondary)] hover:bg-[rgba(255,255,255,0.05)] hover:text-[var(--color-text-primary)] transition-all"
+          >
+            <svg
+              width="18"
+              height="18"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="1.8"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            >
+              <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
+              <polyline points="16 17 21 12 16 7" />
+              <line x1="21" y1="12" x2="9" y2="12" />
+            </svg>
+            <span>退出登录</span>
+          </button>
+          <div className="flex items-center gap-2 px-3 h-7 text-[11px] text-[var(--color-text-muted)]">
             <span className="w-1.5 h-1.5 rounded-full bg-[var(--color-success)] animate-pulse" />
             <span>系统运行中</span>
           </div>

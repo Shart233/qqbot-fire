@@ -1,96 +1,83 @@
 # AGENTS.md
 
-基于 NapCat/OneBot 11 的 QQ Bot 客户端。同一仓库包含两个独立代码库：Java 后端和 React Web UI。
+基于 NapCat/OneBot 11 的 QQ Bot 客户端。单仓库两套代码：Java 后端（`src/`）+ React Web UI（`web-ui/`）。
 
-## 仓库结构
+详细命令与架构说明见 `README.md` 和 `CLAUDE.md`。本文件只收录 agent 容易踩坑的约束。
 
-- `src/` — Java 后端（纯 JDK 24，无框架）。入口：`src/Main.java`。
-- `src/resources/web/` — **Web UI 构建产物**。绝不要直接编辑；始终从 `web-ui/` 重新构建。
-- `web-ui/` — React SPA（管理控制台）。完全独立的 npm 项目。
-- `lib/` — 手动编译用的 JAR 包。仅用于手动 `javac` 编译；Gradle 构建会忽略它们。
-- `scripts/` — NapCat 多实例启动脚本（bat/sh）。
-- `Dockerfile` + `docker-compose.yml` + `docker-entrypoint.sh` — 生产环境 Docker 部署（qqbot-fire + NapCat）。
+## 语言要求
 
-## Java 后端
+- 所有对话使用中文。
+- 所有文档使用中文。
+- 所有代码注释使用中文。
 
-### 构建与运行
+## 执行要求
 
-```bash
-./gradlew run                    # 构建 + 运行（推荐）
-./gradlew compileJava            # 仅编译
-./gradlew installDist            # 生成分发包到 build/install/qqbot-fire/
-```
+- 在生成说明、总结、计划、提交说明时，统一使用中文。
+- 在新增或修改 Markdown 文档时，统一使用中文。
+- 在新增或修改代码注释时，统一使用中文。
 
-IDE 运行配置：`qqbot-fire [:run]`（Gradle）或 `QQBot-fire`（Java 应用）。
+## 指令源
 
-### 非标准源码目录结构（关键）
+- `CLAUDE.md` — 构建/运行命令、目录概览、Git 约定（自动加载）
+- `.claude/rules/*.md` — `code-style`、`gotchas`、`api-patterns`、`heroui-v3`、`scheduler-callbacks`（自动加载，无需手动引用）
+- `.claude/skills/verify`、`.claude/skills/deploy-ui` — 一键验证与 UI 部署
 
-- `sourceSets.main.java.srcDirs("src")` — 源码位于 `src/`，而非 `src/main/java/`。
-- `sourceSets.main.resources.srcDirs("src/resources")` — 包含 `log4j2.xml` 和 Web 构建产物。
-- `Main.java` 位于**默认包**中。其他类均在 `src/onebot/` 下的 `onebot.*` 包中。
-- 依赖：Log4j2 2.24.3、Gson 2.12.1（Gradle 从 Maven Central 拉取）。
-- **无测试。** 无 CI/CD。无 pre-commit hooks。无 Java Linter。
+## 构建与验证
 
-### 关键包说明
+- 构建脚本是 `build.gradle.kts`（Kotlin DSL），不是 `build.gradle`。
+- `sourceSets.main.java.srcDirs("src")` + `resources.srcDirs("src/resources")` — 源码**不**在 `src/main/java/`。
+- `Main.java` 位于**默认包**，绝不要加 `package` 声明。其他类在 `onebot.*` 包下。
+- 无测试、无 CI、无 Java Linter。验证修改只能跑 `./gradlew compileJava`（或 `/verify` 技能）。
+- 环境要求 JDK 24+（toolchain 强制），手动 `javac` 时 `JAVA_HOME` 必须正确。
+- `lib/` 仅供手动 `javac` 编译使用，Gradle 构建**忽略**它；不要往里加依赖。
 
-| 包                 | 用途                                                         |
-| ------------------ | ------------------------------------------------------------ |
-| `onebot.client`    | WS + HTTP 连接，API 客户端（170+ 方法，含频道 Guild）        |
-| `onebot.config`    | `ConfigManager` — 持久化到 `config.json`                     |
-| `onebot.web`       | 内嵌 HTTP 服务器（JDK `HttpServer`），REST API（30+ 端点）   |
-| `onebot.napcat`    | NapCat 进程管理，配置自动发现                                |
-| `onebot.console`   | 交互式命令行（`BotConsole`）— 应用主循环入口                 |
-| `onebot.handler`   | 事件分发器（责任链模式）                                     |
-| `onebot.scheduler` | NTP 同步的定时消息调度器（per-bot）                          |
-| `onebot.util`      | `GsonFactory`、`CryptoUtil`（RSA）、`ConvertUtil`、`NtpUtil` |
+## Web UI 关键规则
 
-## Web UI
+- **`src/resources/web/` 是构建产物**，绝不直接编辑。每次改完 `web-ui/` 必须 `cd web-ui && npm run deploy`（= `build` + `scripts/copy-dist.mjs` 覆盖到 `src/resources/web/`），否则后端加载的还是旧版前端。
+- Vite 代理只转发 `/api` 前缀（`vite.config.ts` → `http://127.0.0.1:9988`）；所有 REST 端点都必须在此前缀下，UI 开发模式需先启后端。
+- Tailwind v4 **CSS-first** 配置：主题在 `web-ui/src/index.css` 的 `@theme` 里，**没有** `tailwind.config.js`，别新建。
+- 路由用 `createHashRouter`（hash 路由），状态用 Zustand（`web-ui/src/stores/`），主题用 `next-themes` 的 `class` 属性切换。
+- framer-motion v12 类型坑：cubic-bezier 数组必须元组断言 `[0.25, 0.1, 0.25, 1] as [number, number, number, number]`，否则 TS 报 `number[] is not assignable to Easing`。
+- Web 构建产出一个 >500 KB chunk 是预期行为（未做代码拆分），不要以为是问题。
+- `.claude/settings.json` 对 `web-ui/*.{ts,tsx}` 的 Write/Edit 有 PostToolUse 钩子自动跑 `eslint --fix`（bash 语法，PowerShell 不会触发）。
 
-### 命令
+## HeroUI v3 compound components（易静默失败）
 
-```bash
-cd web-ui
-npm run dev          # Vite 开发服务器 :5173，代理 /api -> :9988
-npm run build        # tsc -b && vite build -> web-ui/dist/
-npm run deploy       # 构建 + 复制 dist/ -> src/resources/web/  ← 发布 UI 变更的标准方式
-npm run lint         # ESLint
-```
+省略子组件**不会报错**，但渲染为空或无交互。必须展开：
 
-**任何 UI 变更后，都需在 `web-ui/` 下运行 `npm run deploy`**，将构建产物复制到 Java 资源目录。内嵌 HTTP 服务器从 `src/resources/web/` 提供静态文件。
+- `Switch` → `Switch.Control > Switch.Thumb`
+- `Radio` → `Radio.Control > Radio.Indicator` + `Radio.Content`
+- `Table` → `Table.Content`（承载 `aria-label`）→ `Header`/`Body`
+- `Select` → `Trigger + Value + Indicator + Popover + ListBox`
 
-### 技术栈与特殊约定
+详见 `.claude/rules/heroui-v3.md`。
 
-- React 19、Vite 8、TypeScript 6、Tailwind CSS v4、HeroUI v3、framer-motion v12。
-- **Tailwind v4 CSS-first 配置**：主题 token 通过 `web-ui/src/index.css` 中的 `@theme` 定义，没有 `tailwind.config.js`。
-- 主题颜色使用 CSS 自定义属性定义在 `web-ui/src/index.css`（`:root`），通过 `@theme { --color-*: var(--*) }` 桥接到 Tailwind。
-- 暗色/亮色模式：`next-themes`，通过 `attribute="class"` 切换。
-- 路由：`react-router-dom` v7，使用 `createHashRouter`（基于 hash）。
-- 状态管理：Zustand stores，位于 `web-ui/src/stores/`。
+## REST API 约定（`onebot.web.WebApiHandler`）
 
-### TypeScript 注意事项
+- 所有端点走 `/api` 前缀剥离后的 `route()` → `routeBot`/`routeSchedule`/`routeNapCat`/`routeConsole`/`routeLogs`，用 `switch (action, method)` 分派。新增端点在对应 `route*` 里加 case。
+- 强制使用辅助方法：`readBodyAsMap`、`sendOk`、`sendError`、`requireBot`/`requireConnectedBot`、`botToMap`/`taskToMap`、`ConvertUtil.toLong(...)`。不要手写 JSON 序列化。
 
-framer-motion v12 要求 cubic-bezier 数组必须转换为元组类型：
+## ScheduleManager 回调注入（4 处，必须同步）
 
-```ts
-ease: [0.25, 0.1, 0.25, 1] as [number, number, number, number];
-```
+新增 `BotConnector` 或 `afterSendStopper` 类回调时，需要在**全部 4 处**注入，否则某条路径会缺失回调：
 
-不加类型转换会报 TS 错误：`number[] is not assignable to Easing`。
+1. `BotConsole.java` 初始 Bot 连接流程（~行 678）
+2. `BotConsole.java` `autoConnectBot` 重连路径（~行 707）
+3. `BotConsole.java` 调度器重载重启路径（~行 1617）
+4. `WebApiHandler.java` `ensureSchedulerStarted()`（~行 1072）
 
-## Docker
+**`afterSendStopper` 必须在新线程里执行**：它在调度器线程的 `executeTask()` 内被调用，而 `disconnectInstance()` 会 `scheduler.stop()` 中断自身 → 死锁。用 `new Thread(..., "auto-stop-" + name).start()` 解耦。
 
-- `docker compose up -d` 同时启动 `napcat`（官方镜像 `mlikiowa/napcat-docker:latest`）和 `qqbot-fire`（从本仓库 Dockerfile 构建）。
-- NapCat 容器暴露 WS `:3000`、HTTP `:3001`、WebUI `:6099`。qqbot-fire 暴露 `:9988`。
-- 容器共享网络 `qqbot-fire-net`；qqbot-fire 通过 `ws://napcat:3000`（容器名作为主机名）连接 NapCat。
-- Dockerfile 采用多阶段构建：`eclipse-temurin:24-jdk`（构建阶段）→ `eclipse-temurin:24-jre`（运行阶段）。
-- `docker-entrypoint.sh` 将运行时文件（`config.json`、`.keys/`、`logs/`、`schedules*.json`）软链接到 `/app/data` 卷以实现持久化。
-- 命名卷：`napcat-qq`（QQ 登录数据）、`napcat-config`（NapCat 配置）、`qqbot-fire-data`（应用状态）。
+## Java 编码风格（与默认不同）
 
-## 注意事项
+- `onebot.model` 字段用 **snake_case**（`group_id`、`user_id`），匹配 OneBot 11 JSON 键；Gson 直接映射，别改。
+- `onebot.config` 字段用 camelCase，匹配 `config.json`。
+- 注释/日志中文，标识符英文。`var` 局部变量、单行 getter/setter、`// ---- 分组 ----` 字段分组是现有风格。
 
-- **绝不要手动编辑 `src/resources/web/`。** 始终在 `web-ui/src/` 下修改后运行 `npm run deploy`。
-- Vite 开发服务器将 `/api` 代理到 `http://127.0.0.1:9988` — UI 开发模式下必须先启动 Java 后端。
-- `config.json`、`.keys/`、`schedules*.json` 和 `logs/` 是 gitignore 的运行时产物。
-- 项目语言以中文为主（注释、UI 文案、文档）。
-- Web 构建产出单个 >500 KB 的 chunk（预期行为，未配置代码拆分）。
-- `Main.java` 位于默认包中 — 绝不要添加 `package` 声明。
+## 运行时产物（gitignore，勿提交）
+
+`config.json`、`.keys/`（RSA 密钥）、`schedules.json` / `schedules_<botName>.json`（`default` Bot 用无后缀文件，其他 Bot 用 `_<名称>`）、`logs/`。Docker 下 `docker-entrypoint.sh` 把这些软链到 `/app/data` 卷。
+
+## 平台
+
+开发主环境是 Windows + PowerShell 5.1。Bash 的 `&&` 串联在本地 shell 不可用；用 `;` 或 `; if ($?) { ... }`。跨平台脚本在 `scripts/`（`.bat` + `.sh` 成对）。

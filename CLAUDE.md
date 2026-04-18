@@ -76,7 +76,10 @@ React 19, Vite 8, TypeScript 6, Tailwind CSS v4, HeroUI v3（原 NextUI）, fram
 ## Claude Code 配置
 
 - **自动 ESLint 修复钩子**：`.claude/settings.json` 中配置了 PostToolUse 钩子，对 `web-ui/` 下的 `.ts`/`.tsx` 文件在每次编辑后自动运行 `npx eslint --fix`。
+- **自动 Java 格式化钩子**：PostToolUse 同一 matcher 下对 `src/**/*.java` 自动运行 google-java-format（AOSP 4 空格风格），通过 `.claude/tools/gjf.sh` wrapper 处理 JDK 24 所需的 `--add-exports` 参数。jar 放在 `.claude/tools/google-java-format.jar`，`.claude/` 已被 gitignore，团队成员需各自放置。
+- **Stop 钩子提醒 deploy**：每次会话回合结束时检查 `web-ui/src/` 是否比 `src/resources/web/assets/` 新，若是则在 stderr 打印提醒「请执行 `cd web-ui && npm run deploy`」。
 - **`/verify` 技能**：一键编译 Java 后端 + 检查 Web UI lint，用于提交前验证。
+- **`/compile` 技能**：仅跑 `./gradlew compileJava`，比 /verify 更轻量，改完 Java 代码随手验证用。
 - **`/deploy-ui` 技能**：构建 Web UI 并复制到 `src/resources/web/`，仅用户手动调用。
 
 ## 计划文件位置

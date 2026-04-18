@@ -134,6 +134,20 @@ public class NapCatLauncher {
         np.outputReader = outputReader;
         np.process = process;
         np.pid = process.pid();
+
+        // 回读 webui.json 拿到 WebUI token，供仪表盘展示/复制
+        try {
+            Path webuiJson = instanceDir.resolve("config").resolve("webui.json");
+            if (Files.exists(webuiJson)) {
+                var root = com.google.gson.JsonParser.parseString(Files.readString(webuiJson)).getAsJsonObject();
+                if (root.has("token") && !root.get("token").isJsonNull()) {
+                    np.webuiToken = root.get("token").getAsString();
+                }
+            }
+        } catch (Exception e) {
+            logger.debug("读取 WebUI token 失败: {}", e.getMessage());
+        }
+
         processes.put(name, np);
 
         // 自动记忆实例 (持久化，重启后可快速启动)
@@ -541,6 +555,7 @@ public class NapCatLauncher {
         public int wsPort;
         public int httpPort;
         public int webuiPort;
+        public String webuiToken = "";
         public String workDir;
         public String logFile;
         public NapCatOutputReader outputReader;

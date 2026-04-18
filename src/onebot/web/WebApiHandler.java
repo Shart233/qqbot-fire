@@ -974,6 +974,10 @@ public class WebApiHandler implements HttpHandler {
             data.put("wsPort", wsPort);
             data.put("httpPort", httpPort);
             data.put("webuiPort", webuiPort);
+            var startedInst = launcher.listInstances().stream()
+                    .filter(p -> name.equals(p.name)).findFirst().orElse(null);
+            data.put("webuiToken", startedInst != null && startedInst.webuiToken != null
+                    ? startedInst.webuiToken : "");
             data.put("botName", botName);
             sendOk(ex, data);
         } catch (Exception e) {
@@ -1020,6 +1024,7 @@ public class WebApiHandler implements HttpHandler {
             m.put("wsPort", inst.wsPort);
             m.put("httpPort", inst.httpPort);
             m.put("webuiPort", inst.webuiPort);
+            m.put("webuiToken", inst.webuiToken != null ? inst.webuiToken : "");
             m.put("workDir", inst.workDir);
             m.put("pid", inst.pid);
             m.put("alive", inst.process != null && inst.process.isAlive());
@@ -1035,6 +1040,7 @@ public class WebApiHandler implements HttpHandler {
                 m.put("wsPort", 0);
                 m.put("httpPort", 0);
                 m.put("webuiPort", si.webuiPort);
+                m.put("webuiToken", "");
                 m.put("workDir", "");
                 m.put("pid", 0L);
                 m.put("alive", false);

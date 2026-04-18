@@ -154,6 +154,7 @@ export const startNapCat = (name: string, qq?: string, webuiPort?: number) =>
     wsPort: number;
     httpPort: number;
     webuiPort: number;
+    webuiToken?: string;
     botName: string;
   }>("POST", "/api/napcat/start", {
     name,

@@ -69,6 +69,7 @@ export interface NapCatInstance {
   wsPort: number;
   httpPort: number;
   webuiPort: number;
+  webuiToken?: string;
   workDir: string;
   pid: number;
   alive: boolean;

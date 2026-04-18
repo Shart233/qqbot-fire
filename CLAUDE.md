@@ -79,6 +79,10 @@ React 19, Vite 8, TypeScript 6, Tailwind CSS v4, HeroUI v3（原 NextUI）, fram
 - **`/verify` 技能**：一键编译 Java 后端 + 检查 Web UI lint，用于提交前验证。
 - **`/deploy-ui` 技能**：构建 Web UI 并复制到 `src/resources/web/`，仅用户手动调用。
 
+## 计划文件位置
+
+所有 plan 文件统一放在项目内 `.claude/plans/` 目录，不要写到用户全局目录（如 `C:\Users\Lenovo\.claude\plans\`）。该目录通过 `.gitignore` 的 `.claude/` 规则自动忽略，不会提交到仓库。
+
 ## 补充参考
 
 - `AGENTS.md` 包含更详细的包级说明、控制台命令参考和 API 覆盖范围，是深入了解项目的有用补充文档。

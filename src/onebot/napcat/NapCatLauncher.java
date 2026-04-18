@@ -20,7 +20,9 @@ import java.util.concurrent.ConcurrentHashMap;
  * 自动根据 QQ 号生成 OneBot11 配置文件 (分配 WS/HTTP/WebUI 端口)。
  *
  * Windows: 通过 NapCatWinBootMain.exe + DLL 注入启动 QQ
- * Linux:   通过 node napcat.mjs 或 napcat.sh 脚本启动
+ * Linux:   按优先级自动探测
+ *           napcat-run.sh → napcat.sh → xvfb-run + QQ NT 客户端 → node napcat.mjs
+ *           (QQ NT 模式支持无头服务器，与 systemd 部署一致)
  *
  * 用法:
  *   var launcher = new NapCatLauncher("/opt/NapCat");
@@ -175,19 +177,72 @@ public class NapCatLauncher {
     // ==================== Linux 启动 ====================
 
     /**
-     * Linux: 优先使用 napcat.sh，其次用 node napcat.mjs
+     * Linux 启动命令自动探测，按优先级:
+     *   1. napCat 目录下的 napcat-run.sh（自定义脚本，通常封装 xvfb-run + QQ 客户端）
+     *   2. napCat 目录下的 napcat.sh（官方启动脚本）
+     *   3. QQ NT 客户端 + xvfb-run + napcat.mjs（基于 Electron，最接近 systemd 的真实启动方式）
+     *   4. 纯 node 模式运行 napcat.mjs（需要 NapCat Node 版）
      */
     private List<String> buildLinuxCommand(Path napCatPath, String qqUin) throws IOException {
-        Path napCatSh = napCatPath.resolve("napcat.sh");
+        Path customRun = napCatPath.resolve("napcat-run.sh");
+        if (Files.exists(customRun)) {
+            return new ArrayList<>(List.of("bash", customRun.toString(), qqUin));
+        }
 
+        Path napCatSh = napCatPath.resolve("napcat.sh");
         if (Files.exists(napCatSh)) {
-            // 使用官方启动脚本
             return new ArrayList<>(List.of("bash", napCatSh.toString(), qqUin));
         }
 
-        // 查找 node
+        // QQ NT 客户端模式 (Electron): 如 systemd 那条命令 xvfb-run /opt/QQ/qq -q <QQ> napcat.mjs
+        String qqPath = findLinuxQQPath();
+        if (qqPath != null) {
+            String xvfb = findXvfbRunPath();
+            String napcatMjs = napCatPath.resolve("napcat.mjs").toString();
+            var cmd = new ArrayList<String>();
+            if (xvfb != null) {
+                cmd.add(xvfb);
+                cmd.add("-a");
+                cmd.add("--server-args=-screen 0 1280x720x24");
+            }
+            cmd.add(qqPath);
+            cmd.add("--no-sandbox");
+            cmd.add("-q");
+            cmd.add(qqUin);
+            cmd.add(napcatMjs);
+            return cmd;
+        }
+
         String nodePath = findNodePath();
         return new ArrayList<>(List.of(nodePath, napCatPath.resolve("napcat.mjs").toString(), qqUin));
+    }
+
+    /** 查找 Linux 下的 QQ 客户端可执行文件（QQ NT on Linux） */
+    private String findLinuxQQPath() {
+        for (String candidate : List.of(
+                "/opt/QQ/qq",
+                "/usr/bin/qq",
+                "/usr/local/bin/qq"
+        )) {
+            if (Files.exists(Path.of(candidate))) return candidate;
+        }
+        return null;
+    }
+
+    /** 查找 xvfb-run（无头环境下运行图形程序需要） */
+    private String findXvfbRunPath() {
+        try {
+            var pb = new ProcessBuilder("which", "xvfb-run");
+            pb.redirectErrorStream(true);
+            var proc = pb.start();
+            String output = new String(proc.getInputStream().readAllBytes()).trim();
+            int exitCode = proc.waitFor();
+            if (exitCode == 0 && !output.isEmpty()) return output;
+        } catch (Exception ignored) {}
+        for (String candidate : List.of("/usr/bin/xvfb-run", "/usr/local/bin/xvfb-run")) {
+            if (Files.exists(Path.of(candidate))) return candidate;
+        }
+        return null;
     }
 
     // ==================== 停止 ====================
@@ -208,7 +263,26 @@ public class NapCatLauncher {
             np.process.destroyForcibly();
             logger.info("NapCat 实例已停止: {} PID={}", name, np.pid);
         }
+        // Linux: xvfb-run 会 fork 脱离父子关系，用 workdir 精准清理残留 QQ/napcat 进程
+        if (!IS_WINDOWS && np.workDir != null) {
+            killProcessesByWorkdir(np.workDir, np.qqUin);
+        }
         return true;
+    }
+
+    /**
+     * 按 workdir 或 QQ 号精准杀掉残留进程。
+     * 场景: xvfb-run 启动的 QQ NT 进程会被 init 领养，不再是 java 的子进程，
+     * 但其命令行包含 -q <qqUin>，可以据此匹配。
+     */
+    private void killProcessesByWorkdir(String workDir, String qqUin) {
+        if (qqUin != null && !qqUin.isEmpty()) {
+            // 精确到 QQ 号，避免误杀其他实例
+            killProcess("pkill", "-f", "-q " + qqUin);
+        }
+        if (workDir != null && !workDir.isEmpty()) {
+            killProcess("pkill", "-f", workDir);
+        }
     }
 
     /** 停止所有实例，并清理残留进程 */

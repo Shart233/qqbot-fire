@@ -1,7 +1,9 @@
 import { useState, useEffect, useCallback, useMemo } from "react";
 import { motion } from "framer-motion";
 import { useNavigate } from "react-router-dom";
+import { toast } from "@heroui/react";
 import { useAppStore } from "../stores/app-store";
+import { runAction } from "../api/client";
 import {
   getNapCatConfig,
   setNapCatConfig,
@@ -75,22 +77,20 @@ export default function NapCatPage() {
   );
 
   const handleSaveConfig = async () => {
-    const data = await setNapCatConfig(config);
-    if (data !== null) {
-      appendLog("[成功] NapCat 配置已保存");
-    }
+    await runAction("NapCat 配置已保存", () => setNapCatConfig(config));
   };
 
   const handleStart = async () => {
     const name = ncName.trim();
     if (!name) {
-      appendLog("[错误] 请填写实例名称");
+      toast.warning("请填写实例名称");
       return;
     }
     if (matchedSaved) {
-      const data = await startNapCat(name);
+      const data = await runAction(`从记忆启动：${name}`, () =>
+        startNapCat(name),
+      );
       if (data !== null) {
-        appendLog(`[成功] 从记忆启动: ${name}`);
         appendLog(`NapCat ${name} 从记忆启动`);
         setNcName("");
         setNcQQ("");
@@ -100,14 +100,16 @@ export default function NapCatPage() {
       return;
     }
     if (!ncQQ.trim()) {
-      appendLog("[错误] 请填写 QQ 号（或输入已记忆的实例名称直接启动）");
+      toast.warning("请填写 QQ 号（或输入已记忆的实例名称直接启动）");
       return;
     }
     const webuiPort = parseInt(ncWebuiPort) || 6099;
-    const data = await startNapCat(name, ncQQ.trim(), webuiPort);
+    const qq = ncQQ.trim();
+    const data = await runAction(`实例 "${name}" 已启动`, () =>
+      startNapCat(name, qq, webuiPort),
+    );
     if (data !== null) {
-      appendLog(`[成功] NapCat 实例 ${name} 已启动`);
-      appendLog(`NapCat ${name} (QQ:${ncQQ.trim()}) 已启动`);
+      appendLog(`NapCat ${name} (QQ:${qq}) 已启动`);
       setNcName("");
       setNcQQ("");
       setNcWebuiPort("");
@@ -116,56 +118,49 @@ export default function NapCatPage() {
   };
 
   const handleStartSaved = async (name: string) => {
-    const data = await startNapCat(name);
+    const data = await runAction(`从记忆启动：${name}`, () =>
+      startNapCat(name),
+    );
     if (data !== null) {
-      appendLog(`[成功] 从记忆启动: ${name}`);
       appendLog(`NapCat ${name} 从记忆启动`);
       loadPage();
     }
   };
 
   const handleRestart = async (name: string) => {
-    const stopped = await stopNapCat(name);
-    if (stopped !== null) {
-      const started = await startNapCat(name);
-      if (started !== null) {
-        appendLog(`[成功] 已重新启动: ${name}`);
-        appendLog(`NapCat ${name} 已重新启动`);
-      }
-      loadPage();
+    const data = await runAction(`实例 "${name}" 已重启`, async () => {
+      const stopped = await stopNapCat(name);
+      if (stopped === null) return null;
+      return await startNapCat(name);
+    });
+    if (data !== null) {
+      appendLog(`NapCat ${name} 已重新启动`);
     }
+    loadPage();
   };
 
   const handleStop = async (name: string) => {
-    const data = await stopNapCat(name);
-    if (data !== null) {
-      appendLog(`[成功] 已停止 ${name}`);
-      loadPage();
-    }
+    const data = await runAction(`实例 "${name}" 已停止`, () =>
+      stopNapCat(name),
+    );
+    if (data !== null) loadPage();
   };
 
   const handleStopAll = async () => {
-    const data = await stopNapCat("all");
-    if (data !== null) {
-      appendLog("[成功] 已停止所有实例");
-      loadPage();
-    }
+    const data = await runAction("已停止所有实例", () => stopNapCat("all"));
+    if (data !== null) loadPage();
   };
 
   const handleForget = async (name: string) => {
-    const data = await forgetNapCat(name);
-    if (data !== null) {
-      appendLog(`[成功] 已删除: ${name}`);
-      loadPage();
-    }
+    const data = await runAction(`实例 "${name}" 已删除`, () =>
+      forgetNapCat(name),
+    );
+    if (data !== null) loadPage();
   };
 
   const handleForgetAll = async () => {
-    const data = await forgetNapCat("all");
-    if (data !== null) {
-      appendLog("[成功] 已删除全部实例");
-      loadPage();
-    }
+    const data = await runAction("已删除全部实例", () => forgetNapCat("all"));
+    if (data !== null) loadPage();
   };
 
   const handleShowEdit = (instance: NapCatInstance) => {
@@ -177,9 +172,11 @@ export default function NapCatPage() {
   };
 
   const handleEditRunning = async (instance: NapCatInstance) => {
-    const data = await stopNapCat(instance.name);
+    const data = await runAction(
+      `已停止 ${instance.name}，请编辑后重新启动`,
+      () => stopNapCat(instance.name),
+    );
     if (data !== null) {
-      appendLog(`[成功] 已停止 ${instance.name}，请编辑后重新启动`);
       await loadPage();
       handleShowEdit(instance);
     }
@@ -189,22 +186,21 @@ export default function NapCatPage() {
     if (!editName || !editData) return;
     setEditSaving(true);
     const webuiPort = parseInt(editData.webuiPort) || 6099;
-    const data = await updateSavedNapCat(editName, editData.qqUin, webuiPort);
+    const name = editName;
+    const data = await runAction(`实例 "${name}" 已更新`, () =>
+      updateSavedNapCat(name, editData.qqUin, webuiPort),
+    );
     setEditSaving(false);
     if (data !== null) {
-      appendLog(`[成功] 已更新: ${editName}`);
-      appendLog(`NapCat ${editName} 配置已更新`);
+      appendLog(`NapCat ${name} 配置已更新`);
       setEditName(null);
       loadPage();
     }
   };
 
   const handleDiscover = async () => {
-    const data = await discoverNapCat();
+    const data = await runAction("自动发现已完成", () => discoverNapCat());
     if (data !== null) {
-      appendLog(
-        `[成功] 发现完成: 新建 ${data.created || 0} 个，共 ${data.total || 0} 个 Bot`,
-      );
       appendLog(`NapCat 自动发现: 新建 ${data.created || 0} 个`);
     }
   };

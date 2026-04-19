@@ -16,7 +16,7 @@ export default function NcLogsPage() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    listNapCatInstances().then((data) => {
+    listNapCatInstances({ silent: true }).then((data) => {
       const list = data || [];
       setInstances(list);
       const fromUrl = searchParams.get("instance");
@@ -29,20 +29,23 @@ export default function NcLogsPage() {
     });
   }, [searchParams]);
 
-  const loadLog = useCallback(async () => {
-    if (!selected) return;
-    localStorage.setItem("select_ncLogSelect", selected);
-    const data = await getNapCatLog(selected);
-    if (data && data.lines) {
-      setLines(data.lines);
-    }
-  }, [selected]);
+  const loadLog = useCallback(
+    async (silent: boolean = false) => {
+      if (!selected) return;
+      localStorage.setItem("select_ncLogSelect", selected);
+      const data = await getNapCatLog(selected, { silent });
+      if (data && data.lines) {
+        setLines(data.lines);
+      }
+    },
+    [selected],
+  );
 
   useEffect(() => {
-    if (selected) loadLog(); // eslint-disable-line react-hooks/set-state-in-effect
+    if (selected) loadLog(true); // eslint-disable-line react-hooks/set-state-in-effect -- 初始加载静默
   }, [selected, loadLog]);
 
-  useInterval(loadLog, autoRefresh ? 2000 : null);
+  useInterval(() => loadLog(true), autoRefresh ? 2000 : null);
 
   const options = [
     { value: "", label: "选择实例..." },
@@ -76,7 +79,7 @@ export default function NcLogsPage() {
               />
               <span>自动刷新</span>
             </label>
-            <Button size="sm" variant="ghost" onClick={loadLog}>
+            <Button size="sm" variant="ghost" onClick={() => loadLog(false)}>
               刷新
             </Button>
           </div>

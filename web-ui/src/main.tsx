@@ -10,6 +10,6 @@ document.documentElement.classList.add("dark");
 ReactDOM.createRoot(document.getElementById("root")!).render(
   <React.StrictMode>
     <RouterProvider router={router} />
-    <Toast.Provider placement="top end" />
+    <Toast.Provider placement="bottom end" />
   </React.StrictMode>,
 );

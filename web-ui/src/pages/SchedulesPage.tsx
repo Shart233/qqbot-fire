@@ -1,6 +1,8 @@
 import { useState, useEffect, useCallback } from "react";
 import { motion } from "framer-motion";
+import { toast } from "@heroui/react";
 import { useAppStore } from "../stores/app-store";
+import { runAction } from "../api/client";
 import {
   listBots,
   listSchedules,
@@ -20,7 +22,7 @@ import type { ScheduleTask } from "../api/types";
 const EASE = [0.25, 0.1, 0.25, 1] as [number, number, number, number];
 
 export default function SchedulesPage() {
-  const { setCachedBots, appendLog } = useAppStore();
+  const { setCachedBots } = useAppStore();
   const [bot, setBot] = useState("");
   const [schedules, setSchedules] = useState<ScheduleTask[]>([]);
   const [loading, setLoading] = useState(false);
@@ -68,11 +70,11 @@ export default function SchedulesPage() {
 
   const handleAdd = async () => {
     if (!bot) {
-      appendLog("[错误] 请选择 Bot");
+      toast.warning("请选择 Bot");
       return;
     }
     if (!name.trim() || !time || !targets.trim() || !message.trim()) {
-      appendLog("[错误] 请填写所有字段");
+      toast.warning("请填写所有字段");
       return;
     }
     const targetNums = targets
@@ -80,19 +82,21 @@ export default function SchedulesPage() {
       .map((s) => parseInt(s.trim()))
       .filter((n) => !isNaN(n));
     if (targetNums.length === 0) {
-      appendLog("[错误] 目标格式错误");
+      toast.warning("目标格式错误");
       return;
     }
-    const data = await addSchedule(bot, {
-      name: name.trim(),
-      time,
-      targets: targetNums,
-      targetType,
-      message: message.trim(),
-      autoConnect,
-    });
+    const trimmedName = name.trim();
+    const data = await runAction(`任务 "${trimmedName}" 已添加`, () =>
+      addSchedule(bot, {
+        name: trimmedName,
+        time,
+        targets: targetNums,
+        targetType,
+        message: message.trim(),
+        autoConnect,
+      }),
+    );
     if (data !== null) {
-      appendLog(`添加定时任务: ${name.trim()}`);
       setName("");
       setTime("");
       setTargets("");
@@ -120,49 +124,46 @@ export default function SchedulesPage() {
       .map((s) => parseInt(s.trim()))
       .filter((n) => !isNaN(n));
     if (nums.length === 0) {
-      appendLog("[错误] 目标格式错误");
+      toast.warning("目标格式错误");
       return;
     }
     setEditSaving(true);
-    const data = await updateSchedule(bot, editTask.name, {
-      time: editTime,
-      targets: nums,
-      targetType: editTargetType,
-      message: editMessage.trim(),
-      autoConnect: editAutoConnect,
-      autoStopAfterSend: editAutoStopAfterSend,
-    });
+    const taskName = editTask.name;
+    const data = await runAction(`任务 "${taskName}" 已更新`, () =>
+      updateSchedule(bot, taskName, {
+        time: editTime,
+        targets: nums,
+        targetType: editTargetType,
+        message: editMessage.trim(),
+        autoConnect: editAutoConnect,
+        autoStopAfterSend: editAutoStopAfterSend,
+      }),
+    );
     setEditSaving(false);
     if (data !== null) {
-      appendLog(`编辑定时任务: ${editTask.name}`);
       setEditTask(null);
       loadScheduleList();
     }
   };
 
   const handleToggle = async (taskName: string, enabled: boolean) => {
-    const data = await toggleSchedule(bot, taskName, enabled);
-    if (data !== null) {
-      loadScheduleList();
-    } else {
-      appendLog("[错误] 切换失败");
-      loadScheduleList();
-    }
+    await runAction(`任务已${enabled ? "启用" : "禁用"}`, () =>
+      toggleSchedule(bot, taskName, enabled),
+    );
+    loadScheduleList();
   };
 
   const handleTest = async (taskName: string) => {
-    const data = await testSchedule(bot, taskName);
-    if (data !== null) {
-      appendLog(`[成功] 测试定时任务: ${taskName}`);
-    }
+    await runAction(`测试已触发：${taskName}`, () =>
+      testSchedule(bot, taskName),
+    );
   };
 
   const handleDelete = async (taskName: string) => {
-    const data = await deleteSchedule(bot, taskName);
-    if (data !== null) {
-      appendLog(`[成功] 删除定时任务: ${taskName}`);
-      loadScheduleList();
-    }
+    const data = await runAction(`任务 "${taskName}" 已删除`, () =>
+      deleteSchedule(bot, taskName),
+    );
+    if (data !== null) loadScheduleList();
   };
 
   const pillClass = (active: boolean) =>

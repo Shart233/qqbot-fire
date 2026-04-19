@@ -16,28 +16,31 @@ export default function ServerLogsPage() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    listLogFiles().then((data) => {
+    listLogFiles({ silent: true }).then((data) => {
       setFiles(data || []);
       setLoading(false);
     });
   }, []);
 
-  const loadLog = useCallback(async () => {
-    const numLines = parseInt(lineCount) || 200;
-    const data = await readLog(selectedFile, numLines);
-    if (data && data.lines) {
-      setLines(data.lines);
-      setInfo(
-        `${data.file} - 显示第 ${data.from + 1} ~ ${data.from + data.lines.length} 行 (共 ${data.total} 行)`,
-      );
-    }
-  }, [selectedFile, lineCount]);
+  const loadLog = useCallback(
+    async (silent: boolean = false) => {
+      const numLines = parseInt(lineCount) || 200;
+      const data = await readLog(selectedFile, numLines, { silent });
+      if (data && data.lines) {
+        setLines(data.lines);
+        setInfo(
+          `${data.file} - 显示第 ${data.from + 1} ~ ${data.from + data.lines.length} 行 (共 ${data.total} 行)`,
+        );
+      }
+    },
+    [selectedFile, lineCount],
+  );
 
   useEffect(() => {
-    loadLog(); // eslint-disable-line react-hooks/set-state-in-effect
+    loadLog(true); // eslint-disable-line react-hooks/set-state-in-effect -- 初始加载静默
   }, [loadLog]);
 
-  useInterval(loadLog, autoRefresh ? 3000 : null);
+  useInterval(() => loadLog(true), autoRefresh ? 3000 : null);
 
   if (loading) {
     return (
@@ -78,7 +81,7 @@ export default function ServerLogsPage() {
               />
               <span>自动刷新</span>
             </label>
-            <Button size="sm" variant="ghost" onClick={loadLog}>
+            <Button size="sm" variant="ghost" onClick={() => loadLog(false)}>
               刷新
             </Button>
           </div>

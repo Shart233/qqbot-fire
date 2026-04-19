@@ -18,7 +18,8 @@ import type {
 const enc = encodeURIComponent;
 
 // Bot CRUD
-export const listBots = () => apiCall<BotListResponse>("GET", "/api/bots");
+export const listBots = (opts?: { silent?: boolean }) =>
+  apiCall<BotListResponse>("GET", "/api/bots", undefined, opts);
 export const addBot = (name: string) =>
   apiCall<BotInfo>("POST", "/api/bots", { name });
 export const deleteBot = (name: string) =>
@@ -165,12 +166,14 @@ export const stopNapCat = (name: string) =>
   apiCall<{ stopped?: string; message?: string }>("POST", "/api/napcat/stop", {
     name,
   });
-export const listNapCatInstances = () =>
-  apiCall<NapCatInstance[]>("GET", "/api/napcat/instances");
-export const getNapCatLog = (name: string) =>
+export const listNapCatInstances = (opts?: { silent?: boolean }) =>
+  apiCall<NapCatInstance[]>("GET", "/api/napcat/instances", undefined, opts);
+export const getNapCatLog = (name: string, opts?: { silent?: boolean }) =>
   apiCall<{ name: string; lines: string[] }>(
     "GET",
     `/api/napcat/instances/${enc(name)}/log`,
+    undefined,
+    opts,
   );
 export const discoverNapCat = () =>
   apiCall<DiscoverResponse>("POST", "/api/napcat/discover");
@@ -194,10 +197,16 @@ export const execCommand = (command: string) =>
   apiCall<ConsoleExecResponse>("POST", "/api/console/exec", { command });
 
 // Server Logs
-export const listLogFiles = () =>
-  apiCall<LogFileInfo[]>("GET", "/api/logs/list");
-export const readLog = (file: string, lines: number) =>
+export const listLogFiles = (opts?: { silent?: boolean }) =>
+  apiCall<LogFileInfo[]>("GET", "/api/logs/list", undefined, opts);
+export const readLog = (
+  file: string,
+  lines: number,
+  opts?: { silent?: boolean },
+) =>
   apiCall<LogReadResponse>(
     "GET",
     `/api/logs/read?file=${enc(file)}&lines=${lines}`,
+    undefined,
+    opts,
   );

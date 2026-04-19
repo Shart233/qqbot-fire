@@ -1,8 +1,10 @@
 import { useState, useEffect, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
+import { toast } from "@heroui/react";
 import { useInterval } from "../hooks/useInterval";
 import { useAppStore } from "../stores/app-store";
+import { runAction } from "../api/client";
 import {
   listBots,
   connectBot,
@@ -24,7 +26,10 @@ export default function DashboardPage() {
   const [napcats, setNapcats] = useState<NapCatInstance[]>([]);
 
   const loadDashboard = useCallback(async () => {
-    const [bots, nc] = await Promise.all([listBots(), listNapCatInstances()]);
+    const [bots, nc] = await Promise.all([
+      listBots({ silent: true }),
+      listNapCatInstances({ silent: true }),
+    ]);
     if (bots) setCachedBots(bots.bots || [], bots.activeBot);
     if (nc) setNapcats(nc);
     setLoading(false);
@@ -32,11 +37,11 @@ export default function DashboardPage() {
 
   const handleCopy = async (label: string, value: string) => {
     if (!value) {
-      appendLog(`${label} 为空，无法复制`);
+      toast.warning(`${label} 为空，无法复制`);
       return;
     }
-    if (await copyToClipboard(value)) appendLog(`已复制 ${label}`);
-    else appendLog(`复制 ${label} 失败，请手动选中`);
+    if (await copyToClipboard(value)) toast.success(`已复制 ${label}`);
+    else toast.danger(`复制 ${label} 失败`, { description: "请手动选中" });
   };
 
   useEffect(() => {
@@ -48,7 +53,10 @@ export default function DashboardPage() {
 
   const handleToggle = async (name: string, connect: boolean) => {
     setBusy(name);
-    const data = connect ? await connectBot(name) : await disconnectBot(name);
+    const data = await runAction(
+      `${name} ${connect ? "已连接" : "已断开"}`,
+      () => (connect ? connectBot(name) : disconnectBot(name)),
+    );
     if (data !== null) {
       appendLog(`${name} ${connect ? "连接成功" : "已断开"}`);
       loadDashboard();
@@ -58,13 +66,15 @@ export default function DashboardPage() {
 
   const handleConnectAll = async () => {
     setBusy("__all__");
-    if ((await connectAll()) !== null) loadDashboard();
+    const data = await runAction("全部连接请求已完成", () => connectAll());
+    if (data !== null) loadDashboard();
     setBusy(null);
   };
 
   const handleDisconnectAll = async () => {
     setBusy("__all__");
-    if ((await disconnectAll()) !== null) loadDashboard();
+    const data = await runAction("全部断开请求已完成", () => disconnectAll());
+    if (data !== null) loadDashboard();
     setBusy(null);
   };
 

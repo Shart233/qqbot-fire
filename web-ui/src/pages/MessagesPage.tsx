@@ -1,7 +1,9 @@
 import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
+import { toast } from "@heroui/react";
 import { useAppStore } from "../stores/app-store";
 import { useLocalStorage } from "../hooks/useLocalStorage";
+import { runAction } from "../api/client";
 import { listBots, sendMessage } from "../api/endpoints";
 import { PageContainer, PageHeader } from "../components/layout-new";
 import { Button, Card, Input } from "../components/ui";
@@ -25,29 +27,30 @@ export default function MessagesPage() {
 
   const handleSend = async () => {
     if (!bot) {
-      appendLog("[错误] 请选择 Bot");
+      toast.warning("请选择 Bot");
       return;
     }
     const targetNum = parseInt(target, 10);
     if (!Number.isFinite(targetNum) || targetNum <= 0) {
-      appendLog("[错误] 请输入有效的目标号码");
+      toast.warning("请输入有效的目标号码");
       return;
     }
     const trimmedMsg = message.trim();
     if (!trimmedMsg) {
-      appendLog("[错误] 请输入消息内容");
+      toast.warning("请输入消息内容");
       return;
     }
 
     setSending(true);
-    const data = await sendMessage(bot, msgType, targetNum, trimmedMsg);
+    const data = await runAction("消息已发送", () =>
+      sendMessage(bot, msgType, targetNum, trimmedMsg),
+    );
     setSending(false);
 
     if (data !== null) {
       appendLog(
         `[${bot}] ${msgType === "group" ? "群" : "私聊"}消息 -> ${target}: ${trimmedMsg}`,
       );
-      appendLog("[成功] 消息已发送");
       setMessage("");
     }
   };

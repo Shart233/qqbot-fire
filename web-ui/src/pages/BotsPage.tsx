@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { motion } from "framer-motion";
 import { useAppStore } from "../stores/app-store";
+import { runAction } from "../api/client";
 import {
   listBots,
   addBot,
@@ -45,7 +46,7 @@ export default function BotsPage() {
   const handleAdd = async () => {
     const name = addName.trim();
     if (!name) return;
-    const data = await addBot(name);
+    const data = await runAction(`Bot "${name}" 已添加`, () => addBot(name));
     if (data !== null) {
       setAddName("");
       appendLog(`添加 Bot: ${name}`);
@@ -55,16 +56,22 @@ export default function BotsPage() {
 
   const handleDelete = async () => {
     if (!deleteTarget) return;
-    const data = await deleteBot(deleteTarget);
+    const target = deleteTarget;
+    const data = await runAction(`Bot "${target}" 已删除`, () =>
+      deleteBot(target),
+    );
     if (data !== null) {
-      appendLog(`删除 Bot: ${deleteTarget}`);
+      appendLog(`删除 Bot: ${target}`);
       setDeleteTarget(null);
       loadBots();
     }
   };
 
   const handleToggle = async (name: string, connect: boolean) => {
-    const data = connect ? await connectBot(name) : await disconnectBot(name);
+    const data = await runAction(
+      `${name} ${connect ? "已连接" : "已断开"}`,
+      () => (connect ? connectBot(name) : disconnectBot(name)),
+    );
     if (data !== null) {
       appendLog(`${name} ${connect ? "连接成功" : "已断开"}`);
       loadBots();
@@ -82,16 +89,19 @@ export default function BotsPage() {
   const handleSaveConfig = async () => {
     if (!configBot || !configData) return;
     setConfigSaving(true);
-    const data = await updateBotConfig(configBot, {
-      mode: configData.mode,
-      wsUrl: configData.wsUrl,
-      httpUrl: configData.httpUrl,
-      wsToken: configData.wsToken,
-      httpToken: configData.httpToken,
-    });
+    const target = configBot;
+    const data = await runAction(`配置已保存：${target}`, () =>
+      updateBotConfig(target, {
+        mode: configData.mode,
+        wsUrl: configData.wsUrl,
+        httpUrl: configData.httpUrl,
+        wsToken: configData.wsToken,
+        httpToken: configData.httpToken,
+      }),
+    );
     setConfigSaving(false);
     if (data !== null) {
-      appendLog(`更新配置: ${configBot}`);
+      appendLog(`更新配置: ${target}`);
       setConfigBot(null);
       loadBots();
     }

@@ -107,13 +107,13 @@ export default function BotsPage() {
         title="Bot 实例"
         description="管理多个 Bot 连接与配置"
         actions={
-          <div className="flex items-center gap-2">
+          <div className="flex w-full items-center gap-2 sm:w-auto">
             <Input
               placeholder="新 Bot 名称"
               value={addName}
               onChange={(e) => setAddName(e.target.value)}
               onKeyDown={(e) => e.key === "Enter" && handleAdd()}
-              className="w-48"
+              className="flex-1 sm:w-48 sm:flex-none"
               fullWidth={false}
             />
             <Button size="sm" variant="primary" onClick={handleAdd}>
@@ -138,14 +138,100 @@ export default function BotsPage() {
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.3 }}
         >
-          <Card variant="glass" padding="none" className="overflow-hidden">
+          {/* 手机卡片：< sm */}
+          <div className="sm:hidden space-y-3">
+            {cachedBots.map((bot) => (
+              <Card key={bot.name} variant="glass" padding="md">
+                <div className="flex items-start justify-between gap-2 mb-3">
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center gap-2 flex-wrap mb-1">
+                      <span className="font-medium text-[var(--color-text-primary)]">
+                        {bot.name}
+                      </span>
+                      {bot.name === activeBotName && (
+                        <Badge variant="success" size="sm">
+                          当前
+                        </Badge>
+                      )}
+                      <Badge
+                        variant={bot.mode === "ws" ? "primary" : "warning"}
+                        size="sm"
+                      >
+                        {bot.mode.toUpperCase()}
+                      </Badge>
+                    </div>
+                    <div className="font-mono text-xs text-[var(--color-text-muted)] truncate">
+                      {bot.mode === "ws" ? bot.wsUrl : bot.httpUrl}
+                    </div>
+                  </div>
+                  <Badge
+                    variant={bot.connected ? "success" : "default"}
+                    size="sm"
+                    dot
+                    pulse={bot.connected}
+                    className="flex-shrink-0"
+                  >
+                    {bot.connected ? "在线" : "离线"}
+                  </Badge>
+                </div>
+                <div className="flex gap-2 pt-3 border-t border-white/5">
+                  <Button
+                    size="sm"
+                    variant="secondary"
+                    className="flex-1"
+                    onClick={() => handleShowConfig(bot.name)}
+                  >
+                    配置
+                  </Button>
+                  {bot.connected ? (
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      className="flex-1"
+                      onClick={() => handleToggle(bot.name, false)}
+                    >
+                      断开
+                    </Button>
+                  ) : (
+                    <Button
+                      size="sm"
+                      variant="primary"
+                      className="flex-1"
+                      onClick={() => handleToggle(bot.name, true)}
+                    >
+                      连接
+                    </Button>
+                  )}
+                  <Button
+                    size="sm"
+                    variant="danger"
+                    className="flex-1"
+                    onClick={() => setDeleteTarget(bot.name)}
+                  >
+                    删除
+                  </Button>
+                </div>
+              </Card>
+            ))}
+          </div>
+
+          {/* 桌面表格：≥ sm */}
+          <Card
+            variant="glass"
+            padding="none"
+            className="overflow-hidden hidden sm:block"
+          >
             <div className="overflow-x-auto">
-              <table className="w-full text-sm">
+              <table className="w-full min-w-[520px] text-sm">
                 <thead>
                   <tr className="text-xs uppercase tracking-wider text-[var(--color-text-muted)] border-b border-[var(--glass-border)]">
                     <th className="text-left px-5 py-3 font-medium">名称</th>
-                    <th className="text-left px-5 py-3 font-medium">模式</th>
-                    <th className="text-left px-5 py-3 font-medium">地址</th>
+                    <th className="text-left px-5 py-3 font-medium hidden md:table-cell">
+                      模式
+                    </th>
+                    <th className="text-left px-5 py-3 font-medium hidden lg:table-cell">
+                      地址
+                    </th>
                     <th className="text-left px-5 py-3 font-medium">状态</th>
                     <th className="text-right px-5 py-3 font-medium">操作</th>
                   </tr>
@@ -157,18 +243,33 @@ export default function BotsPage() {
                       className="border-b border-[var(--glass-border)] last:border-0 hover:bg-white/[0.02] transition-colors"
                     >
                       <td className="px-5 py-3">
-                        <div className="flex items-center gap-2">
-                          <span className="text-[var(--color-text-primary)] font-medium">
-                            {bot.name}
+                        <div className="flex flex-col gap-1">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <span className="text-[var(--color-text-primary)] font-medium">
+                              {bot.name}
+                            </span>
+                            {bot.name === activeBotName && (
+                              <Badge variant="success" size="sm">
+                                当前
+                              </Badge>
+                            )}
+                            <span className="md:hidden">
+                              <Badge
+                                variant={
+                                  bot.mode === "ws" ? "primary" : "warning"
+                                }
+                                size="sm"
+                              >
+                                {bot.mode.toUpperCase()}
+                              </Badge>
+                            </span>
+                          </div>
+                          <span className="text-[var(--color-text-muted)] font-mono text-xs truncate max-w-[220px] lg:hidden">
+                            {bot.mode === "ws" ? bot.wsUrl : bot.httpUrl}
                           </span>
-                          {bot.name === activeBotName && (
-                            <Badge variant="success" size="sm">
-                              当前
-                            </Badge>
-                          )}
                         </div>
                       </td>
-                      <td className="px-5 py-3">
+                      <td className="px-5 py-3 hidden md:table-cell">
                         <Badge
                           variant={bot.mode === "ws" ? "primary" : "warning"}
                           size="sm"
@@ -176,7 +277,7 @@ export default function BotsPage() {
                           {bot.mode.toUpperCase()}
                         </Badge>
                       </td>
-                      <td className="px-5 py-3">
+                      <td className="px-5 py-3 hidden lg:table-cell">
                         <span className="text-[var(--color-text-secondary)] truncate inline-block max-w-[260px] font-mono text-xs">
                           {bot.mode === "ws" ? bot.wsUrl : bot.httpUrl}
                         </span>
@@ -192,7 +293,7 @@ export default function BotsPage() {
                         </Badge>
                       </td>
                       <td className="px-5 py-3">
-                        <div className="flex items-center gap-1.5 justify-end flex-wrap">
+                        <div className="flex items-center gap-1.5 justify-end whitespace-nowrap">
                           <Button
                             size="sm"
                             variant="secondary"

@@ -283,105 +283,181 @@ export default function NapCatPage() {
               {runningInstances.length === 0 ? (
                 <EmptyState message="暂无运行中的实例" />
               ) : (
-                <Card
-                  variant="glass"
-                  padding="none"
-                  className="overflow-hidden"
-                >
-                  <div className="overflow-x-auto">
-                    <table className="w-full min-w-[720px] text-sm">
-                      <thead className="bg-white/[0.03] text-xs uppercase tracking-wider text-neutral-400">
-                        <tr>
-                          <th className="px-4 py-3 text-left font-medium">
-                            名称
-                          </th>
-                          <th className="px-4 py-3 text-left font-medium">
-                            QQ
-                          </th>
-                          <th className="px-4 py-3 text-left font-medium">
-                            WS 端口
-                          </th>
-                          <th className="px-4 py-3 text-left font-medium">
-                            HTTP 端口
-                          </th>
-                          <th className="px-4 py-3 text-left font-medium">
-                            PID
-                          </th>
-                          <th className="px-4 py-3 text-left font-medium">
-                            记忆
-                          </th>
-                          <th className="px-4 py-3 text-left font-medium">
-                            操作
-                          </th>
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-white/5">
-                        {runningInstances.map((i) => (
-                          <tr key={i.name} className="hover:bg-white/[0.02]">
-                            <td className="px-4 py-3 text-neutral-200">
+                <>
+                  {/* 手机卡片：< sm */}
+                  <div className="sm:hidden space-y-3">
+                    {runningInstances.map((i) => (
+                      <Card key={i.name} variant="glass" padding="md">
+                        <div className="flex items-start justify-between gap-2 mb-3">
+                          <div className="flex items-center gap-2 flex-wrap min-w-0">
+                            <span className="font-medium text-neutral-100 truncate">
                               {i.name}
-                            </td>
-                            <td className="px-4 py-3 text-neutral-200">
-                              {i.qqUin}
-                            </td>
-                            <td className="px-4 py-3 text-neutral-200">
-                              {i.wsPort}
-                            </td>
-                            <td className="px-4 py-3 text-neutral-200">
-                              {i.httpPort}
-                            </td>
-                            <td className="px-4 py-3 text-neutral-200">
-                              {i.pid}
-                            </td>
-                            <td className="px-4 py-3 text-neutral-200">
-                              {i.saved ? (
-                                <Badge variant="primary" size="sm">
-                                  已记忆
-                                </Badge>
-                              ) : (
-                                <span className="text-xs text-neutral-500">
-                                  未记忆
-                                </span>
-                              )}
-                            </td>
-                            <td className="px-4 py-3 text-neutral-200">
-                              <div className="flex items-center gap-1.5">
-                                <Button
-                                  size="sm"
-                                  variant="ghost"
-                                  onClick={() => navigateToLog(i.name)}
-                                >
-                                  日志
-                                </Button>
-                                <Button
-                                  size="sm"
-                                  variant="secondary"
-                                  onClick={() => handleEditRunning(i)}
-                                >
-                                  编辑
-                                </Button>
-                                <Button
-                                  size="sm"
-                                  variant="primary"
-                                  onClick={() => handleRestart(i.name)}
-                                >
-                                  重启
-                                </Button>
-                                <Button
-                                  size="sm"
-                                  variant="danger"
-                                  onClick={() => handleStop(i.name)}
-                                >
-                                  停止
-                                </Button>
-                              </div>
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
+                            </span>
+                            {i.saved ? (
+                              <Badge variant="primary" size="sm">
+                                已记忆
+                              </Badge>
+                            ) : (
+                              <Badge variant="default" size="sm">
+                                未记忆
+                              </Badge>
+                            )}
+                          </div>
+                          <Badge
+                            variant="success"
+                            size="sm"
+                            dot
+                            pulse
+                            className="flex-shrink-0"
+                          >
+                            运行中
+                          </Badge>
+                        </div>
+                        <div className="grid grid-cols-[72px_1fr] gap-y-1.5 text-xs mb-3">
+                          <span className="text-neutral-400">QQ</span>
+                          <span className="text-neutral-200">{i.qqUin}</span>
+                          <span className="text-neutral-400">WS 端口</span>
+                          <span className="text-neutral-200">{i.wsPort}</span>
+                          <span className="text-neutral-400">HTTP 端口</span>
+                          <span className="text-neutral-200">{i.httpPort}</span>
+                          <span className="text-neutral-400">PID</span>
+                          <span className="text-neutral-200">{i.pid}</span>
+                        </div>
+                        <div className="grid grid-cols-2 gap-2 pt-3 border-t border-white/5">
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            onClick={() => navigateToLog(i.name)}
+                          >
+                            日志
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="secondary"
+                            onClick={() => handleEditRunning(i)}
+                          >
+                            编辑
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="primary"
+                            onClick={() => handleRestart(i.name)}
+                          >
+                            重启
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="danger"
+                            onClick={() => handleStop(i.name)}
+                          >
+                            停止
+                          </Button>
+                        </div>
+                      </Card>
+                    ))}
                   </div>
-                </Card>
+
+                  {/* 桌面表格：≥ sm */}
+                  <Card
+                    variant="glass"
+                    padding="none"
+                    className="overflow-hidden hidden sm:block"
+                  >
+                    <div className="overflow-x-auto">
+                      <table className="w-full min-w-[720px] text-sm">
+                        <thead className="bg-white/[0.03] text-xs uppercase tracking-wider text-neutral-400">
+                          <tr>
+                            <th className="px-4 py-3 text-left font-medium">
+                              名称
+                            </th>
+                            <th className="px-4 py-3 text-left font-medium">
+                              QQ
+                            </th>
+                            <th className="px-4 py-3 text-left font-medium">
+                              WS 端口
+                            </th>
+                            <th className="px-4 py-3 text-left font-medium">
+                              HTTP 端口
+                            </th>
+                            <th className="px-4 py-3 text-left font-medium">
+                              PID
+                            </th>
+                            <th className="px-4 py-3 text-left font-medium">
+                              记忆
+                            </th>
+                            <th className="px-4 py-3 text-left font-medium">
+                              操作
+                            </th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-white/5">
+                          {runningInstances.map((i) => (
+                            <tr key={i.name} className="hover:bg-white/[0.02]">
+                              <td className="px-4 py-3 text-neutral-200">
+                                {i.name}
+                              </td>
+                              <td className="px-4 py-3 text-neutral-200">
+                                {i.qqUin}
+                              </td>
+                              <td className="px-4 py-3 text-neutral-200">
+                                {i.wsPort}
+                              </td>
+                              <td className="px-4 py-3 text-neutral-200">
+                                {i.httpPort}
+                              </td>
+                              <td className="px-4 py-3 text-neutral-200">
+                                {i.pid}
+                              </td>
+                              <td className="px-4 py-3 text-neutral-200">
+                                {i.saved ? (
+                                  <Badge variant="primary" size="sm">
+                                    已记忆
+                                  </Badge>
+                                ) : (
+                                  <span className="text-xs text-neutral-500">
+                                    未记忆
+                                  </span>
+                                )}
+                              </td>
+                              <td className="px-4 py-3 text-neutral-200">
+                                <div className="flex items-center gap-1.5">
+                                  <Button
+                                    size="sm"
+                                    variant="ghost"
+                                    onClick={() => navigateToLog(i.name)}
+                                  >
+                                    日志
+                                  </Button>
+                                  <Button
+                                    size="sm"
+                                    variant="secondary"
+                                    onClick={() => handleEditRunning(i)}
+                                  >
+                                    编辑
+                                  </Button>
+                                  <Button
+                                    size="sm"
+                                    variant="primary"
+                                    onClick={() => handleRestart(i.name)}
+                                  >
+                                    重启
+                                  </Button>
+                                  <Button
+                                    size="sm"
+                                    variant="danger"
+                                    onClick={() => handleStop(i.name)}
+                                  >
+                                    停止
+                                  </Button>
+                                </div>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </Card>
+                </>
               )}
             </Card>
           </motion.div>
@@ -407,10 +483,63 @@ export default function NapCatPage() {
                     </Button>
                   ) : null}
                 </div>
+                {/* 手机卡片：< sm */}
+                <div className="sm:hidden space-y-3">
+                  {savedOnlyInstances.map((i) => (
+                    <Card key={i.name} variant="glass" padding="md">
+                      <div className="flex items-start justify-between gap-2 mb-3">
+                        <span className="font-medium text-neutral-100 truncate">
+                          {i.name}
+                        </span>
+                        <Badge
+                          variant="default"
+                          size="sm"
+                          className="flex-shrink-0"
+                        >
+                          已停止
+                        </Badge>
+                      </div>
+                      <div className="grid grid-cols-[80px_1fr] gap-y-1.5 text-xs mb-3">
+                        <span className="text-neutral-400">QQ</span>
+                        <span className="text-neutral-200">{i.qqUin}</span>
+                        <span className="text-neutral-400">WebUI 端口</span>
+                        <span className="text-neutral-200">{i.webuiPort}</span>
+                      </div>
+                      <div className="flex gap-2 pt-3 border-t border-white/5">
+                        <Button
+                          size="sm"
+                          variant="primary"
+                          className="flex-1"
+                          onClick={() => handleStartSaved(i.name)}
+                        >
+                          启动
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="secondary"
+                          className="flex-1"
+                          onClick={() => handleShowEdit(i)}
+                        >
+                          编辑
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="danger"
+                          className="flex-1"
+                          onClick={() => handleForget(i.name)}
+                        >
+                          删除
+                        </Button>
+                      </div>
+                    </Card>
+                  ))}
+                </div>
+
+                {/* 桌面表格：≥ sm */}
                 <Card
                   variant="glass"
                   padding="none"
-                  className="overflow-hidden"
+                  className="overflow-hidden hidden sm:block"
                 >
                   <div className="overflow-x-auto">
                     <table className="w-full min-w-[560px] text-sm">

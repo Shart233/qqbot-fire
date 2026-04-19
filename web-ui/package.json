@@ -6,9 +6,12 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc -b && vite build",
+    "build:fast": "vite build",
+    "typecheck": "tsc -b",
     "lint": "eslint .",
     "preview": "vite preview",
-    "deploy": "npm run build && node scripts/copy-dist.mjs"
+    "deploy": "npm run build:fast && node scripts/copy-dist.mjs",
+    "deploy:full": "npm run build && node scripts/copy-dist.mjs"
   },
   "dependencies": {
     "@heroui/react": "^3.0.2",

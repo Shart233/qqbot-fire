@@ -30,7 +30,7 @@ interface PageHeaderProps {
  */
 export function PageHeader({ title, description, actions }: PageHeaderProps) {
   return (
-    <div className="mb-8 flex items-start justify-between gap-4">
+    <div className="mb-8 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between sm:gap-4">
       <div className="min-w-0 flex-1">
         <h1 className="text-2xl font-semibold tracking-tight text-white">
           {title}
@@ -40,7 +40,9 @@ export function PageHeader({ title, description, actions }: PageHeaderProps) {
         )}
       </div>
       {actions && (
-        <div className="flex flex-shrink-0 items-center gap-2">{actions}</div>
+        <div className="flex flex-wrap items-center gap-2 sm:flex-shrink-0 sm:flex-nowrap">
+          {actions}
+        </div>
       )}
     </div>
   );

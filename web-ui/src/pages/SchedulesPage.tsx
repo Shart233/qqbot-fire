@@ -194,89 +194,192 @@ export default function SchedulesPage() {
         </div>
       ) : (
         <>
-          {/* Schedule Table */}
+          {/* Schedule Table (桌面) / 卡片列表 (手机) */}
           {schedules.length === 0 ? (
             <EmptyState message="暂无定时任务" />
           ) : (
-            <Card
-              variant="glass"
-              padding="none"
-              className="overflow-hidden mb-6"
-            >
-              <table className="w-full text-sm">
-                <thead className="bg-white/[0.03] border-b border-white/10">
-                  <tr className="text-left text-xs text-neutral-400 uppercase tracking-wider">
-                    <th className="px-4 py-3">任务名</th>
-                    <th className="px-4 py-3">时间</th>
-                    <th className="px-4 py-3">目标</th>
-                    <th className="px-4 py-3">消息</th>
-                    <th className="px-4 py-3">启用</th>
-                    <th className="px-4 py-3">操作</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {schedules.map((t) => (
-                    <tr
-                      key={t.name}
-                      className="border-b border-white/5 hover:bg-white/[0.02] transition-colors"
-                    >
-                      <td className="px-4 py-3 text-text-primary">{t.name}</td>
-                      <td className="px-4 py-3 text-text-primary">{t.time}</td>
-                      <td className="px-4 py-3 text-text-primary">
+            <>
+              {/* 手机卡片：< sm */}
+              <div className="sm:hidden space-y-3 mb-6">
+                {schedules.map((t) => (
+                  <Card key={t.name} variant="glass" padding="md">
+                    <div className="flex items-start justify-between gap-2 mb-3">
+                      <div className="flex items-center gap-2 min-w-0 flex-wrap">
+                        <span className="font-medium text-text-primary truncate">
+                          {t.name}
+                        </span>
                         <Badge
                           variant={t.targetType === "group" ? "info" : "accent"}
                           size="sm"
-                          className="mr-2"
                         >
                           {t.targetType === "group" ? "群" : "好友"}
                         </Badge>
+                      </div>
+                      <input
+                        type="checkbox"
+                        className="accent-[#5a7dff] w-4 h-4 cursor-pointer flex-shrink-0 mt-1"
+                        checked={t.enabled}
+                        onChange={(e) => handleToggle(t.name, e.target.checked)}
+                      />
+                    </div>
+                    <div className="grid grid-cols-[56px_1fr] gap-y-1.5 text-xs mb-3">
+                      <span className="text-neutral-400">时间</span>
+                      <span className="text-text-primary">{t.time}</span>
+                      <span className="text-neutral-400">目标</span>
+                      <span className="text-text-primary truncate">
                         {(t.targets || []).join(", ")}
-                      </td>
-                      <td className="px-4 py-3 text-text-primary">
-                        <span className="max-w-[200px] truncate inline-block">
-                          {t.message}
-                        </span>
-                      </td>
-                      <td className="px-4 py-3">
-                        <input
-                          type="checkbox"
-                          className="accent-[#5a7dff] w-4 h-4 cursor-pointer"
-                          checked={t.enabled}
-                          onChange={(e) =>
-                            handleToggle(t.name, e.target.checked)
-                          }
-                        />
-                      </td>
-                      <td className="px-4 py-3">
-                        <div className="flex items-center gap-1.5">
-                          <Button
-                            size="sm"
-                            variant="ghost"
-                            onClick={() => handleShowEdit(t)}
-                          >
-                            编辑
-                          </Button>
-                          <Button
-                            size="sm"
-                            variant="ghost"
-                            onClick={() => handleTest(t.name)}
-                          >
-                            测试
-                          </Button>
-                          <Button
-                            size="sm"
-                            variant="danger"
-                            onClick={() => handleDelete(t.name)}
-                          >
-                            删除
-                          </Button>
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </Card>
+                      </span>
+                      <span className="text-neutral-400">消息</span>
+                      <span className="text-text-primary line-clamp-2 break-all">
+                        {t.message}
+                      </span>
+                    </div>
+                    <div className="flex gap-2 pt-3 border-t border-white/5">
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        className="flex-1"
+                        onClick={() => handleShowEdit(t)}
+                      >
+                        编辑
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        className="flex-1"
+                        onClick={() => handleTest(t.name)}
+                      >
+                        测试
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="danger"
+                        className="flex-1"
+                        onClick={() => handleDelete(t.name)}
+                      >
+                        删除
+                      </Button>
+                    </div>
+                  </Card>
+                ))}
+              </div>
+
+              {/* 桌面表格：≥ sm */}
+              <Card
+                variant="glass"
+                padding="none"
+                className="overflow-hidden mb-6 hidden sm:block"
+              >
+                <div className="overflow-x-auto">
+                  <table className="w-full min-w-[520px] text-sm">
+                    <thead className="bg-white/[0.03] border-b border-white/10">
+                      <tr className="text-left text-xs text-neutral-400 uppercase tracking-wider">
+                        <th className="px-4 py-3">任务名</th>
+                        <th className="px-4 py-3">时间</th>
+                        <th className="px-4 py-3 hidden md:table-cell">目标</th>
+                        <th className="px-4 py-3 hidden lg:table-cell">消息</th>
+                        <th className="px-4 py-3 hidden sm:table-cell">启用</th>
+                        <th className="px-4 py-3">操作</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {schedules.map((t) => (
+                        <tr
+                          key={t.name}
+                          className="border-b border-white/5 hover:bg-white/[0.02] transition-colors"
+                        >
+                          <td className="px-4 py-3 text-text-primary">
+                            <div className="flex flex-col gap-1">
+                              <div className="flex items-center gap-2 flex-wrap">
+                                <span className="font-medium">{t.name}</span>
+                                <span className="sm:hidden">
+                                  <input
+                                    type="checkbox"
+                                    className="accent-[#5a7dff] w-4 h-4 cursor-pointer align-middle"
+                                    checked={t.enabled}
+                                    onChange={(e) =>
+                                      handleToggle(t.name, e.target.checked)
+                                    }
+                                  />
+                                </span>
+                              </div>
+                              <div className="flex items-center gap-2 md:hidden text-xs text-neutral-400">
+                                <Badge
+                                  variant={
+                                    t.targetType === "group" ? "info" : "accent"
+                                  }
+                                  size="sm"
+                                >
+                                  {t.targetType === "group" ? "群" : "好友"}
+                                </Badge>
+                                <span className="truncate max-w-[180px]">
+                                  {(t.targets || []).join(", ")}
+                                </span>
+                              </div>
+                            </div>
+                          </td>
+                          <td className="px-4 py-3 text-text-primary whitespace-nowrap">
+                            {t.time}
+                          </td>
+                          <td className="px-4 py-3 text-text-primary hidden md:table-cell">
+                            <Badge
+                              variant={
+                                t.targetType === "group" ? "info" : "accent"
+                              }
+                              size="sm"
+                              className="mr-2"
+                            >
+                              {t.targetType === "group" ? "群" : "好友"}
+                            </Badge>
+                            {(t.targets || []).join(", ")}
+                          </td>
+                          <td className="px-4 py-3 text-text-primary hidden lg:table-cell">
+                            <span className="max-w-[200px] truncate inline-block">
+                              {t.message}
+                            </span>
+                          </td>
+                          <td className="px-4 py-3 hidden sm:table-cell">
+                            <input
+                              type="checkbox"
+                              className="accent-[#5a7dff] w-4 h-4 cursor-pointer"
+                              checked={t.enabled}
+                              onChange={(e) =>
+                                handleToggle(t.name, e.target.checked)
+                              }
+                            />
+                          </td>
+                          <td className="px-4 py-3">
+                            <div className="flex items-center gap-1.5 whitespace-nowrap">
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                onClick={() => handleShowEdit(t)}
+                              >
+                                编辑
+                              </Button>
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                onClick={() => handleTest(t.name)}
+                              >
+                                测试
+                              </Button>
+                              <Button
+                                size="sm"
+                                variant="danger"
+                                onClick={() => handleDelete(t.name)}
+                              >
+                                删除
+                              </Button>
+                            </div>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </Card>
+            </>
           )}
 
           {/* Add Form */}

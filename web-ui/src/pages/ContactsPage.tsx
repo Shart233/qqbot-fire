@@ -132,35 +132,63 @@ export default function ContactsPage() {
           ) : friends.length === 0 ? (
             <EmptyState message="暂无好友" />
           ) : (
-            <Card variant="glass" padding="none" className="overflow-hidden">
-              <table className="w-full text-sm">
-                <thead className="bg-white/[0.03] border-b border-white/10">
-                  <tr className="text-left text-xs text-neutral-400 uppercase tracking-wider">
-                    <th className="px-4 py-3">QQ</th>
-                    <th className="px-4 py-3">昵称</th>
-                    <th className="px-4 py-3">备注</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {friends.map((f) => (
-                    <tr
-                      key={f.userId}
-                      className="border-b border-white/5 hover:bg-white/[0.02] transition-colors"
-                    >
-                      <td className="px-4 py-3 text-text-primary">
-                        {f.userId}
-                      </td>
-                      <td className="px-4 py-3 text-text-primary">
+            <>
+              {/* 手机卡片：< sm */}
+              <div className="sm:hidden space-y-2">
+                {friends.map((f) => (
+                  <Card key={f.userId} variant="glass" padding="md">
+                    <div className="flex items-center justify-between gap-2 mb-1">
+                      <span className="font-medium text-text-primary truncate">
                         {f.nickname}
-                      </td>
-                      <td className="px-4 py-3 text-text-primary">
-                        {f.remark || ""}
-                      </td>
+                      </span>
+                      <span className="font-mono text-xs text-neutral-400 flex-shrink-0">
+                        {f.userId}
+                      </span>
+                    </div>
+                    {f.remark && (
+                      <div className="text-xs text-neutral-400 truncate">
+                        备注: {f.remark}
+                      </div>
+                    )}
+                  </Card>
+                ))}
+              </div>
+
+              {/* 桌面表格：≥ sm */}
+              <Card
+                variant="glass"
+                padding="none"
+                className="overflow-hidden hidden sm:block"
+              >
+                <table className="w-full text-sm">
+                  <thead className="bg-white/[0.03] border-b border-white/10">
+                    <tr className="text-left text-xs text-neutral-400 uppercase tracking-wider">
+                      <th className="px-4 py-3">QQ</th>
+                      <th className="px-4 py-3">昵称</th>
+                      <th className="px-4 py-3">备注</th>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
-            </Card>
+                  </thead>
+                  <tbody>
+                    {friends.map((f) => (
+                      <tr
+                        key={f.userId}
+                        className="border-b border-white/5 hover:bg-white/[0.02] transition-colors"
+                      >
+                        <td className="px-4 py-3 text-text-primary">
+                          {f.userId}
+                        </td>
+                        <td className="px-4 py-3 text-text-primary">
+                          {f.nickname}
+                        </td>
+                        <td className="px-4 py-3 text-text-primary">
+                          {f.remark || ""}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </Card>
+            </>
           )}
         </>
       )}
@@ -178,7 +206,36 @@ export default function ContactsPage() {
             <EmptyState message="暂无群组" />
           ) : (
             <>
-              <Card variant="glass" padding="none" className="overflow-hidden">
+              {/* 手机卡片：< sm */}
+              <div className="sm:hidden space-y-2">
+                {groups.map((g) => (
+                  <Card key={g.groupId} variant="glass" padding="md">
+                    <div className="mb-2">
+                      <div className="font-medium text-text-primary truncate">
+                        {g.groupName}
+                      </div>
+                      <div className="font-mono text-xs text-neutral-400">
+                        {g.groupId} · {g.memberCount}/{g.maxMemberCount}
+                      </div>
+                    </div>
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      className="w-full"
+                      onClick={() => handleLoadMembers(g.groupId, g.groupName)}
+                    >
+                      查看成员
+                    </Button>
+                  </Card>
+                ))}
+              </div>
+
+              {/* 桌面表格：≥ sm */}
+              <Card
+                variant="glass"
+                padding="none"
+                className="overflow-hidden hidden sm:block"
+              >
                 <table className="w-full text-sm">
                   <thead className="bg-white/[0.03] border-b border-white/10">
                     <tr className="text-left text-xs text-neutral-400 uppercase tracking-wider">
@@ -247,48 +304,79 @@ export default function ContactsPage() {
                   ) : members.length === 0 ? (
                     <EmptyState message="暂无成员" />
                   ) : (
-                    <Card
-                      variant="glass"
-                      padding="none"
-                      className="overflow-hidden"
-                    >
-                      <table className="w-full text-sm">
-                        <thead className="bg-white/[0.03] border-b border-white/10">
-                          <tr className="text-left text-xs text-neutral-400 uppercase tracking-wider">
-                            <th className="px-4 py-3">QQ</th>
-                            <th className="px-4 py-3">昵称</th>
-                            <th className="px-4 py-3">群名片</th>
-                            <th className="px-4 py-3">角色</th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {members.map((m) => (
-                            <tr
-                              key={m.userId}
-                              className="border-b border-white/5 hover:bg-white/[0.02] transition-colors"
-                            >
-                              <td className="px-4 py-3 text-text-primary">
-                                {m.userId}
-                              </td>
-                              <td className="px-4 py-3 text-text-primary">
-                                {m.nickname}
-                              </td>
-                              <td className="px-4 py-3 text-text-primary">
-                                {m.card || ""}
-                              </td>
-                              <td className="px-4 py-3">
-                                <Badge
-                                  size="sm"
-                                  variant={roleBadgeVariant(m.role)}
-                                >
-                                  {roleLabel(m.role)}
-                                </Badge>
-                              </td>
+                    <>
+                      {/* 手机卡片：< sm */}
+                      <div className="sm:hidden space-y-2">
+                        {members.map((m) => (
+                          <Card key={m.userId} variant="glass" padding="md">
+                            <div className="flex items-center justify-between gap-2 mb-1">
+                              <span className="font-medium text-text-primary truncate">
+                                {m.card || m.nickname}
+                              </span>
+                              <Badge
+                                size="sm"
+                                variant={roleBadgeVariant(m.role)}
+                                className="flex-shrink-0"
+                              >
+                                {roleLabel(m.role)}
+                              </Badge>
+                            </div>
+                            <div className="font-mono text-xs text-neutral-400">
+                              {m.userId}
+                            </div>
+                            {m.card && m.card !== m.nickname && (
+                              <div className="text-xs text-neutral-400 truncate">
+                                昵称: {m.nickname}
+                              </div>
+                            )}
+                          </Card>
+                        ))}
+                      </div>
+
+                      {/* 桌面表格：≥ sm */}
+                      <Card
+                        variant="glass"
+                        padding="none"
+                        className="overflow-hidden hidden sm:block"
+                      >
+                        <table className="w-full text-sm">
+                          <thead className="bg-white/[0.03] border-b border-white/10">
+                            <tr className="text-left text-xs text-neutral-400 uppercase tracking-wider">
+                              <th className="px-4 py-3">QQ</th>
+                              <th className="px-4 py-3">昵称</th>
+                              <th className="px-4 py-3">群名片</th>
+                              <th className="px-4 py-3">角色</th>
                             </tr>
-                          ))}
-                        </tbody>
-                      </table>
-                    </Card>
+                          </thead>
+                          <tbody>
+                            {members.map((m) => (
+                              <tr
+                                key={m.userId}
+                                className="border-b border-white/5 hover:bg-white/[0.02] transition-colors"
+                              >
+                                <td className="px-4 py-3 text-text-primary">
+                                  {m.userId}
+                                </td>
+                                <td className="px-4 py-3 text-text-primary">
+                                  {m.nickname}
+                                </td>
+                                <td className="px-4 py-3 text-text-primary">
+                                  {m.card || ""}
+                                </td>
+                                <td className="px-4 py-3">
+                                  <Badge
+                                    size="sm"
+                                    variant={roleBadgeVariant(m.role)}
+                                  >
+                                    {roleLabel(m.role)}
+                                  </Badge>
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </Card>
+                    </>
                   )}
                 </motion.div>
               )}

@@ -505,6 +505,8 @@ public class WebApiHandler implements HttpHandler {
         if (inst.isConnected()) {
             console.disconnectInstance(inst);
         }
+        // 调度器独立于连接状态常驻，删 Bot 时必须显式 stop 以免线程泄漏
+        inst.getScheduler().stop();
         console.getBots().remove(name);
         if (name.equals(console.getActiveBotName())) {
             console.setActiveBotName(console.getBots().isEmpty() ? null : console.getBots().keySet().iterator().next());
@@ -561,6 +563,8 @@ public class WebApiHandler implements HttpHandler {
             if (inst.isConnected()) {
                 try { console.disconnectInstance(inst); } catch (Exception ignored) {}
             }
+            // 调度器常驻，清配置时必须显式 stop 以免线程泄漏
+            try { inst.getScheduler().stop(); } catch (Exception ignored) {}
         }
         console.getBots().clear();
         console.getBots().put("default", new BotInstance("default"));
@@ -811,6 +815,8 @@ public class WebApiHandler implements HttpHandler {
         var inst = requireBot(ex, botName);
         if (inst == null) return;
         if (inst.getScheduler().removeTask(taskName)) {
+            // 兜底：若历史路径或异常导致调度器已停，但仍有其他 enabled 任务，这里把它拉起
+            ensureSchedulerStarted(inst);
             sendOk(ex, Map.of("deleted", taskName));
         } else {
             sendError(ex, 404, "任务 '" + taskName + "' 不存在");

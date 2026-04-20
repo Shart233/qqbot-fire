@@ -138,7 +138,9 @@ public class BotConsole {
     /** 断开指定 Bot（Web 层调用） */
     public void disconnectInstance(BotInstance inst) {
         if (!inst.isConnected()) return;
-        inst.getScheduler().stop();
+        // 注意：不要 stop 调度器。autoStopAfterSend 会走这里，如果 stop 了调度器，
+        // 其他 enabled 任务就永远等不到下一次触发。调度器自身带僵尸引用清理 + autoConnect，
+        // 下次任务触发时会重新连回来。只在 /bot remove、清配置、进程退出时才 stop。
         inst.getScheduler().setBot(null);
         if (inst.getProvider() != null) {
             inst.getProvider().close();
@@ -409,9 +411,10 @@ public class BotConsole {
                 }
                 // 先断开连接
                 if (inst.isConnected() && inst.getProvider() != null) {
-                    inst.getScheduler().stop();
                     inst.getProvider().close();
                 }
+                // 调度器独立于连接状态常驻，删 Bot 时必须显式 stop 以免线程泄漏
+                inst.getScheduler().stop();
                 bots.remove(name);
                 if (name.equals(activeBotName)) {
                     activeBotName = bots.isEmpty() ? null : bots.keySet().iterator().next();

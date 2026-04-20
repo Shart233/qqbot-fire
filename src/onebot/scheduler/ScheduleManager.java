@@ -322,6 +322,11 @@ public class ScheduleManager {
                 // 计算到下一个最近触发点的等待时间
                 long sleepMs = calcSleepMs(now, executedToday);
                 if (sleepMs > 0) {
+                    // 防御：sleepMs 过小意味着刚好踩到窗口边界，强制抬到 100ms 避免忙等
+                    if (sleepMs < 100) {
+                        logger.warn("计算出的 sleep 时长过短 ({}ms)，强制抬到 100ms 以避免忙等", sleepMs);
+                        sleepMs = 100;
+                    }
                     logger.debug("下次触发在 {} 秒后", sleepMs / 1000);
                     Thread.sleep(sleepMs);
                 } else {
@@ -358,8 +363,11 @@ public class ScheduleManager {
 
             long diffMs = ChronoUnit.MILLIS.between(now, targetDateTime);
             if (diffMs > 0) {
-                // 提前 1 秒唤醒，确保在目标分钟内触发
-                long adjusted = Math.max(diffMs - 1000, 1);
+                // sleep 到目标时刻即可，不提前唤醒。
+                // 之前用 Math.max(diffMs - 1000, 1) 想防抖，但 diffMs∈(0,1000] 时被钳为 1ms，
+                // 醒来后 nowLocal 仍比 target 早一点，窗口匹配 diffSeconds>=0 不成立，
+                // 然后又算出 adjusted=1ms，形成 ~1000 次/秒的忙等死循环。
+                long adjusted = Math.max(diffMs, 50);
                 if (adjusted < minSleep) {
                     minSleep = adjusted;
                 }

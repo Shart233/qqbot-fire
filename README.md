@@ -362,11 +362,30 @@ NapCat 实例已启动: bot1 QQ=1234567890
 
 首次访问时 Web 会先请求 `/api/auth/status`：
 
-- 未初始化（`config.json` 无 `admin.passwordHash`）→ 强制跳转 `/setup` 设置首个管理员密码（≥6 位）
+- 未初始化（`config.json` 无 `admin.passwordHash`）→ 强制跳转 `/setup` 设置首个管理员密码（≥10 位）
 - 已初始化 → 跳 `/login` 输入密码换取 JWT；token 保存在浏览器 `localStorage.adminToken`，有效期 7 天
 - 改密成功后立即吊销旧 token（靠密码哈希前 8 位作为 `pwdVer` 签入 JWT，改密后所有旧 token 验签失败）
 
 密码用 Spring Security 的 `BCryptPasswordEncoder(10)` 哈希后写入 `config.json` 的 `admin.passwordHash`。JWT 密钥首次启动随机生成 32 字节，存放在 `.keys/jwt.secret`。
+
+**登录限速**：同一 IP 连续 5 次密码错误后锁定 15 分钟，期间返回 HTTP 429（带 `Retry-After`）。重启进程清零计数。
+
+### 网络与部署安全
+
+Web 控制台**只监听回环地址 `127.0.0.1:9988`**，不再绑 `0.0.0.0`。这意味着：
+
+- 同机直接访问：浏览器开 `http://127.0.0.1:9988` 正常使用。
+- 远程访问：必须前面挂反向代理（nginx / Caddy 等），由代理负责 HTTPS、IP 白名单、限速等。
+  推荐反代到 `http://127.0.0.1:9988`，并在云厂商安全组关闭 9988 入站，避免端口被外网直连扫描。
+- Docker：容器内部仍是 `127.0.0.1:9988`，宿主机通过 docker 端口映射或反代访问。
+
+如需让 9988 直接对外，请自行修改 `WebConsoleServer.java` 中的 `InetSocketAddress` 绑定地址——但**不建议**，请改用反代。
+
+其它已加固项：
+
+- 路径穿越防御：Bot 名、NapCat 实例名只允许 `^[a-zA-Z0-9_-]{1,64}$`；静态文件路径规范化后必须落在静态目录之内。
+- 请求体上限 1 MB，超过返回 413，防止恶意 OOM。
+- 异常脱敏：500 响应只回固定文案，详细堆栈仅写服务端日志。
 
 ### 功能
 

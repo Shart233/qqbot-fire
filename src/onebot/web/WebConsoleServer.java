@@ -71,7 +71,8 @@ public class WebConsoleServer {
      * 启动 HTTP 服务器
      */
     public void start() throws IOException {
-        server = HttpServer.create(new InetSocketAddress(port), 0);
+        // 仅监听回环地址：远程访问应通过反向代理（nginx/Caddy 等），避免 9988 直接暴露
+        server = HttpServer.create(new InetSocketAddress("127.0.0.1", port), 0);
         server.setExecutor(Executors.newVirtualThreadPerTaskExecutor());
 
         // REST API
@@ -128,7 +129,12 @@ public class WebConsoleServer {
 
         // 1) 从文件系统读取
         if (staticDir != null) {
-            Path filePath = staticDir.resolve(relativePath);
+            Path filePath = staticDir.resolve(relativePath).normalize();
+            // 二次防御：normalize 后必须仍在 staticDir 之内，防止 contains("..") 检查被未来重构破坏
+            if (!filePath.startsWith(staticDir)) {
+                sendError(exchange, 403, "Forbidden");
+                return;
+            }
             if (Files.exists(filePath) && Files.isRegularFile(filePath)) {
                 content = Files.readAllBytes(filePath);
             }

@@ -9,14 +9,17 @@ import onebot.napcat.NapCatLauncher;
 import onebot.util.ConvertUtil;
 import com.google.gson.reflect.TypeToken;
 import onebot.util.GsonFactory;
+import onebot.util.NameUtil;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 import java.io.IOException;
+import java.io.InputStream;
 import java.io.OutputStream;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
 import java.util.*;
+import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * Web 控制台 REST API 处理器
@@ -27,6 +30,24 @@ import java.util.*;
 public class WebApiHandler implements HttpHandler {
 
     private static final Logger logger = LogManager.getLogger(WebApiHandler.class);
+
+    /** 请求体最大字节数，超过即拒绝（防 OOM） */
+    private static final int MAX_BODY_BYTES = 1024 * 1024;
+
+    /** 登录失败限速：同 IP 5 次失败锁 15 分钟 */
+    private static final int LOGIN_MAX_FAILURES = 5;
+    private static final long LOGIN_LOCKOUT_MS = 15L * 60 * 1000;
+
+    /** 最低密码长度（setup / change-password） */
+    private static final int MIN_PASSWORD_LEN = 10;
+
+    /** IP -> 失败记录。重启清零；同 IP 多并发竞争对最终上锁结果无害 */
+    private static final Map<String, LoginFailure> loginFailures = new ConcurrentHashMap<>();
+
+    private static final class LoginFailure {
+        int count;
+        long lockedUntil;
+    }
 
     private final BotConsole console;
 
@@ -41,9 +62,13 @@ public class WebApiHandler implements HttpHandler {
 
         try {
             route(exchange, method, path);
+        } catch (PayloadTooLargeException e) {
+            logger.warn("请求体超限: {} {} - {}", method, path, e.getMessage());
+            sendError(exchange, 413, "请求体过大");
         } catch (Exception e) {
             logger.error("API 处理异常: {} {}", method, path, e);
-            sendError(exchange, 500, e.getMessage() != null ? e.getMessage() : "Internal Server Error");
+            // 不向客户端泄漏内部异常信息（栈/路径/依赖细节）
+            sendError(exchange, 500, "服务器内部错误");
         }
     }
 
@@ -173,8 +198,8 @@ public class WebApiHandler implements HttpHandler {
         }
         var body = readBodyAsMap(ex);
         String pwd = (String) body.get("password");
-        if (pwd == null || pwd.length() < 6) {
-            sendError(ex, 400, "密码长度至少 6 位");
+        if (pwd == null || pwd.length() < MIN_PASSWORD_LEN) {
+            sendError(ex, 400, "密码长度至少 " + MIN_PASSWORD_LEN + " 位");
             return;
         }
         String hash = onebot.auth.PasswordUtil.hash(pwd);
@@ -193,6 +218,15 @@ public class WebApiHandler implements HttpHandler {
             sendError(ex, 409, "密码尚未初始化");
             return;
         }
+        String clientIp = ex.getRemoteAddress().getAddress().getHostAddress();
+        long now = System.currentTimeMillis();
+        var rec = loginFailures.get(clientIp);
+        if (rec != null && rec.lockedUntil > now) {
+            long retryAfterSec = Math.max(1, (rec.lockedUntil - now) / 1000);
+            ex.getResponseHeaders().set("Retry-After", String.valueOf(retryAfterSec));
+            sendError(ex, 429, "登录尝试过多，请稍后再试");
+            return;
+        }
         var body = readBodyAsMap(ex);
         String pwd = (String) body.get("password");
         if (pwd == null || pwd.isEmpty()) {
@@ -200,14 +234,32 @@ public class WebApiHandler implements HttpHandler {
             return;
         }
         if (!onebot.auth.PasswordUtil.verify(pwd, hash)) {
+            recordLoginFailure(clientIp, now);
             sendError(ex, 401, "密码错误");
             return;
         }
+        loginFailures.remove(clientIp);
         String token = onebot.auth.JwtUtil.sign("admin", onebot.auth.PasswordUtil.passwordVersion(hash));
         var data = new LinkedHashMap<String, Object>();
         data.put("token", token);
         data.put("expiresAt", System.currentTimeMillis() + onebot.auth.JwtUtil.defaultTtlMs());
         sendOk(ex, data);
+    }
+
+    private static void recordLoginFailure(String ip, long now) {
+        loginFailures.compute(ip, (k, prev) -> {
+            var r = (prev == null) ? new LoginFailure() : prev;
+            // 锁过期后重置计数
+            if (r.lockedUntil > 0 && r.lockedUntil <= now) {
+                r.count = 0;
+                r.lockedUntil = 0;
+            }
+            r.count++;
+            if (r.count >= LOGIN_MAX_FAILURES) {
+                r.lockedUntil = now + LOGIN_LOCKOUT_MS;
+            }
+            return r;
+        });
     }
 
     private void handleAuthChangePassword(HttpExchange ex) throws IOException {
@@ -225,8 +277,8 @@ public class WebApiHandler implements HttpHandler {
         var body = readBodyAsMap(ex);
         String oldPwd = (String) body.get("oldPassword");
         String newPwd = (String) body.get("newPassword");
-        if (oldPwd == null || newPwd == null || newPwd.length() < 6) {
-            sendError(ex, 400, "新密码长度至少 6 位");
+        if (oldPwd == null || newPwd == null || newPwd.length() < MIN_PASSWORD_LEN) {
+            sendError(ex, 400, "新密码长度至少 " + MIN_PASSWORD_LEN + " 位");
             return;
         }
         if (!onebot.auth.PasswordUtil.verify(oldPwd, hash)) {
@@ -352,6 +404,9 @@ public class WebApiHandler implements HttpHandler {
         // /instances/{name}/log
         if (sub.startsWith("/instances/") && sub.endsWith("/log") && "GET".equals(method)) {
             String name = urlDecode(sub.substring(11, sub.length() - 4));
+            if (!NameUtil.isValidIdentifier(name)) {
+                sendError(ex, 400, "非法 NapCat 实例名"); return;
+            }
             handleNapCatLog(ex, name);
             return;
         }
@@ -489,6 +544,8 @@ public class WebApiHandler implements HttpHandler {
         if (name == null || name.isBlank()) {
             sendError(ex, 400, "缺少 name 参数"); return;
         }
+        try { NameUtil.requireValidIdentifier(name, "Bot 名称"); }
+        catch (IllegalArgumentException e) { sendError(ex, 400, e.getMessage()); return; }
         if (console.getBots().containsKey(name)) {
             sendError(ex, 409, "Bot '" + name + "' 已存在"); return;
         }
@@ -596,7 +653,8 @@ public class WebApiHandler implements HttpHandler {
             console.connectInstance(inst);
             sendOk(ex, botToMap(inst));
         } catch (Exception e) {
-            sendError(ex, 500, "连接失败: " + e.getMessage());
+            logger.error("Bot 连接失败: {}", botName, e);
+            sendError(ex, 500, "连接失败");
         }
     }
 
@@ -615,7 +673,8 @@ public class WebApiHandler implements HttpHandler {
             console.connectInstance(inst);
             sendOk(ex, botToMap(inst));
         } catch (Exception e) {
-            sendError(ex, 500, "重连失败: " + e.getMessage());
+            logger.error("Bot 重连失败: {}", botName, e);
+            sendError(ex, 500, "重连失败");
         }
     }
 
@@ -658,7 +717,8 @@ public class WebApiHandler implements HttpHandler {
             data.put("connected", true);
             sendOk(ex, data);
         } catch (Exception e) {
-            sendError(ex, 500, "获取状态失败: " + e.getMessage());
+            logger.error("获取状态失败: {}", botName, e);
+            sendError(ex, 500, "获取状态失败");
         }
     }
 
@@ -677,7 +737,8 @@ public class WebApiHandler implements HttpHandler {
             }
             sendOk(ex, list);
         } catch (Exception e) {
-            sendError(ex, 500, "获取好友列表失败: " + e.getMessage());
+            logger.error("获取好友列表失败: {}", botName, e);
+            sendError(ex, 500, "获取好友列表失败");
         }
     }
 
@@ -697,7 +758,8 @@ public class WebApiHandler implements HttpHandler {
             }
             sendOk(ex, list);
         } catch (Exception e) {
-            sendError(ex, 500, "获取群列表失败: " + e.getMessage());
+            logger.error("获取群列表失败: {}", botName, e);
+            sendError(ex, 500, "获取群列表失败");
         }
     }
 
@@ -723,7 +785,8 @@ public class WebApiHandler implements HttpHandler {
         } catch (NumberFormatException e) {
             sendError(ex, 400, "群号格式错误");
         } catch (Exception e) {
-            sendError(ex, 500, "获取群成员失败: " + e.getMessage());
+            logger.error("获取群成员失败: {} group={}", botName, groupIdStr, e);
+            sendError(ex, 500, "获取群成员失败");
         }
     }
 
@@ -752,7 +815,8 @@ public class WebApiHandler implements HttpHandler {
             }
             sendOk(ex, Map.of("messageId", msgId));
         } catch (Exception e) {
-            sendError(ex, 500, "发送失败: " + e.getMessage());
+            logger.error("发送消息失败: {}", botName, e);
+            sendError(ex, 500, "发送失败");
         }
     }
 
@@ -907,6 +971,10 @@ public class WebApiHandler implements HttpHandler {
     private void handleNapCatStart(HttpExchange ex) throws IOException {
         var body = readBodyAsMap(ex);
         String name = (String) body.get("name");
+        if (name != null) {
+            try { NameUtil.requireValidIdentifier(name, "NapCat 实例名"); }
+            catch (IllegalArgumentException e) { sendError(ex, 400, e.getMessage()); return; }
+        }
         String qq = (String) body.get("qq");
         int webuiPort = ConvertUtil.intOf(body.get("webuiPort"), 6099);
 
@@ -987,7 +1055,8 @@ public class WebApiHandler implements HttpHandler {
             data.put("botName", botName);
             sendOk(ex, data);
         } catch (Exception e) {
-            sendError(ex, 500, "启动失败: " + e.getMessage());
+            logger.error("NapCat 启动失败: name={} qq={}", name, qq, e);
+            sendError(ex, 500, "启动失败");
         }
     }
 
@@ -995,6 +1064,10 @@ public class WebApiHandler implements HttpHandler {
         var body = readBodyAsMap(ex);
         String name = (String) body.get("name");
         if (name == null) { sendError(ex, 400, "缺少 name 参数"); return; }
+        if (!"all".equalsIgnoreCase(name)) {
+            try { NameUtil.requireValidIdentifier(name, "NapCat 实例名"); }
+            catch (IllegalArgumentException e) { sendError(ex, 400, e.getMessage()); return; }
+        }
 
         var launcher = console.getNapCatLauncher();
         if ("all".equalsIgnoreCase(name)) {
@@ -1075,6 +1148,8 @@ public class WebApiHandler implements HttpHandler {
         var body = readBodyAsMap(ex);
         String name = (String) body.get("name");
         if (name == null || name.isEmpty()) { sendError(ex, 400, "缺少 name 参数"); return; }
+        try { NameUtil.requireValidIdentifier(name, "NapCat 实例名"); }
+        catch (IllegalArgumentException e) { sendError(ex, 400, e.getMessage()); return; }
 
         var launcher = console.getNapCatLauncher();
         if (launcher.getSavedInstance(name) == null) {
@@ -1095,6 +1170,10 @@ public class WebApiHandler implements HttpHandler {
         var body = readBodyAsMap(ex);
         String name = (String) body.get("name");
         if (name == null) { sendError(ex, 400, "缺少 name 参数"); return; }
+        if (!"all".equalsIgnoreCase(name)) {
+            try { NameUtil.requireValidIdentifier(name, "NapCat 实例名"); }
+            catch (IllegalArgumentException e) { sendError(ex, 400, e.getMessage()); return; }
+        }
 
         var launcher = console.getNapCatLauncher();
         if ("all".equalsIgnoreCase(name)) {
@@ -1174,7 +1253,8 @@ public class WebApiHandler implements HttpHandler {
             console.saveConfig();
             sendOk(ex, Map.of("discovered", discovered, "created", created, "total", console.getBots().size()));
         } catch (Exception e) {
-            sendError(ex, 500, "发现失败: " + e.getMessage());
+            logger.error("NapCat 发现失败", e);
+            sendError(ex, 500, "发现失败");
         }
     }
 
@@ -1279,13 +1359,25 @@ public class WebApiHandler implements HttpHandler {
         return token.substring(0, 4) + "****";
     }
 
+    /** 请求体超大时抛出，由顶层 catch 转 413 */
+    private static class PayloadTooLargeException extends IOException {
+        PayloadTooLargeException(String msg) { super(msg); }
+    }
+
     @SuppressWarnings("unchecked")
     private Map<String, Object> readBodyAsMap(HttpExchange ex) throws IOException {
-        String body = new String(ex.getRequestBody().readAllBytes(), StandardCharsets.UTF_8);
-        if (body.isBlank()) return Map.of();
-        java.lang.reflect.Type mapType = new TypeToken<Map<String, Object>>(){}.getType();
-        Map<String, Object> parsed = GsonFactory.gson().fromJson(body, mapType);
-        return parsed != null ? parsed : Map.of();
+        try (InputStream in = ex.getRequestBody()) {
+            // readNBytes 多读 1 字节用于判断是否超限
+            byte[] buf = in.readNBytes(MAX_BODY_BYTES + 1);
+            if (buf.length > MAX_BODY_BYTES) {
+                throw new PayloadTooLargeException("请求体超过 " + MAX_BODY_BYTES + " 字节上限");
+            }
+            String body = new String(buf, StandardCharsets.UTF_8);
+            if (body.isBlank()) return Map.of();
+            java.lang.reflect.Type mapType = new TypeToken<Map<String, Object>>(){}.getType();
+            Map<String, Object> parsed = GsonFactory.gson().fromJson(body, mapType);
+            return parsed != null ? parsed : Map.of();
+        }
     }
 
     private void sendOk(HttpExchange ex, Object data) throws IOException {

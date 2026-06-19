@@ -179,6 +179,75 @@ systemctl enable --now qqbot-fire.service
 http://服务器IP:9988
 ```
 
+### Linux 部署踩坑指南
+
+> 以下是在全新 Linux 服务器（Debian/Ubuntu）上部署 qqbot-fire + NapCat 时的常见坑点，按安装顺序排列。
+
+#### 1. JDK 24 必须手动安装
+
+项目强制要求 **JDK 24+**，这是非常新的版本，**任何 Linux 发行版的 `apt`/`yum` 包管理器里都没有**。不要用 `apt install openjdk-*`，会装上低版本导致编译失败。
+
+正确做法——从 [Adoptium](https://adoptium.net/) 手动下载：
+
+```bash
+cd /opt
+wget https://github.com/adoptium/temurin24-binaries/releases/download/jdk-24.0.1+9/OpenJDK24U-jdk_x64_linux_hotspot_24.0.1_9.tar.gz
+tar xzf OpenJDK24U-jdk_x64_linux_hotspot_24.0.1_9.tar.gz
+# 解压得到 /opt/jdk-24.0.1+9
+```
+
+验证：
+
+```bash
+/opt/jdk-24.0.1+9/bin/java -version
+# openjdk version "24.0.1" ...
+```
+
+#### 2. NapCat 安装
+
+NapCat 官方提供一键安装脚本，需要 Node.js 环境（脚本会自动安装）：
+
+```bash
+curl -sSL https://nclatest.znin.net/NapNeko/NapCat-Installer/main/script/install.sh | bash
+```
+
+如果网络不通或脚本卡住，检查服务器能否访问 GitHub（部分国内云服务器需要配置代理）。
+
+#### 3. 时区必须设为 Asia/Shanghai
+
+定时任务调度器使用 `ZoneId.systemDefault()` 获取时区。如果服务器时区是默认的 `Etc/UTC`，所有定时任务会按 UTC 时间触发（比北京时间晚 8 小时）。
+
+**Debian/Ubuntu 上必须同时修改两处**（`timedatectl` 只改了软链接，JVM 读的是 `/etc/timezone` 文件）：
+
+```bash
+timedatectl set-timezone Asia/Shanghai
+echo 'Asia/Shanghai' > /etc/timezone
+dpkg-reconfigure -f noninteractive tzdata
+```
+
+验证 JVM 看到的时区：
+
+```bash
+/opt/jdk-24.0.1+9/bin/java -XshowSettings:all -version 2>&1 | grep timezone
+# 应输出: default timezone = Asia/Shanghai
+```
+
+修改后必须重启 qqbot-fire 服务（JVM 启动时缓存时区）。
+
+#### 4. systemd 中必须设置 JAVA_HOME
+
+非交互式 shell 不会加载 `.bashrc`，所以 `JAVA_HOME` 必须在 systemd unit 中显式设置，否则 Gradle 和启动脚本找不到 JDK：
+
+```ini
+[Service]
+Environment=JAVA_HOME=/opt/jdk-24.0.1+9
+Environment=PATH=/opt/jdk-24.0.1+9/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+```
+
+#### 5. 切勿同时用 systemd 和 fire 管 NapCat
+
+见下方"NapCat 管理策略"章节。
+
 ### Linux 下 NapCat 管理策略
 
 fire 支持在 Linux 上**自管 NapCat 子进程**（启动/停止/日志均通过 Web UI），与 Windows 行为一致。启动命令按优先级自动探测：

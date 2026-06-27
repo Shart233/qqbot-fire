@@ -254,13 +254,50 @@ public class BotConsole {
                 }
             }
             if (inst.isConnected() && inst.getClient() != null) {
-                logger.info("[{}] 自动连接成功", inst.getName());
-                return inst.getClient();
+                // 5) 等待 QQ 账号真正在线再返回。
+                // WS 握手就绪 != 账号在线：NapCat 冷启动时协议层还在「快速登录」，
+                // 此时直接发消息会报「没有可用的网络适配器」导致 30s 超时。
+                // 轮询 get_status 等 online=true，最多 30 秒。
+                var client = inst.getClient();
+                if (!waitForBotOnline(client, 30_000)) {
+                    logger.warn("[{}] 账号未在 30 秒内上线（NapCat 协议层未就绪），本次自动连接放弃发送", inst.getName());
+                    return null;
+                }
+                logger.info("[{}] 自动连接成功，账号已上线", inst.getName());
+                return client;
             }
         } catch (Exception e) {
             logger.error("[{}] 自动连接异常", inst.getName(), e);
         }
         return null;
+    }
+
+    /**
+     * 轮询等待 QQ 账号真正在线。
+     * 通过 get_status 的 online 字段判断协议层是否就绪；NapCat 冷启动后
+     * WS 已握手但账号仍在登录中，发消息会失败，必须等账号上线。
+     *
+     * @return true 表示账号已在线；false 表示超时或查询持续失败
+     */
+    private boolean waitForBotOnline(OneBotClient client, long timeoutMs) {
+        long deadline = System.currentTimeMillis() + timeoutMs;
+        while (System.currentTimeMillis() < deadline) {
+            try {
+                var status = client.getStatus();
+                if (status != null && Boolean.TRUE.equals(status.get("online"))) {
+                    return true;
+                }
+            } catch (Exception e) {
+                // 协议层未就绪时 get_status 本身可能超时/报错，继续轮询
+            }
+            try {
+                Thread.sleep(2000);
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                return false;
+            }
+        }
+        return false;
     }
 
     /** 等待指定端口可连接 */

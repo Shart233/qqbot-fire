@@ -38,11 +38,22 @@ public class ScheduleManager {
     private static final String SCHEDULE_FILE_PREFIX = "schedules";
     private static final DateTimeFormatter TIME_FMT = DateTimeFormatter.ofPattern("HH:mm");
     private static final long NTP_RESYNC_INTERVAL_MS = 3600_000; // 每小时重新同步 NTP
+    private static final long RETRY_DELAY_MS = 10 * 60_000; // 连接失败后重试间隔：10 分钟
+    private static final int MAX_RETRIES = 2; // 连接失败最大重试次数
 
     private final List<ScheduleTask> tasks = new CopyOnWriteArrayList<>();
     private volatile OneBotClient bot;
     private volatile Thread schedulerThread;
     private final AtomicBoolean running = new AtomicBoolean(false);
+
+    /**
+     * 执行互斥锁。
+     * 串行化 executeTask：自动调度触发（ntp-scheduler 线程）与手动触发
+     * （triggerNow / Web 测试发送 的 HTTP 虚拟线程）可能同时跑同一任务，
+     * 一个线程在 autoStop 后把 this.bot 置 null，另一个线程的发送循环就会 NPE。
+     * 加锁后两者互斥，杜绝并发置空导致的空指针。
+     */
+    private final Object executeLock = new Object();
 
     /**
      * Bot 自动连接回调。
@@ -284,6 +295,10 @@ public class ScheduleManager {
         long lastNtpSync = NtpUtil.getLastSyncTime();
         // 记录今天已执行的任务，避免重复
         Set<String> executedToday = new HashSet<>();
+        // 连接失败重试计划：任务名 -> 下次重试的 epoch ms
+        Map<String, Long> retryAt = new HashMap<>();
+        // 已重试次数：任务名 -> 次数
+        Map<String, Integer> retryCount = new HashMap<>();
         String lastDate = NtpUtil.now().toLocalDate().toString();
 
         while (running.get()) {
@@ -296,16 +311,19 @@ public class ScheduleManager {
                     }
                 }
 
-                // 日期切换，重置已执行记录
+                // 日期切换，重置已执行记录和重试计划
                 String today = NtpUtil.now().toLocalDate().toString();
                 if (!today.equals(lastDate)) {
                     executedToday.clear();
+                    retryAt.clear();
+                    retryCount.clear();
                     lastDate = today;
                     logger.debug("日期切换: {}", today);
                 }
 
                 ZonedDateTime now = NtpUtil.now();
                 LocalTime nowLocal = now.toLocalTime();
+                long nowMs = System.currentTimeMillis();
 
                 // 60 秒窗口匹配，防止 sleep 抖动导致错过整分钟
                 for (var task : tasks) {
@@ -315,12 +333,25 @@ public class ScheduleManager {
                     if (diffSeconds >= 0 && diffSeconds < 60) {
                         executedToday.add(task.name);
                         logger.info("NTP 时间 {} 触发任务: {}", NtpUtil.nowHHmmss(), task.name);
-                        executeTask(task);
+                        handleOutcome(task, executeTask(task), retryAt, retryCount);
                     }
                 }
 
-                // 计算到下一个最近触发点的等待时间
-                long sleepMs = calcSleepMs(now, executedToday);
+                // 到点的连接失败重试（独立于整点窗口，不受 60s 限制）
+                if (!retryAt.isEmpty()) {
+                    for (var task : tasks) {
+                        Long at = retryAt.get(task.name);
+                        if (at == null || nowMs < at) continue;
+                        retryAt.remove(task.name);
+                        if (!task.enabled) continue;
+                        int n = retryCount.getOrDefault(task.name, 0);
+                        logger.info("重试任务 [{}]（第 {}/{} 次）", task.name, n, MAX_RETRIES);
+                        handleOutcome(task, executeTask(task), retryAt, retryCount);
+                    }
+                }
+
+                // 计算到下一个最近触发点的等待时间（含重试时刻）
+                long sleepMs = calcSleepMs(now, executedToday, retryAt);
                 if (sleepMs > 0) {
                     // 防御：sleepMs 过小意味着刚好踩到窗口边界，强制抬到 100ms 避免忙等
                     if (sleepMs < 100) {
@@ -349,10 +380,10 @@ public class ScheduleManager {
     }
 
     /**
-     * 计算到下一个最近触发时刻的毫秒数
-     * @return 毫秒数, 0 表示今天没有更多任务
+     * 计算到下一个最近触发时刻的毫秒数（含整点任务与待重试任务）
+     * @return 毫秒数, 0 表示今天没有更多任务也没有待重试
      */
-    private long calcSleepMs(ZonedDateTime now, Set<String> executedToday) {
+    private long calcSleepMs(ZonedDateTime now, Set<String> executedToday, Map<String, Long> retryAt) {
         long minSleep = Long.MAX_VALUE;
 
         for (var task : tasks) {
@@ -374,12 +405,66 @@ public class ScheduleManager {
             }
         }
 
+        // 纳入待重试时刻：避免明明有 pending 重试却 sleep 到明天而错过
+        if (!retryAt.isEmpty()) {
+            long nowMs = System.currentTimeMillis();
+            for (long at : retryAt.values()) {
+                long diffMs = Math.max(at - nowMs, 50);
+                if (diffMs < minSleep) {
+                    minSleep = diffMs;
+                }
+            }
+        }
+
         return minSleep == Long.MAX_VALUE ? 0 : minSleep;
+    }
+
+    /**
+     * 处理任务执行结果，决定是否安排重试。
+     * 仅 RETRY（连接不可用）且未超次数时排入重试计划；DONE 一律不重试。
+     */
+    private void handleOutcome(ScheduleTask task, ExecOutcome outcome,
+                               Map<String, Long> retryAt, Map<String, Integer> retryCount) {
+        if (outcome != ExecOutcome.RETRY) {
+            // 成功或已发送：清理可能残留的重试状态
+            retryAt.remove(task.name);
+            retryCount.remove(task.name);
+            return;
+        }
+        int n = retryCount.getOrDefault(task.name, 0);
+        if (n >= MAX_RETRIES) {
+            logger.warn("任务 [{}] 连接失败已达最大重试次数 {}，今日放弃", task.name, MAX_RETRIES);
+            retryCount.remove(task.name);
+            return;
+        }
+        retryCount.put(task.name, n + 1);
+        retryAt.put(task.name, System.currentTimeMillis() + RETRY_DELAY_MS);
+        logger.info("任务 [{}] 连接失败，将在 {} 分钟后重试（已安排第 {}/{} 次）",
+                task.name, RETRY_DELAY_MS / 60_000, n + 1, MAX_RETRIES);
     }
 
     // ==================== 执行任务 ====================
 
-    private void executeTask(ScheduleTask task) {
+    /**
+     * 任务执行结果。
+     * DONE  — 已进入发送流程（无论成功/部分失败），不应重试，避免重复发送。
+     * RETRY — 因 Bot 连接不可用（autoConnect 失败/账号未上线）根本没发出去，
+     *         值得稍后重试。仅对开启 autoConnect 的任务返回。
+     */
+    private enum ExecOutcome { DONE, RETRY }
+
+    /**
+     * 执行任务（加锁外壳）。
+     * 通过 executeLock 串行化，杜绝自动调度与手动触发并发跑同一任务时
+     * 一方置空 bot、另一方 NPE 的竞态。实现见 {@link #doExecuteTask}。
+     */
+    private ExecOutcome executeTask(ScheduleTask task) {
+        synchronized (executeLock) {
+            return doExecuteTask(task);
+        }
+    }
+
+    private ExecOutcome doExecuteTask(ScheduleTask task) {
         // 僵尸引用清理：bot 非空但底层 WS 已断（onClose 清了 wsRef 但 scheduler.bot 没同步）
         if (bot != null && !isBotAlive()) {
             logger.info("检测到 Bot 连接已失效，清理僵尸引用，任务: {}", task.name);
@@ -402,8 +487,15 @@ public class ScheduleManager {
             logger.warn("Bot 未连接{}，跳过任务: {}",
                     task.autoConnect ? "且自动连接失败" : "(未启用自动启动)", task.name);
             this.bot = null;
-            return;
+            // 开启 autoConnect 却连不上 → 多半是 NapCat 冷启动慢/账号未上线，值得稍后重试；
+            // 未开 autoConnect 则没有自愈手段，重试无意义，直接结束。
+            return task.autoConnect ? ExecOutcome.RETRY : ExecOutcome.DONE;
         }
+
+        // 取一次局部快照：整个发送循环只认这个引用。
+        // 即使 autoStop 或其他路径在循环期间把 this.bot 置 null，
+        // 本次发送也只会得到可控的 API 异常，而不是 NPE。
+        final OneBotClient client = this.bot;
 
         logger.info("执行定时任务: {} -> 发送到 {} 个目标 (NTP时间: {})",
                 task.name, task.targets.size(), NtpUtil.nowHHmmss());
@@ -411,18 +503,26 @@ public class ScheduleManager {
 
         boolean isGroup = "group".equals(task.targetType);
         for (long targetId : task.targets) {
+            // 发送前探活：连接已僵死则放弃剩余目标，不再逐个硬等超时。
+            // 避免「NapCat 已不响应仍把 4 个目标各等满一个超时周期」的长时间空转。
+            if (!isBotAlive()) {
+                logger.warn("Bot 连接已失效，放弃任务 [{}] 剩余 {} 个目标",
+                        task.name, task.targets.size() - success - fail);
+                this.bot = null;
+                break;
+            }
             try {
                 if (isGroup) {
-                    bot.sendGroupMsg(targetId, task.message);
+                    client.sendGroupMsg(targetId, task.message);
                 } else {
-                    bot.sendPrivateMsg(targetId, task.message);
+                    client.sendPrivateMsg(targetId, task.message);
                 }
                 success++;
                 logger.debug("定时消息已发送: {} -> {} ({})", task.name, targetId, task.targetType);
                 Thread.sleep(1000); // 间隔 1 秒，避免频率限制
             } catch (InterruptedException e) {
                 Thread.currentThread().interrupt();
-                return;
+                return ExecOutcome.DONE; // 已开始发送，中断也不重试，避免重复
             } catch (Exception e) {
                 fail++;
                 logger.error("定时消息发送失败: {} -> {}", task.name, targetId, e);
@@ -432,16 +532,25 @@ public class ScheduleManager {
         task.lastExecuted = NtpUtil.currentTimeMillis();
         logger.info("任务 {} 执行完成: 成功={}, 失败={}", task.name, success, fail);
 
-        // 发送完自动停止 NapCat + 断开连接
+        // 发送完自动停止 NapCat + 断开连接。
+        // 仅当至少有一条发送成功时才停：若全军覆没（success==0），多半是 NapCat
+        // 已僵死/掉线，此时停掉连接只会让后续手动重发也发不出去，更难恢复。
         if (task.autoStopAfterSend && afterSendStopper != null) {
-            logger.info("任务 [{}] 发送完成，正在自动停止 NapCat 并断开连接...", task.name);
-            try {
-                afterSendStopper.run();
-                this.bot = null;
-            } catch (Exception e) {
-                logger.error("发送后自动停止失败", e);
+            if (success == 0) {
+                logger.warn("任务 [{}] 全部发送失败（成功=0），疑似 NapCat 异常，跳过自动停止以保留连接便于排查/重发",
+                        task.name);
+            } else {
+                logger.info("任务 [{}] 发送完成，正在自动停止 NapCat 并断开连接...", task.name);
+                try {
+                    afterSendStopper.run();
+                    this.bot = null;
+                } catch (Exception e) {
+                    logger.error("发送后自动停止失败", e);
+                }
             }
         }
+
+        return ExecOutcome.DONE;
     }
 
     // ==================== 持久化 ====================

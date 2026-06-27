@@ -61,8 +61,12 @@ public class OneBotConnection implements ApiProvider {
     private int maxReconnectInterval = 60;
     /** 是否启用自动重连 */
     private boolean autoReconnect = true;
-    /** API 调用超时 (秒) */
-    private int apiTimeout = 30;
+    /**
+     * API 调用超时 (秒)。
+     * 正常 NapCat 响应为毫秒级，15s 足够；调低是为了在 NapCat 卡死/掉线时
+     * 让调用方更快拿到失败，避免定时任务逐个目标各硬等满一个超时周期。
+     */
+    private int apiTimeout = 15;
 
     public OneBotConnection(String wsUrl, EventDispatcher dispatcher) {
         this(wsUrl, null, dispatcher);

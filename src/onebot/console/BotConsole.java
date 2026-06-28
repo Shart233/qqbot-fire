@@ -231,12 +231,15 @@ public class BotConsole {
                     return null;
                 }
 
-                // 2) 等待端口就绪（最多 30 秒）
+                // 2) 等待端口就绪（最多 120 秒）
+                // NapCat 冷启动时 QQ 需先完成「快速登录 + 协议握手」才会打开 OneBot WS 端口，
+                // 整个过程常超过 30 秒。超时太短会导致首次触发必然失败、只能靠 10 分钟后重试补发
+                // （续火消息因此每天迟到 10 分钟）。waitForPort 端口一开即返回，放宽超时无副作用。
                 int port = wsPort > 0 ? wsPort : httpPort;
                 if (port > 0) {
                     logger.info("[{}] 等待端口 {} 就绪...", inst.getName(), port);
-                    if (!waitForPort(port, 30_000)) {
-                        logger.warn("[{}] 等待端口超时", inst.getName());
+                    if (!waitForPort(port, 120_000)) {
+                        logger.warn("[{}] 等待端口超时（120 秒内 NapCat 仍未打开 OneBot 端口，QQ 可能登录失败）", inst.getName());
                         return null;
                     }
                     Thread.sleep(2000); // 额外等待 NapCat 完全初始化

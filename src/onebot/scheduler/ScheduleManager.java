@@ -38,7 +38,7 @@ public class ScheduleManager {
     private static final String SCHEDULE_FILE_PREFIX = "schedules";
     private static final DateTimeFormatter TIME_FMT = DateTimeFormatter.ofPattern("HH:mm");
     private static final long NTP_RESYNC_INTERVAL_MS = 3600_000; // 每小时重新同步 NTP
-    private static final long RETRY_DELAY_MS = 10 * 60_000; // 连接失败后重试间隔：10 分钟
+    private static final long RETRY_DELAY_MS = 3 * 60_000; // 连接失败后重试间隔：3 分钟
     private static final int MAX_RETRIES = 2; // 连接失败最大重试次数
 
     private final List<ScheduleTask> tasks = new CopyOnWriteArrayList<>();

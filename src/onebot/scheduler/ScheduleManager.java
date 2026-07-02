@@ -319,6 +319,21 @@ public class ScheduleManager {
                     retryCount.clear();
                     lastDate = today;
                     logger.debug("日期切换: {}", today);
+
+                    // 补执行：日期切换时若已过某任务的触发窗口（NTP 同步/sleep 抖动导致晚醒），立即补发
+                    ZonedDateTime nowAfterSwitch = NtpUtil.now();
+                    LocalTime nowAfterSwitchLocal = nowAfterSwitch.toLocalTime();
+                    for (var task : tasks) {
+                        if (!task.enabled || executedToday.contains(task.name)) continue;
+                        LocalTime target = LocalTime.parse(task.time, TIME_FMT);
+                        long missedSeconds = Duration.between(target, nowAfterSwitchLocal).getSeconds();
+                        if (missedSeconds >= 60) {
+                            executedToday.add(task.name);
+                            logger.info("日期切换补执行: 任务 {} (计划 {}, 当前 {}, 延迟 {}s)",
+                                    task.name, task.time, NtpUtil.nowHHmmss(), missedSeconds);
+                            handleOutcome(task, executeTask(task), retryAt, retryCount);
+                        }
+                    }
                 }
 
                 ZonedDateTime now = NtpUtil.now();
@@ -361,10 +376,26 @@ public class ScheduleManager {
                     logger.debug("下次触发在 {} 秒后", sleepMs / 1000);
                     Thread.sleep(sleepMs);
                 } else {
-                    // 没有待执行的任务，sleep 到明天 00:00
-                    long msToMidnight = ChronoUnit.MILLIS.between(now, now.toLocalDate().plusDays(1).atStartOfDay(now.getZone()));
-                    logger.debug("今日任务已全部完成，等待 {} 秒到明天", msToMidnight / 1000);
-                    Thread.sleep(msToMidnight + 1000); // +1s 缓冲
+                    // 没有待执行的任务，直接睡到次日最早任务时刻（提前 2 秒留余量）
+                    var tomorrow = now.toLocalDate().plusDays(1);
+                    var zone = now.getZone();
+                    LocalTime earliestTask = null;
+                    for (var task : tasks) {
+                        if (!task.enabled) continue;
+                        LocalTime t = LocalTime.parse(task.time, TIME_FMT);
+                        if (earliestTask == null || t.isBefore(earliestTask)) {
+                            earliestTask = t;
+                        }
+                    }
+                    var wakeTarget = earliestTask != null
+                            ? tomorrow.atTime(earliestTask).atZone(zone).minusSeconds(2)
+                            : tomorrow.atStartOfDay(zone);
+                    long sleepToTomorrow = ChronoUnit.MILLIS.between(now, wakeTarget);
+                    if (sleepToTomorrow < 1000) sleepToTomorrow = 1000;
+                    logger.debug("今日任务已全部完成，等待 {} 秒到明天 {}",
+                            sleepToTomorrow / 1000,
+                            earliestTask != null ? earliestTask : "00:00");
+                    Thread.sleep(sleepToTomorrow);
                 }
 
             } catch (InterruptedException e) {

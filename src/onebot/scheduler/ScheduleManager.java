@@ -40,6 +40,13 @@ public class ScheduleManager {
     private static final long NTP_RESYNC_INTERVAL_MS = 3600_000; // 每小时重新同步 NTP
     private static final long RETRY_DELAY_MS = 3 * 60_000; // 连接失败后重试间隔：3 分钟
     private static final int MAX_RETRIES = 2; // 连接失败最大重试次数
+    /**
+     * 预热提前量：秒。
+     * 触发前 N 秒就提前拉起 NapCat + 登录 QQ，等真正触发时端口早开、账号在线，秒发不迟到。
+     * NapCat 冷启动 QQ 登录常需 3~5 分钟，故给 10 分钟留足余量。
+     * 仅对 autoConnect=true 的任务生效（否则本就不由调度器管连接）。
+     */
+    private static final long PREWARM_LEAD_MS = 10 * 60_000;
 
     private final List<ScheduleTask> tasks = new CopyOnWriteArrayList<>();
     private volatile OneBotClient bot;
@@ -299,6 +306,10 @@ public class ScheduleManager {
         Map<String, Long> retryAt = new HashMap<>();
         // 已重试次数：任务名 -> 次数
         Map<String, Integer> retryCount = new HashMap<>();
+        // 已预热的 occurrence 标记（值为 "任务名@目标日期"），避免同一次触发前反复拉起 NapCat。
+        // 用目标日期而非"今天"标记，因为 00:01 任务的预热落在前一天 23:51，跨午夜后 executedToday
+        // 会被清空但预热标记要延续到触发那一刻，故独立维护、按 occurrence 日期去重。
+        Set<String> prewarmed = new HashSet<>();
         String lastDate = NtpUtil.now().toLocalDate().toString();
 
         while (running.get()) {
@@ -317,6 +328,13 @@ public class ScheduleManager {
                     executedToday.clear();
                     retryAt.clear();
                     retryCount.clear();
+                    // 清理已过期的预热标记（目标日期早于今天的），避免集合无限增长。
+                    // 今天及以后的标记保留：00:01 任务在前一天 23:51 打的标记，key 日期是今天，必须留住
+                    // 直到 00:01 触发，否则 calcSleepMs 会重新为它算预热点、重复拉起 NapCat。
+                    prewarmed.removeIf(k -> {
+                        int at = k.lastIndexOf('@');
+                        return at >= 0 && k.substring(at + 1).compareTo(today) < 0;
+                    });
                     lastDate = today;
                     logger.debug("日期切换: {}", today);
 
@@ -339,6 +357,27 @@ public class ScheduleManager {
                 ZonedDateTime now = NtpUtil.now();
                 LocalTime nowLocal = now.toLocalTime();
                 long nowMs = System.currentTimeMillis();
+
+                // 预热：触发前 PREWARM_LEAD_MS 内提前拉起 NapCat 登录，使真正触发时端口早开、账号在线，秒发不迟到。
+                // 仅对 autoConnect 任务生效；bot 已连着则跳过（无需重复拉起）。
+                for (var task : tasks) {
+                    if (!task.enabled || !task.autoConnect) continue;
+                    if (executedToday.contains(task.name)) continue;
+                    ZonedDateTime next = nextTargetDateTime(task, now);
+                    long untilMs = ChronoUnit.MILLIS.between(now, next);
+                    if (untilMs > 0 && untilMs <= PREWARM_LEAD_MS) {
+                        String key = task.name + "@" + next.toLocalDate();
+                        if (prewarmed.contains(key)) continue;
+                        prewarmed.add(key);
+                        if (isBotAlive()) {
+                            logger.debug("任务 [{}] 已有活连接，跳过预热", task.name);
+                            continue;
+                        }
+                        logger.info("任务 [{}] 进入预热窗口（{}秒后触发），提前拉起 NapCat 并登录...",
+                                task.name, untilMs / 1000);
+                        prewarm(task);
+                    }
+                }
 
                 // 60 秒窗口匹配，防止 sleep 抖动导致错过整分钟
                 for (var task : tasks) {
@@ -365,8 +404,8 @@ public class ScheduleManager {
                     }
                 }
 
-                // 计算到下一个最近触发点的等待时间（含重试时刻）
-                long sleepMs = calcSleepMs(now, executedToday, retryAt);
+                // 计算到下一个最近触发点的等待时间（含重试时刻、预热时刻）
+                long sleepMs = calcSleepMs(now, executedToday, retryAt, prewarmed);
                 if (sleepMs > 0) {
                     // 防御：sleepMs 过小意味着刚好踩到窗口边界，强制抬到 100ms 避免忙等
                     if (sleepMs < 100) {
@@ -414,7 +453,8 @@ public class ScheduleManager {
      * 计算到下一个最近触发时刻的毫秒数（含整点任务与待重试任务）
      * @return 毫秒数, 0 表示今天没有更多任务也没有待重试
      */
-    private long calcSleepMs(ZonedDateTime now, Set<String> executedToday, Map<String, Long> retryAt) {
+    private long calcSleepMs(ZonedDateTime now, Set<String> executedToday, Map<String, Long> retryAt,
+                             Set<String> prewarmed) {
         long minSleep = Long.MAX_VALUE;
 
         for (var task : tasks) {
@@ -436,6 +476,19 @@ public class ScheduleManager {
             }
         }
 
+        // 纳入预热唤醒点：autoConnect 任务在「下次触发 - 预热提前量」时刻必须醒来拉起 NapCat。
+        // 否则调度器会一觉睡到触发时刻，来不及预热就退化成 00:01 现连（又迟到）。
+        for (var task : tasks) {
+            if (!task.enabled || !task.autoConnect || executedToday.contains(task.name)) continue;
+            ZonedDateTime next = nextTargetDateTime(task, now);
+            String key = task.name + "@" + next.toLocalDate();
+            if (prewarmed.contains(key)) continue; // 本 occurrence 已预热，无需再为它醒来
+            long prewarmAt = ChronoUnit.MILLIS.between(now, next) - PREWARM_LEAD_MS;
+            if (prewarmAt > 0 && prewarmAt < minSleep) {
+                minSleep = prewarmAt;
+            }
+        }
+
         // 纳入待重试时刻：避免明明有 pending 重试却 sleep 到明天而错过
         if (!retryAt.isEmpty()) {
             long nowMs = System.currentTimeMillis();
@@ -448,6 +501,46 @@ public class ScheduleManager {
         }
 
         return minSleep == Long.MAX_VALUE ? 0 : minSleep;
+    }
+
+    /**
+     * 计算任务从 now 起「下一次」触发的绝对时刻。
+     * 若今天的触发点已过（now 晚于今天 target），则返回明天的 target。
+     * 用于预热窗口判断——跨午夜任务（如 00:01）在前一天 23:51 时，其下一次触发是"今天+1天"的 00:01。
+     */
+    private ZonedDateTime nextTargetDateTime(ScheduleTask task, ZonedDateTime now) {
+        LocalTime target = LocalTime.parse(task.time, TIME_FMT);
+        ZonedDateTime todayTarget = now.toLocalDate().atTime(target).atZone(now.getZone());
+        // 已过今天触发点（留 60s 容差，正在触发窗口内的不算"已过"）则顺延到明天
+        if (ChronoUnit.MILLIS.between(now, todayTarget) < -60_000) {
+            return todayTarget.plusDays(1);
+        }
+        return todayTarget;
+    }
+
+    /**
+     * 预热：提前拉起 NapCat 并登录 QQ，但不发送任何消息。
+     * 复用 botConnector.tryConnect()（内部完成"启动 NapCat→等端口→连接→等账号在线"全流程），
+     * 成功后把连接挂到 this.bot，等真正触发时 executeTask 直接复用这个活连接秒发。
+     * 预热失败不排重试、不报错致命——真正触发时 executeTask 的 autoConnect 仍会再试一次兜底。
+     */
+    private void prewarm(ScheduleTask task) {
+        if (botConnector == null) return;
+        synchronized (executeLock) {
+            // 二次确认：拿到锁后连接可能已被别的路径建立
+            if (isBotAlive()) return;
+            try {
+                OneBotClient connected = botConnector.tryConnect();
+                if (connected != null) {
+                    this.bot = connected;
+                    logger.info("任务 [{}] 预热成功，账号已上线，等待触发时刻秒发", task.name);
+                } else {
+                    logger.warn("任务 [{}] 预热失败（NapCat/登录未就绪），触发时将走常规自动连接兜底", task.name);
+                }
+            } catch (Exception e) {
+                logger.error("任务 [{}] 预热异常", task.name, e);
+            }
+        }
     }
 
     /**

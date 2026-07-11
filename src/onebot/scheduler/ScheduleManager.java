@@ -41,6 +41,14 @@ public class ScheduleManager {
     private static final long RETRY_DELAY_MS = 3 * 60_000; // 连接失败后重试间隔：3 分钟
     private static final int MAX_RETRIES = 2; // 连接失败最大重试次数
     /**
+     * 单目标发送失败后的内联补发配置。
+     * 冷启动/QQ 链路未热时，首批 send_private_msg 可能撞穿超时墙漏发个别目标（连接是好的，只是慢）。
+     * 既然连接此刻正热，就地立即重投命中率远高于跨周期重试，且无需再冷启动。
+     * 在同一次 executeTask 内、autoStop 之前完成，最多补发 TARGET_RESEND_ROUNDS 轮，每轮间隔 TARGET_RESEND_GAP_MS。
+     */
+    private static final int TARGET_RESEND_ROUNDS = 2;
+    private static final long TARGET_RESEND_GAP_MS = 3_000;
+    /**
      * 预热提前量：秒。
      * 触发前 N 秒就提前拉起 NapCat + 登录 QQ，等真正触发时端口早开、账号在线，秒发不迟到。
      * NapCat 冷启动 QQ 登录常需 3~5 分钟，故给 10 分钟留足余量。
@@ -362,7 +370,11 @@ public class ScheduleManager {
                 // 仅对 autoConnect 任务生效；bot 已连着则跳过（无需重复拉起）。
                 for (var task : tasks) {
                     if (!task.enabled || !task.autoConnect) continue;
-                    if (executedToday.contains(task.name)) continue;
+                    // 去重用 occurrence 粒度（prewarmed: 任务名@目标日期），不能用 executedToday.contains(name)：
+                    // 00:01 跨午夜任务的预热窗口落在前一天 23:51，此刻 executedToday 仍含当天已执行的
+                    // 同名任务（要到 00:00 才 clear），若用它做守卫会把「明天那次」的预热误杀 →
+                    // 睡到 00:01 现场冷启动 → 冷启动竞速漏发。改由 nextTargetDateTime 定位下一次
+                    // occurrence，prewarmed 按其目标日期去重，跨午夜也不会漏预热或重复拉起。
                     ZonedDateTime next = nextTargetDateTime(task, now);
                     long untilMs = ChronoUnit.MILLIS.between(now, next);
                     if (untilMs > 0 && untilMs <= PREWARM_LEAD_MS) {
@@ -478,8 +490,10 @@ public class ScheduleManager {
 
         // 纳入预热唤醒点：autoConnect 任务在「下次触发 - 预热提前量」时刻必须醒来拉起 NapCat。
         // 否则调度器会一觉睡到触发时刻，来不及预热就退化成 00:01 现连（又迟到）。
+        // 去重同样用 occurrence 粒度的 prewarmed，不能用 executedToday.contains(name)——理由见
+        // schedulerLoop 预热循环处注释：跨午夜任务 23:51 唤醒点会被当天的 executedToday 误杀。
         for (var task : tasks) {
-            if (!task.enabled || !task.autoConnect || executedToday.contains(task.name)) continue;
+            if (!task.enabled || !task.autoConnect) continue;
             ZonedDateTime next = nextTargetDateTime(task, now);
             String key = task.name + "@" + next.toLocalDate();
             if (prewarmed.contains(key)) continue; // 本 occurrence 已预热，无需再为它醒来
@@ -623,38 +637,38 @@ public class ScheduleManager {
 
         logger.info("执行定时任务: {} -> 发送到 {} 个目标 (NTP时间: {})",
                 task.name, task.targets.size(), NtpUtil.nowHHmmss());
-        int success = 0, fail = 0;
 
         boolean isGroup = "group".equals(task.targetType);
-        for (long targetId : task.targets) {
-            // 发送前探活：连接已僵死则放弃剩余目标，不再逐个硬等超时。
-            // 避免「NapCat 已不响应仍把 4 个目标各等满一个超时周期」的长时间空转。
-            if (!isBotAlive()) {
-                logger.warn("Bot 连接已失效，放弃任务 [{}] 剩余 {} 个目标",
-                        task.name, task.targets.size() - success - fail);
-                this.bot = null;
-                break;
-            }
+
+        // 首轮发送全部目标，收集失败目标。传入快照副本，避免 subList 视图逃逸后被 updateTask 换引用影响。
+        int total = task.targets.size();
+        List<Long> failed = sendToTargets(task, new ArrayList<>(task.targets), client, isGroup);
+        int success = total - failed.size();
+
+        // 内联补发：连接此刻正热，就地立即重投失败目标（冷启动首批慢导致的超时，几秒后多半成功），
+        // 在 autoStop 之前完成，避免跨周期又冷启动。仅重投「失败子集」，成功目标不会重复收到。
+        int round = 0;
+        while (!failed.isEmpty() && round < TARGET_RESEND_ROUNDS && isBotAlive()) {
+            round++;
+            logger.info("任务 [{}] {} 个目标发送失败，内联补发第 {}/{} 轮: {}",
+                    task.name, failed.size(), round, TARGET_RESEND_ROUNDS, failed);
             try {
-                if (isGroup) {
-                    client.sendGroupMsg(targetId, task.message);
-                } else {
-                    client.sendPrivateMsg(targetId, task.message);
-                }
-                success++;
-                logger.debug("定时消息已发送: {} -> {} ({})", task.name, targetId, task.targetType);
-                Thread.sleep(1000); // 间隔 1 秒，避免频率限制
+                Thread.sleep(TARGET_RESEND_GAP_MS);
             } catch (InterruptedException e) {
                 Thread.currentThread().interrupt();
-                return ExecOutcome.DONE; // 已开始发送，中断也不重试，避免重复
-            } catch (Exception e) {
-                fail++;
-                logger.error("定时消息发送失败: {} -> {}", task.name, targetId, e);
+                break; // 被中断（任务变更/停止）：放弃补发，走收尾
             }
+            failed = sendToTargets(task, failed, client, isGroup);
         }
+        success = total - failed.size();
 
         task.lastExecuted = NtpUtil.currentTimeMillis();
-        logger.info("任务 {} 执行完成: 成功={}, 失败={}", task.name, success, fail);
+        if (failed.isEmpty()) {
+            logger.info("任务 {} 执行完成: 成功={}, 失败=0", task.name, success);
+        } else {
+            logger.warn("任务 {} 执行完成: 成功={}, 失败={} (最终仍失败的目标: {})",
+                    task.name, success, failed.size(), failed);
+        }
 
         // 发送完自动停止 NapCat + 断开连接。
         // 仅当至少有一条发送成功时才停：若全军覆没（success==0），多半是 NapCat
@@ -675,6 +689,45 @@ public class ScheduleManager {
         }
 
         return ExecOutcome.DONE;
+    }
+
+    /**
+     * 向一批目标发送任务消息，返回发送失败的目标列表（供内联补发重投）。
+     * 发送前探活：连接僵死则放弃剩余目标并全部计入失败（连接已废，硬等超时无意义）。
+     * 单目标异常仅记入失败列表，不中断其余目标。
+     */
+    private List<Long> sendToTargets(ScheduleTask task, List<Long> targets, OneBotClient client, boolean isGroup) {
+        List<Long> failed = new ArrayList<>();
+        for (int i = 0; i < targets.size(); i++) {
+            long targetId = targets.get(i);
+            // 发送前探活：连接已僵死则放弃剩余目标，不再逐个硬等超时。
+            // 剩余目标（含当前）全部计入失败，交由上层决定是否补发。
+            if (!isBotAlive()) {
+                List<Long> remaining = targets.subList(i, targets.size());
+                logger.warn("Bot 连接已失效，放弃任务 [{}] 剩余 {} 个目标", task.name, remaining.size());
+                this.bot = null;
+                failed.addAll(remaining);
+                break;
+            }
+            try {
+                if (isGroup) {
+                    client.sendGroupMsg(targetId, task.message);
+                } else {
+                    client.sendPrivateMsg(targetId, task.message);
+                }
+                logger.debug("定时消息已发送: {} -> {} ({})", task.name, targetId, task.targetType);
+                Thread.sleep(1000); // 间隔 1 秒，避免频率限制
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                // 已开始发送，中断则把当前及剩余目标计入失败并停止（不重复发已成功的）
+                failed.addAll(targets.subList(i, targets.size()));
+                break;
+            } catch (Exception e) {
+                failed.add(targetId);
+                logger.error("定时消息发送失败: {} -> {}", task.name, targetId, e);
+            }
+        }
+        return failed;
     }
 
     // ==================== 持久化 ====================

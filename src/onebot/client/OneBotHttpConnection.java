@@ -9,8 +9,10 @@ import com.google.gson.reflect.TypeToken;
 import java.lang.reflect.Type;
 import java.net.URI;
 import java.net.http.HttpClient;
+import java.net.http.HttpConnectTimeoutException;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
+import java.net.http.HttpTimeoutException;
 import java.time.Duration;
 import java.util.*;
 
@@ -38,6 +40,9 @@ import java.util.*;
 public class OneBotHttpConnection implements ApiProvider {
 
     private static final Logger logger = LogManager.getLogger(OneBotHttpConnection.class);
+
+    /** 单次 API 请求的响应超时（秒）。超时语义见 doApiCall 的 HttpTimeoutException 分支。 */
+    private static final long HTTP_TIMEOUT_SECONDS = 30;
 
     private final String baseUrl;
     private final String accessToken;
@@ -138,7 +143,7 @@ public class OneBotHttpConnection implements ApiProvider {
                     .uri(URI.create(url))
                     .header("Content-Type", "application/json")
                     .header("Accept", "application/json")
-                    .timeout(Duration.ofSeconds(30))
+                    .timeout(Duration.ofSeconds(HTTP_TIMEOUT_SECONDS))
                     .POST(HttpRequest.BodyPublishers.ofString(json));
 
             if (authHeader != null) {
@@ -158,6 +163,17 @@ public class OneBotHttpConnection implements ApiProvider {
             return parseResponse(response.body(), action);
         } catch (OneBotException e) {
             throw e;
+        } catch (HttpConnectTimeoutException e) {
+            // 连接阶段就超时：请求根本没送达 NapCat，属于「明确失败」，重投是安全的。
+            // 必须排在 HttpTimeoutException 之前——它是后者的子类。
+            logger.error("HTTP 连接超时: {}", action, e);
+            throw new OneBotException("HTTP 连接超时: " + action, e);
+        } catch (HttpTimeoutException e) {
+            // 请求已发出、只是响应没按时回来 → 结果未决，与 WS 侧 OneBotConnection 同语义。
+            // 归为普通 OneBotException 会被 ScheduleManager 当成失败重投，NapCat 恢复时
+            // 积压请求一次性全部投递，对方收到成堆重复消息。详见 OneBotTimeoutException。
+            logger.warn("HTTP API 调用超时（结果未决）: {}", action);
+            throw new OneBotTimeoutException("HTTP API 调用超时: " + action + " (" + HTTP_TIMEOUT_SECONDS + "秒)");
         } catch (Exception e) {
             logger.error("HTTP API 调用失败: {}", action, e);
             throw new OneBotException("HTTP API 调用失败: " + action, e);

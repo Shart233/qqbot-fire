@@ -66,6 +66,12 @@ public class ScheduleManager {
     private final List<ScheduleTask> tasks = new CopyOnWriteArrayList<>();
     private volatile OneBotClient bot;
     private volatile Thread schedulerThread;
+    /**
+     * 当前的「未决滞留停止」线程（见 {@link #scheduleLingeringStop}）。
+     * 单独存字段是为了让 {@link #stop()} 能取消它——否则调度器已停/Bot 已删，
+     * 它仍会在 15 分钟后醒来 pkill NapCat。同时用于去重：同一时刻只保留一个。
+     */
+    private volatile Thread lingerStopThread;
     private final AtomicBoolean running = new AtomicBoolean(false);
 
     /**
@@ -298,6 +304,13 @@ public class ScheduleManager {
             t.interrupt();
             schedulerThread = null;
         }
+        // 一并取消未决滞留停止线程：调度器都停了（/bot remove、清空配置、进程 shutdown），
+        // 不能让它 15 分钟后醒来 pkill 一个可能已经被别人重新拉起的 NapCat。
+        var linger = lingerStopThread;
+        if (linger != null) {
+            linger.interrupt();
+            lingerStopThread = null;
+        }
         logger.info("调度器已停止");
     }
 
@@ -322,7 +335,8 @@ public class ScheduleManager {
         // 已重试次数：任务名 -> 次数
         Map<String, Integer> retryCount = new HashMap<>();
         // 已预热的 occurrence 标记（值为 "任务名@目标日期"），避免同一次触发前反复拉起 NapCat。
-        // 用目标日期而非"今天"标记，因为 00:01 任务的预热落在前一天 23:51，跨午夜后 executedToday
+        // 用目标日期而非"今天"标记，因为 00:01 任务的预热落在前一天 23:41（= 触发时刻 −
+        // PREWARM_LEAD_MS，改常量时这个钟点跟着变），跨午夜后 executedToday
         // 会被清空但预热标记要延续到触发那一刻，故独立维护、按 occurrence 日期去重。
         Set<String> prewarmed = new HashSet<>();
         String lastDate = NtpUtil.now().toLocalDate().toString();
@@ -344,7 +358,7 @@ public class ScheduleManager {
                     retryAt.clear();
                     retryCount.clear();
                     // 清理已过期的预热标记（目标日期早于今天的），避免集合无限增长。
-                    // 今天及以后的标记保留：00:01 任务在前一天 23:51 打的标记，key 日期是今天，必须留住
+                    // 今天及以后的标记保留：00:01 任务在前一天 23:41 打的标记，key 日期是今天，必须留住
                     // 直到 00:01 触发，否则 calcSleepMs 会重新为它算预热点、重复拉起 NapCat。
                     prewarmed.removeIf(k -> {
                         int at = k.lastIndexOf('@');
@@ -378,7 +392,7 @@ public class ScheduleManager {
                 for (var task : tasks) {
                     if (!task.enabled || !task.autoConnect) continue;
                     // 去重用 occurrence 粒度（prewarmed: 任务名@目标日期），不能用 executedToday.contains(name)：
-                    // 00:01 跨午夜任务的预热窗口落在前一天 23:51，此刻 executedToday 仍含当天已执行的
+                    // 00:01 跨午夜任务的预热窗口落在前一天 23:41，此刻 executedToday 仍含当天已执行的
                     // 同名任务（要到 00:00 才 clear），若用它做守卫会把「明天那次」的预热误杀 →
                     // 睡到 00:01 现场冷启动 → 冷启动竞速漏发。改由 nextTargetDateTime 定位下一次
                     // occurrence，prewarmed 按其目标日期去重，跨午夜也不会漏预热或重复拉起。
@@ -423,8 +437,13 @@ public class ScheduleManager {
                     }
                 }
 
-                // 计算到下一个最近触发点的等待时间（含重试时刻、预热时刻）
-                long sleepMs = calcSleepMs(now, executedToday, retryAt, prewarmed);
+                // 计算到下一个最近触发点的等待时间（含重试时刻、预热时刻）。
+                // 必须重新取时间，不能沿用上面那个 now：它是在 executeTask 之前捕获的，
+                // 而 executeTask 可能跑几十秒（超时场景 ≈ 15s × 目标数），沿用会让整段 sleep
+                // 顺延同样的时长 —— 次日唤醒落到 60 秒触发窗口之外，该任务整天不触发。
+                // （00:01 任务侥幸有「日期切换补执行」兜底，非跨午夜的任务没有。）
+                ZonedDateTime sleepNow = NtpUtil.now();
+                long sleepMs = calcSleepMs(sleepNow, executedToday, retryAt, prewarmed);
                 if (sleepMs > 0) {
                     // 防御：sleepMs 过小意味着刚好踩到窗口边界，强制抬到 100ms 避免忙等
                     if (sleepMs < 100) {
@@ -435,8 +454,8 @@ public class ScheduleManager {
                     Thread.sleep(sleepMs);
                 } else {
                     // 没有待执行的任务，直接睡到次日最早任务时刻（提前 2 秒留余量）
-                    var tomorrow = now.toLocalDate().plusDays(1);
-                    var zone = now.getZone();
+                    var tomorrow = sleepNow.toLocalDate().plusDays(1);
+                    var zone = sleepNow.getZone();
                     LocalTime earliestTask = null;
                     for (var task : tasks) {
                         if (!task.enabled) continue;
@@ -448,7 +467,7 @@ public class ScheduleManager {
                     var wakeTarget = earliestTask != null
                             ? tomorrow.atTime(earliestTask).atZone(zone).minusSeconds(2)
                             : tomorrow.atStartOfDay(zone);
-                    long sleepToTomorrow = ChronoUnit.MILLIS.between(now, wakeTarget);
+                    long sleepToTomorrow = ChronoUnit.MILLIS.between(sleepNow, wakeTarget);
                     if (sleepToTomorrow < 1000) sleepToTomorrow = 1000;
                     logger.debug("今日任务已全部完成，等待 {} 秒到明天 {}",
                             sleepToTomorrow / 1000,
@@ -501,7 +520,7 @@ public class ScheduleManager {
         // 纳入预热唤醒点：autoConnect 任务在「下次触发 - 预热提前量」时刻必须醒来拉起 NapCat。
         // 否则调度器会一觉睡到触发时刻，来不及预热就退化成 00:01 现连（又迟到）。
         // 去重同样用 occurrence 粒度的 prewarmed，不能用 executedToday.contains(name)——理由见
-        // schedulerLoop 预热循环处注释：跨午夜任务 23:51 唤醒点会被当天的 executedToday 误杀。
+        // schedulerLoop 预热循环处注释：跨午夜任务 23:41 唤醒点会被当天的 executedToday 误杀。
         for (var task : tasks) {
             if (!task.enabled || !task.autoConnect) continue;
             // 同样用 upcomingOccurrence：刚触发完时 nextTargetDateTime 因 60s 容差仍返回
@@ -532,7 +551,7 @@ public class ScheduleManager {
     /**
      * 计算任务从 now 起「下一次」触发的绝对时刻。
      * 若今天的触发点已过（now 晚于今天 target），则返回明天的 target。
-     * 用于预热窗口判断——跨午夜任务（如 00:01）在前一天 23:51 时，其下一次触发是"今天+1天"的 00:01。
+     * 用于预热窗口判断——跨午夜任务（如 00:01）在前一天 23:41 时，其下一次触发是"今天+1天"的 00:01。
      */
     private ZonedDateTime nextTargetDateTime(ScheduleTask task, ZonedDateTime now) {
         LocalTime target = LocalTime.parse(task.time, TIME_FMT);
@@ -710,7 +729,7 @@ public class ScheduleManager {
             if (!unknown.isEmpty()) {
                 // 有未决目标：NapCat 多半只是消息通道排队慢（实测可达 11 分钟），此刻 pkill
                 // 会把排队中的消息一并杀掉。推迟停止，让积压请求自然投递完再收工。
-                scheduleLingeringStop(task, unknown);
+                scheduleLingeringStop(task, unknown, client);
             } else if (success == 0) {
                 // 全部「明确失败」才判定 NapCat 异常：保留连接便于排查/手动重发。
                 logger.warn("任务 [{}] 全部发送失败（成功=0），疑似 NapCat 异常，跳过自动停止以保留连接便于排查/重发",
@@ -732,9 +751,24 @@ public class ScheduleManager {
     /**
      * 存在超时未决目标时的延迟停止：滞留 {@link #UNKNOWN_LINGER_MS} 后再停 NapCat。
      * 用独立守护线程，不阻塞调度器主循环对下一次任务的计算。
+     *
+     * 三道保险，缺一不可——这个线程要在 15 分钟后才动手，期间世界可能已经变了：
+     * 1. 去重：窗口内任务再次未决时取消上一个，任何时刻只有一个滞留线程在跑。
+     * 2. 可取消：线程存进 {@link #lingerStopThread}，{@link #stop()} 会 interrupt 它，
+     *    避免调度器已停/Bot 已删之后它还醒来 pkill NapCat。
+     * 3. 身份校验：只有 this.bot 仍是本次发送用的那个 client 才动手。期间任何新连接
+     *    （手动 /connect、Web API 测试发送、别的任务预热）都不该被这个线程误杀。
+     *    校验与停止一起放在 executeLock 内，与 doExecuteTask 互斥，杜绝停在发送中途。
+     *
+     * @param client 本次发送实际使用的连接，作为 15 分钟后的身份凭证
      */
-    private void scheduleLingeringStop(ScheduleTask task, List<Long> unknown) {
+    private void scheduleLingeringStop(ScheduleTask task, List<Long> unknown, OneBotClient client) {
         final Runnable stopper = this.afterSendStopper;
+        Thread prev = this.lingerStopThread;
+        if (prev != null && prev.isAlive()) {
+            logger.info("已有未决滞留停止线程在跑，取消旧的，以本次窗口为准");
+            prev.interrupt();
+        }
         logger.info("任务 [{}] 有 {} 个目标超时未决 {}，推迟 {} 分钟再停止 NapCat，给排队中的消息留出投递时间",
                 task.name, unknown.size(), unknown, UNKNOWN_LINGER_MS / 60_000);
         Thread t = new Thread(() -> {
@@ -742,17 +776,34 @@ public class ScheduleManager {
                 Thread.sleep(UNKNOWN_LINGER_MS);
             } catch (InterruptedException e) {
                 Thread.currentThread().interrupt();
+                logger.info("任务 [{}] 未决滞留停止已取消（调度器停止或被新窗口取代）", task.name);
                 return;
             }
-            try {
-                logger.info("任务 [{}] 未决滞留窗口结束，停止 NapCat 并断开连接", task.name);
-                stopper.run();
-                this.bot = null;
-            } catch (Exception e) {
-                logger.error("任务 [{}] 延迟自动停止失败", task.name, e);
+            synchronized (executeLock) {
+                if (!running.get()) {
+                    logger.info("任务 [{}] 未决滞留窗口结束，但调度器已停止，跳过自动停止", task.name);
+                    return;
+                }
+                // 只在「被换成了另一个连接」时让路。bot==null 说明本次连接已经死了
+                // （僵尸清理/探活置空），此时 NapCat 进程多半还挂着，仍需按原计划停掉，
+                // 否则它就 24h 常驻了——这正是 autoStopAfterSend 要避免的。
+                OneBotClient current = this.bot;
+                if (current != null && current != client) {
+                    logger.info("任务 [{}] 未决滞留窗口结束，但连接已被替换（期间建立了新连接），跳过自动停止",
+                            task.name);
+                    return;
+                }
+                try {
+                    logger.info("任务 [{}] 未决滞留窗口结束，停止 NapCat 并断开连接", task.name);
+                    stopper.run();
+                    this.bot = null;
+                } catch (Exception e) {
+                    logger.error("任务 [{}] 延迟自动停止失败", task.name, e);
+                }
             }
         }, "linger-stop-" + task.name);
         t.setDaemon(true);
+        this.lingerStopThread = t;
         t.start();
     }
 

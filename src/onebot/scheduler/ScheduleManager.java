@@ -51,10 +51,17 @@ public class ScheduleManager {
     /**
      * 预热提前量：秒。
      * 触发前 N 秒就提前拉起 NapCat + 登录 QQ，等真正触发时端口早开、账号在线，秒发不迟到。
-     * NapCat 冷启动 QQ 登录常需 3~5 分钟，故给 10 分钟留足余量。
-     * 仅对 autoConnect=true 的任务生效（否则本就不由调度器管连接）。
+     * NapCat 冷启动到「消息通道真正可用」波动极大：快时 10 余秒，慢时实测达 11 分钟
+     * （WS 端口早开、get_login_info 秒回，但 send_private_msg 一直排队不响应），
+     * 故提前量取 20 分钟覆盖最坏情况。仅对 autoConnect=true 的任务生效。
      */
-    private static final long PREWARM_LEAD_MS = 10 * 60_000;
+    private static final long PREWARM_LEAD_MS = 20 * 60_000;
+    /**
+     * 存在「超时未决」目标时，autoStop 前的滞留时长。
+     * 超时不代表 NapCat 死了，多半只是消息通道还在排队；此刻立刻 pkill NapCat
+     * 会把排队中的消息一起杀掉，反而真漏发。故留出窗口让积压请求自然投递完再停。
+     */
+    private static final long UNKNOWN_LINGER_MS = 15 * 60_000;
 
     private final List<ScheduleTask> tasks = new CopyOnWriteArrayList<>();
     private volatile OneBotClient bot;
@@ -470,10 +477,13 @@ public class ScheduleManager {
         long minSleep = Long.MAX_VALUE;
 
         for (var task : tasks) {
-            if (!task.enabled || executedToday.contains(task.name)) continue;
+            if (!task.enabled) continue;
 
-            LocalTime targetTime = LocalTime.parse(task.time, TIME_FMT);
-            ZonedDateTime targetDateTime = now.toLocalDate().atTime(targetTime).atZone(now.getZone());
+            // 用「下一次 occurrence」而非今天的固定时刻：已执行的任务顺延到明天同刻。
+            // 历史 bug：这里对已执行任务直接 continue，单任务配置在当天执行完后 minSleep
+            // 恒为 MAX → 返回 0 → schedulerLoop 走 else 分支一觉睡到「次日触发前 2 秒」，
+            // 把下面的预热唤醒点整个跳过，预热隔夜必然失效、天天退化成 00:01 现场冷启动。
+            ZonedDateTime targetDateTime = upcomingOccurrence(task, now, executedToday);
 
             long diffMs = ChronoUnit.MILLIS.between(now, targetDateTime);
             if (diffMs > 0) {
@@ -494,7 +504,9 @@ public class ScheduleManager {
         // schedulerLoop 预热循环处注释：跨午夜任务 23:51 唤醒点会被当天的 executedToday 误杀。
         for (var task : tasks) {
             if (!task.enabled || !task.autoConnect) continue;
-            ZonedDateTime next = nextTargetDateTime(task, now);
+            // 同样用 upcomingOccurrence：刚触发完时 nextTargetDateTime 因 60s 容差仍返回
+            // 「今天刚过去的那一次」，算出的预热点是负数被丢弃，等于这一轮又没排上预热唤醒。
+            ZonedDateTime next = upcomingOccurrence(task, now, executedToday);
             String key = task.name + "@" + next.toLocalDate();
             if (prewarmed.contains(key)) continue; // 本 occurrence 已预热，无需再为它醒来
             long prewarmAt = ChronoUnit.MILLIS.between(now, next) - PREWARM_LEAD_MS;
@@ -530,6 +542,22 @@ public class ScheduleManager {
             return todayTarget.plusDays(1);
         }
         return todayTarget;
+    }
+
+    /**
+     * 计算任务「下一次仍待执行」的触发时刻，是 sleep/预热唤醒点计算的统一基准。
+     *
+     * 与 {@link #nextTargetDateTime} 的差别在于对刚执行完的 occurrence 的处理：
+     * nextTargetDateTime 留了 60s 容差（触发窗口内不算"已过"），刚在 00:01:21 触发完时
+     * 它仍返回今天 00:01:00 —— 那个时刻已经没有任何唤醒价值，据此算出的 sleep 与预热点
+     * 全是负数，会被整轮丢弃。故这里对已执行的任务强制顺延到下一天。
+     */
+    private ZonedDateTime upcomingOccurrence(ScheduleTask task, ZonedDateTime now, Set<String> executedToday) {
+        ZonedDateTime next = nextTargetDateTime(task, now);
+        if (executedToday.contains(task.name) && !next.isAfter(now)) {
+            next = next.plusDays(1);
+        }
+        return next;
     }
 
     /**
@@ -640,13 +668,15 @@ public class ScheduleManager {
 
         boolean isGroup = "group".equals(task.targetType);
 
-        // 首轮发送全部目标，收集失败目标。传入快照副本，避免 subList 视图逃逸后被 updateTask 换引用影响。
+        // 首轮发送全部目标。传入快照副本，避免 subList 视图逃逸后被 updateTask 换引用影响。
         int total = task.targets.size();
-        List<Long> failed = sendToTargets(task, new ArrayList<>(task.targets), client, isGroup);
-        int success = total - failed.size();
+        SendResult result = sendToTargets(task, new ArrayList<>(task.targets), client, isGroup);
+        List<Long> failed = result.failed();
+        // 超时未决目标全程累积、绝不重投，理由见 SendResult 注释。
+        List<Long> unknown = new ArrayList<>(result.unknown());
 
-        // 内联补发：连接此刻正热，就地立即重投失败目标（冷启动首批慢导致的超时，几秒后多半成功），
-        // 在 autoStop 之前完成，避免跨周期又冷启动。仅重投「失败子集」，成功目标不会重复收到。
+        // 内联补发：连接此刻正热，就地立即重投「明确失败」的目标，在 autoStop 之前完成，
+        // 避免跨周期又冷启动。仅重投失败子集，成功与未决目标都不会重复收到。
         int round = 0;
         while (!failed.isEmpty() && round < TARGET_RESEND_ROUNDS && isBotAlive()) {
             round++;
@@ -658,23 +688,31 @@ public class ScheduleManager {
                 Thread.currentThread().interrupt();
                 break; // 被中断（任务变更/停止）：放弃补发，走收尾
             }
-            failed = sendToTargets(task, failed, client, isGroup);
+            result = sendToTargets(task, failed, client, isGroup);
+            failed = result.failed();
+            unknown.addAll(result.unknown());
         }
-        success = total - failed.size();
+        int success = total - failed.size() - unknown.size();
 
         task.lastExecuted = NtpUtil.currentTimeMillis();
-        if (failed.isEmpty()) {
+        if (failed.isEmpty() && unknown.isEmpty()) {
             logger.info("任务 {} 执行完成: 成功={}, 失败=0", task.name, success);
+        } else if (failed.isEmpty()) {
+            logger.warn("任务 {} 执行完成: 成功={}, 超时未决={} (目标: {})；请求已交给 NapCat，"
+                    + "稍后多半仍会投递，故不重投以免对方收到重复消息", task.name, success, unknown.size(), unknown);
         } else {
-            logger.warn("任务 {} 执行完成: 成功={}, 失败={} (最终仍失败的目标: {})",
-                    task.name, success, failed.size(), failed);
+            logger.warn("任务 {} 执行完成: 成功={}, 失败={} (最终仍失败的目标: {}), 超时未决={}",
+                    task.name, success, failed.size(), failed, unknown);
         }
 
         // 发送完自动停止 NapCat + 断开连接。
-        // 仅当至少有一条发送成功时才停：若全军覆没（success==0），多半是 NapCat
-        // 已僵死/掉线，此时停掉连接只会让后续手动重发也发不出去，更难恢复。
         if (task.autoStopAfterSend && afterSendStopper != null) {
-            if (success == 0) {
+            if (!unknown.isEmpty()) {
+                // 有未决目标：NapCat 多半只是消息通道排队慢（实测可达 11 分钟），此刻 pkill
+                // 会把排队中的消息一并杀掉。推迟停止，让积压请求自然投递完再收工。
+                scheduleLingeringStop(task, unknown);
+            } else if (success == 0) {
+                // 全部「明确失败」才判定 NapCat 异常：保留连接便于排查/手动重发。
                 logger.warn("任务 [{}] 全部发送失败（成功=0），疑似 NapCat 异常，跳过自动停止以保留连接便于排查/重发",
                         task.name);
             } else {
@@ -692,12 +730,51 @@ public class ScheduleManager {
     }
 
     /**
-     * 向一批目标发送任务消息，返回发送失败的目标列表（供内联补发重投）。
-     * 发送前探活：连接僵死则放弃剩余目标并全部计入失败（连接已废，硬等超时无意义）。
-     * 单目标异常仅记入失败列表，不中断其余目标。
+     * 存在超时未决目标时的延迟停止：滞留 {@link #UNKNOWN_LINGER_MS} 后再停 NapCat。
+     * 用独立守护线程，不阻塞调度器主循环对下一次任务的计算。
      */
-    private List<Long> sendToTargets(ScheduleTask task, List<Long> targets, OneBotClient client, boolean isGroup) {
+    private void scheduleLingeringStop(ScheduleTask task, List<Long> unknown) {
+        final Runnable stopper = this.afterSendStopper;
+        logger.info("任务 [{}] 有 {} 个目标超时未决 {}，推迟 {} 分钟再停止 NapCat，给排队中的消息留出投递时间",
+                task.name, unknown.size(), unknown, UNKNOWN_LINGER_MS / 60_000);
+        Thread t = new Thread(() -> {
+            try {
+                Thread.sleep(UNKNOWN_LINGER_MS);
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                return;
+            }
+            try {
+                logger.info("任务 [{}] 未决滞留窗口结束，停止 NapCat 并断开连接", task.name);
+                stopper.run();
+                this.bot = null;
+            } catch (Exception e) {
+                logger.error("任务 [{}] 延迟自动停止失败", task.name, e);
+            }
+        }, "linger-stop-" + task.name);
+        t.setDaemon(true);
+        t.start();
+    }
+
+    /**
+     * 一批目标的发送结果。
+     *
+     * failed  — 明确失败（连接已废、QQ 返回错误码等），可以安全重投。
+     * unknown — 调用超时，结果未决：请求已经写给 NapCat，只是响应没按时回来。
+     *           这类目标绝不能重投——实测 NapCat 冷启动后消息通道会排队十余分钟，
+     *           期间每次调用都超时，若逐轮重投，等它恢复时积压请求会一次性全部投递，
+     *           对方瞬间收到成堆重复消息（2026-07-19 与 07-26 均实测到每人收 3 条）。
+     */
+    private record SendResult(List<Long> failed, List<Long> unknown) {}
+
+    /**
+     * 向一批目标发送任务消息，返回发送结果（明确失败的可重投，超时未决的不可重投）。
+     * 发送前探活：连接僵死则放弃剩余目标并全部计入失败（连接已废，硬等超时无意义）。
+     * 单目标异常仅归类记录，不中断其余目标。
+     */
+    private SendResult sendToTargets(ScheduleTask task, List<Long> targets, OneBotClient client, boolean isGroup) {
         List<Long> failed = new ArrayList<>();
+        List<Long> unknown = new ArrayList<>();
         for (int i = 0; i < targets.size(); i++) {
             long targetId = targets.get(i);
             // 发送前探活：连接已僵死则放弃剩余目标，不再逐个硬等超时。
@@ -722,12 +799,17 @@ public class ScheduleManager {
                 // 已开始发送，中断则把当前及剩余目标计入失败并停止（不重复发已成功的）
                 failed.addAll(targets.subList(i, targets.size()));
                 break;
+            } catch (onebot.client.OneBotTimeoutException e) {
+                // 结果未决，不进重投队列：NapCat 很可能只是慢，稍后仍会把这条真正发出去。
+                unknown.add(targetId);
+                logger.warn("定时消息发送超时（结果未决，不重投以免重复投递）: {} -> {} ({})",
+                        task.name, targetId, e.getMessage());
             } catch (Exception e) {
                 failed.add(targetId);
                 logger.error("定时消息发送失败: {} -> {}", task.name, targetId, e);
             }
         }
-        return failed;
+        return new SendResult(failed, unknown);
     }
 
     // ==================== 持久化 ====================

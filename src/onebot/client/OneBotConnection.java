@@ -234,7 +234,9 @@ public class OneBotConnection implements ApiProvider {
                 throw new OneBotException("API error [" + retcode + "]: " + message + " (" + wording + ")");
             }
         } catch (TimeoutException e) {
-            throw new OneBotException("API 调用超时: " + action + " (" + apiTimeout + "秒)");
+            // 超时 = 结果未知：请求已经发给 NapCat，只是响应没按时回来，稍后仍可能真正投递。
+            // 用专门的异常类型让调用方区分「明确失败」与「未决」，避免把未决当失败重投。
+            throw new OneBotTimeoutException("API 调用超时: " + action + " (" + apiTimeout + "秒)");
         } catch (OneBotException e) {
             throw e;
         } catch (Exception e) {

@@ -8,6 +8,7 @@ const routeTitles: Record<string, { title: string; desc: string }> = {
   "/contacts": { title: "联系人", desc: "好友与群组管理" },
   "/schedules": { title: "定时任务", desc: "NTP 同步的定时消息调度" },
   "/napcat": { title: "NapCat", desc: "NapCat 进程与配置管理" },
+  "/nc-login": { title: "QQ 扫码登录", desc: "二维码登录与实时状态" },
   "/console": { title: "控制台", desc: "交互式命令行" },
   "/logs": { title: "日志", desc: "服务端与 NapCat 日志查看" },
 };

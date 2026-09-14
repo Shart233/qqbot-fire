@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
-import { useSearchParams } from "react-router-dom";
+import { Link, useSearchParams } from "react-router-dom";
 import { useInterval } from "../hooks/useInterval";
 import { listNapCatInstances, getNapCatLog } from "../api/endpoints";
 import { PageContainer, PageHeader } from "../components/layout-new";
@@ -91,7 +91,12 @@ export default function NcLogsPage() {
           <Spinner size="lg" />
         </div>
       ) : (
-        <LogViewer lines={lines} tall emptyMessage="无日志" />
+        <>
+          <Link to={`/nc-login${selected ? `?instance=${encodeURIComponent(selected)}` : ""}`} className="mb-4 flex flex-wrap items-center justify-between gap-2 rounded-xl border border-[#5a7dff]/25 bg-[#5a7dff]/10 px-4 py-3 text-sm text-[#b8c7ff]">
+            <span>日志里的二维码扫不出来？使用清晰图片扫码登录。</span><span>打开扫码页面 →</span>
+          </Link>
+          <LogViewer lines={lines} tall emptyMessage="无日志" />
+        </>
       )}
     </PageContainer>
   );

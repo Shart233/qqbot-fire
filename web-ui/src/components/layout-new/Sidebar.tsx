@@ -187,6 +187,7 @@ const navItems: NavItem[] = [
     group: "机器人",
   },
   { to: "/napcat", label: "NapCat", icon: icons.napcat, group: "系统" },
+  { to: "/nc-login", label: "QQ 扫码登录", icon: <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"><path d="M9 3H3v6m12-6h6v6M3 15v6h6m12-6v6h-6" /><path d="M7 7h3v3H7zm7 0h3v3h-3zM7 14h3v3H7zm7 0h3v3h-3z" /></svg>, group: "系统" },
   { to: "/console", label: "控制台", icon: icons.console, group: "系统" },
   {
     to: "/nc-logs",

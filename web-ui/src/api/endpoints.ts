@@ -9,6 +9,7 @@ import type {
   ScheduleTask,
   NapCatConfig,
   NapCatInstance,
+  NapCatLoginStatus,
   LogReadResponse,
   LogFileInfo,
   ConsoleExecResponse,
@@ -177,6 +178,10 @@ export const getNapCatLog = (name: string, opts?: { silent?: boolean }) =>
   );
 export const discoverNapCat = () =>
   apiCall<DiscoverResponse>("POST", "/api/napcat/discover");
+export const getNapCatLogin = (name: string) =>
+  apiCall<NapCatLoginStatus>("GET", `/api/napcat/instances/${enc(name)}/login`, undefined, { silent: true });
+export const refreshNapCatLogin = (name: string) =>
+  apiCall<{ message: string }>("POST", `/api/napcat/instances/${enc(name)}/login/refresh`);
 export const forgetNapCat = (name: string) =>
   apiCall<{ forgotten: string | number }>("POST", "/api/napcat/forget", {
     name,

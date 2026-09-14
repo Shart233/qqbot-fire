@@ -561,6 +561,12 @@ public class NapCatLauncher {
         public NapCatOutputReader outputReader;
         public Process process;
         public long pid;
+        private NapCatLoginClient loginClient;
+
+        public synchronized NapCatLoginClient getLoginClient() {
+            if (loginClient == null) loginClient = new NapCatLoginClient(this);
+            return loginClient;
+        }
 
         public boolean isAlive() {
             return process != null && process.isAlive();

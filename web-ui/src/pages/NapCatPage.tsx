@@ -320,6 +320,7 @@ export default function NapCatPage() {
                           <span className="text-neutral-200">{i.pid}</span>
                         </div>
                         <div className="grid grid-cols-2 gap-2 pt-3 border-t border-white/5">
+                          <Button size="sm" variant="primary" onClick={() => navigate(`/nc-login?instance=${encodeURIComponent(i.name)}`)}>扫码登录</Button>
                           <Button
                             size="sm"
                             variant="ghost"
@@ -417,6 +418,7 @@ export default function NapCatPage() {
                               </td>
                               <td className="px-4 py-3 text-neutral-200">
                                 <div className="flex items-center gap-1.5">
+                                  <Button size="sm" variant="primary" onClick={() => navigate(`/nc-login?instance=${encodeURIComponent(i.name)}`)}>扫码登录</Button>
                                   <Button
                                     size="sm"
                                     variant="ghost"

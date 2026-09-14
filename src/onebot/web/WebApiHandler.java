@@ -401,6 +401,24 @@ public class WebApiHandler implements HttpHandler {
         if ("/forget".equals(sub) && "POST".equals(method)) { handleNapCatForget(ex); return; }
         if ("/discover".equals(sub) && "POST".equals(method)) { handleNapCatDiscover(ex); return; }
 
+        // /instances/{name}/login 与 /instances/{name}/login/refresh
+        if (sub.startsWith("/instances/")) {
+            String[] parts = sub.substring(11).split("/", -1);
+            if (parts.length >= 2 && "login".equals(parts[1])) {
+                String name = urlDecode(parts[0]);
+                if (!NameUtil.isValidIdentifier(name)) {
+                    sendError(ex, 400, "非法 NapCat 实例名"); return;
+                }
+                String action = String.join("/", Arrays.copyOfRange(parts, 1, parts.length));
+                switch (action + " " + method) {
+                    case "login GET" -> handleNapCatLogin(ex, name, false);
+                    case "login/refresh POST" -> handleNapCatLogin(ex, name, true);
+                    default -> sendError(ex, 404, "未知 NapCat 登录 API");
+                }
+                return;
+            }
+        }
+
         // /instances/{name}/log
         if (sub.startsWith("/instances/") && sub.endsWith("/log") && "GET".equals(method)) {
             String name = urlDecode(sub.substring(11, sub.length() - 4));
@@ -1184,6 +1202,32 @@ public class WebApiHandler implements HttpHandler {
             sendOk(ex, Map.of("forgotten", name));
         } else {
             sendError(ex, 404, "记忆中没有实例 '" + name + "'");
+        }
+    }
+
+    private void handleNapCatLogin(HttpExchange ex, String name, boolean refresh) throws IOException {
+        ex.getResponseHeaders().set("Cache-Control", "no-store");
+        var launcher = console.getNapCatLauncher();
+        for (var inst : launcher.listInstances()) {
+            if (!inst.name.equals(name)) continue;
+            if (refresh) {
+                try {
+                    inst.getLoginClient().refresh();
+                    sendOk(ex, Map.of("message", "已请求刷新二维码，请等待新图片"));
+                } catch (IOException e) {
+                    sendError(ex, 502, "二维码刷新失败，请稍后重试；若 QQ 已离线，请在 NapCat 页面重启此实例");
+                }
+            } else {
+                sendOk(ex, inst.getLoginClient().status());
+            }
+            return;
+        }
+        var saved = launcher.getSavedInstance(name);
+        if (saved != null && !refresh) {
+            sendOk(ex, Map.of("name", name, "qqUin", saved.qqUin, "state", "stopped",
+                    "message", "实例尚未启动，请先启动再扫码", "qrImage", "", "qrVersion", "", "canRefresh", false));
+        } else {
+            sendError(ex, 404, "NapCat 实例不存在或尚未启动");
         }
     }
 

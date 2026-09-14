@@ -83,6 +83,16 @@ export interface SavedNapCatInstance {
   running: boolean;
 }
 
+export interface NapCatLoginStatus {
+  name: string;
+  qqUin: string;
+  state: "stopped" | "waiting" | "qr_ready" | "logged_in" | "error";
+  message: string;
+  qrImage: string;
+  qrVersion: string;
+  canRefresh: boolean;
+}
+
 export interface LogReadResponse {
   file: string;
   lines: string[];

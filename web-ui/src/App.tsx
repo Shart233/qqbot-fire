@@ -16,6 +16,7 @@ import ContactsPage from "./pages/ContactsPage";
 import SchedulesPage from "./pages/SchedulesPage";
 import NapCatPage from "./pages/NapCatPage";
 import NcLogsPage from "./pages/NcLogsPage";
+import NcLoginPage from "./pages/NcLoginPage";
 import ConsolePage from "./pages/ConsolePage";
 import ServerLogsPage from "./pages/ServerLogsPage";
 import LogsPage from "./pages/LogsPage";
@@ -135,6 +136,7 @@ export const router = createHashRouter([
               { path: "schedules", element: <SchedulesPage /> },
               { path: "napcat", element: <NapCatPage /> },
               { path: "nc-logs", element: <NcLogsPage /> },
+              { path: "nc-login", element: <NcLoginPage /> },
               { path: "console", element: <ConsolePage /> },
               { path: "server-logs", element: <ServerLogsPage /> },
               { path: "logs", element: <LogsPage /> },

@@ -1,3 +1,4 @@
+import { AuthLayout } from "../components/layout-new/AuthLayout";
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Button, Input } from "../components/ui";
@@ -30,13 +31,13 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center px-4">
+    <AuthLayout>
       <form
         onSubmit={onSubmit}
-        className="w-full max-w-sm rounded-xl p-8 bg-[rgba(15,20,25,0.72)] backdrop-blur-[20px] border border-[var(--glass-border)] shadow-xl space-y-6"
+        className="space-y-6"
       >
-        <div className="space-y-1 text-center">
-          <h1 className="text-lg font-semibold text-[var(--color-text-primary)]">
+        <div className="space-y-1 text-left">
+          <h1 className="text-2xl font-semibold text-[var(--color-text-primary)]">
             管理员登录
           </h1>
           <p className="text-xs text-[var(--color-text-muted)]">
@@ -46,6 +47,7 @@ export default function LoginPage() {
         <Input
           label="管理员密码"
           type="password"
+          autoComplete="current-password"
           placeholder="请输入管理员密码"
           value={password}
           onChange={(e) => setPassword(e.target.value)}
@@ -61,6 +63,6 @@ export default function LoginPage() {
           {loading ? "登录中…" : "登录"}
         </Button>
       </form>
-    </div>
+    </AuthLayout>
   );
 }

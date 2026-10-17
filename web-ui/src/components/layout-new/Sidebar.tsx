@@ -1,5 +1,5 @@
 import { NavLink, useNavigate } from "react-router-dom";
-import type { ReactNode } from "react";
+import { useEffect, type ReactNode } from "react";
 import { clearAdminToken } from "../../api/client";
 
 interface NavItem {
@@ -187,7 +187,24 @@ const navItems: NavItem[] = [
     group: "机器人",
   },
   { to: "/napcat", label: "NapCat", icon: icons.napcat, group: "系统" },
-  { to: "/nc-login", label: "QQ 扫码登录", icon: <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"><path d="M9 3H3v6m12-6h6v6M3 15v6h6m12-6v6h-6" /><path d="M7 7h3v3H7zm7 0h3v3h-3zM7 14h3v3H7zm7 0h3v3h-3z" /></svg>, group: "系统" },
+  {
+    to: "/nc-login",
+    label: "QQ 扫码登录",
+    icon: (
+      <svg
+        width="18"
+        height="18"
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="1.8"
+      >
+        <path d="M9 3H3v6m12-6h6v6M3 15v6h6m12-6v6h-6" />
+        <path d="M7 7h3v3H7zm7 0h3v3h-3zM7 14h3v3H7zm7 0h3v3h-3z" />
+      </svg>
+    ),
+    group: "系统",
+  },
   { to: "/console", label: "控制台", icon: icons.console, group: "系统" },
   {
     to: "/nc-logs",
@@ -211,6 +228,14 @@ interface SidebarProps {
 
 export default function Sidebar({ open, onClose }: SidebarProps) {
   const navigate = useNavigate();
+  useEffect(() => {
+    if (!open) return;
+    const close = (event: KeyboardEvent) => {
+      if (event.key === "Escape") onClose();
+    };
+    window.addEventListener("keydown", close);
+    return () => window.removeEventListener("keydown", close);
+  }, [open, onClose]);
   const groups = Array.from(new Set(navItems.map((i) => i.group ?? ""))).filter(
     Boolean,
   ) as string[];
@@ -232,33 +257,39 @@ export default function Sidebar({ open, onClose }: SidebarProps) {
       )}
 
       <aside
+        id="workspace-sidebar"
         className={`
           fixed lg:relative inset-y-0 left-0 z-50
           w-60 shrink-0
-          bg-[rgba(15,20,25,0.72)] backdrop-blur-[20px] backdrop-saturate-150
+          workspace-sidebar
           border-r border-[var(--glass-border)]
           flex flex-col
           transition-transform duration-300 ease-[cubic-bezier(0.25,0.1,0.25,1)]
-          ${open ? "translate-x-0" : "-translate-x-full lg:translate-x-0"}
+          ${open ? "translate-x-0 visible" : "-translate-x-full invisible lg:visible lg:translate-x-0"}
         `}
       >
         {/* Logo 区 */}
         <div className="h-16 flex items-center gap-3 px-5 border-b border-[var(--glass-border)]">
-          <div className="w-9 h-9 rounded-lg bg-gradient-to-br from-[#5a7dff] to-[#ec4899] flex items-center justify-center shadow-[var(--shadow-glow-primary)]">
-            <span className="text-white font-bold text-sm">Q</span>
+          <div className="w-9 h-9 rounded-lg bg-[var(--color-primary-500)] flex items-center justify-center shadow-[var(--shadow-glow-primary)]">
+            <span className="text-[var(--color-text-primary)] font-bold text-sm">
+              Q
+            </span>
           </div>
           <div className="flex flex-col leading-tight">
             <span className="text-sm font-semibold text-[var(--color-text-primary)] tracking-tight">
               QQBot Fire
             </span>
             <span className="text-[10px] text-[var(--color-text-muted)]">
-              Control Console
+              消息与任务工作台
             </span>
           </div>
         </div>
 
         {/* 导航 */}
-        <nav className="flex-1 overflow-y-auto px-3 py-4 space-y-5">
+        <nav
+          aria-label="主导航"
+          className="flex-1 overflow-y-auto px-3 py-4 space-y-5"
+        >
           {groups.map((group) => (
             <div key={group}>
               <h4 className="px-3 mb-1.5 text-[10px] font-semibold uppercase tracking-wider text-[var(--color-text-muted)]">
@@ -277,8 +308,8 @@ export default function Sidebar({ open, onClose }: SidebarProps) {
                         text-sm transition-all duration-150 ease-[cubic-bezier(0.25,0.1,0.25,1)]
                         ${
                           isActive
-                            ? "bg-gradient-to-r from-[rgba(90,125,255,0.18)] to-[rgba(236,72,153,0.08)] text-white border-l-2 border-[var(--color-primary-500)]"
-                            : "text-[var(--color-text-secondary)] hover:bg-[rgba(255,255,255,0.05)] hover:text-[var(--color-text-primary)]"
+                            ? "bg-gradient-to-r from-[var(--color-accent-soft)] to-[var(--color-accent-soft)] text-[var(--color-text-primary)] border-l-2 border-[var(--color-primary-500)]"
+                            : "text-[var(--color-text-secondary)] hover:bg-[var(--color-bg-hover)] hover:text-[var(--color-text-primary)]"
                         }
                       `}
                       >
@@ -301,8 +332,8 @@ export default function Sidebar({ open, onClose }: SidebarProps) {
               flex items-center gap-3 px-3 h-9 rounded-md text-sm transition-all
               ${
                 isActive
-                  ? "bg-gradient-to-r from-[rgba(90,125,255,0.18)] to-[rgba(236,72,153,0.08)] text-white"
-                  : "text-[var(--color-text-secondary)] hover:bg-[rgba(255,255,255,0.05)] hover:text-[var(--color-text-primary)]"
+                  ? "bg-gradient-to-r from-[var(--color-accent-soft)] to-[var(--color-accent-soft)] text-[var(--color-text-primary)]"
+                  : "text-[var(--color-text-secondary)] hover:bg-[var(--color-bg-hover)] hover:text-[var(--color-text-primary)]"
               }
             `}
           >
@@ -324,7 +355,7 @@ export default function Sidebar({ open, onClose }: SidebarProps) {
           <button
             type="button"
             onClick={handleLogout}
-            className="w-full flex items-center gap-3 px-3 h-9 rounded-md text-sm text-[var(--color-text-secondary)] hover:bg-[rgba(255,255,255,0.05)] hover:text-[var(--color-text-primary)] transition-all"
+            className="w-full flex items-center gap-3 px-3 h-9 rounded-md text-sm text-[var(--color-text-secondary)] hover:bg-[var(--color-bg-hover)] hover:text-[var(--color-text-primary)] transition-all"
           >
             <svg
               width="18"
@@ -343,8 +374,8 @@ export default function Sidebar({ open, onClose }: SidebarProps) {
             <span>退出登录</span>
           </button>
           <div className="flex items-center gap-2 px-3 h-7 text-[11px] text-[var(--color-text-muted)]">
-            <span className="w-1.5 h-1.5 rounded-full bg-[var(--color-success)] animate-pulse" />
-            <span>系统运行中</span>
+            <span className="w-1.5 h-1.5 rounded-full bg-[var(--color-primary-500)]" />
+            <span>QQBot-Fire · 管理工作台</span>
           </div>
         </div>
       </aside>

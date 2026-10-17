@@ -14,12 +14,11 @@ interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
 
 // 按钮样式 - 专业 SaaS 风格，柔和光晕
 const variantClasses: Record<Variant, string> = {
-  primary:
-    "bg-gradient-to-b from-[#6a8dff] to-[#4a6de8] text-white border border-[rgba(255,255,255,0.12)] hover:from-[#7a9dff] hover:to-[#5a7dff] active:from-[#4a6de8] active:to-[#3a5dd1] shadow-[0_4px_12px_-2px_rgba(90,125,255,0.4),inset_0_1px_0_0_rgba(255,255,255,0.15)]",
+  primary: "bg-[var(--color-primary-500)] text-[#20150f] border border-transparent hover:bg-[var(--color-primary-400)] shadow-sm",
   secondary:
-    "bg-[rgba(255,255,255,0.06)] text-[var(--color-text-primary)] border border-[var(--glass-border)] hover:bg-[rgba(255,255,255,0.1)] hover:border-[var(--glass-border-hover)] backdrop-blur-md",
+    "bg-[var(--color-bg-hover)] text-[var(--color-text-primary)] border border-[var(--glass-border)] hover:bg-[var(--color-bg-active)] hover:border-[var(--glass-border-hover)] backdrop-blur-md",
   ghost:
-    "bg-transparent text-[var(--color-text-secondary)] hover:bg-[rgba(255,255,255,0.06)] hover:text-[var(--color-text-primary)]",
+    "bg-transparent text-[var(--color-text-secondary)] hover:bg-[var(--color-bg-hover)] hover:text-[var(--color-text-primary)]",
   danger:
     "bg-gradient-to-b from-[#f87171] to-[#dc2626] text-white border border-[rgba(255,255,255,0.12)] hover:from-[#fca5a5] hover:to-[#ef4444] shadow-[0_4px_12px_-2px_rgba(239,68,68,0.4),inset_0_1px_0_0_rgba(255,255,255,0.15)]",
   success:

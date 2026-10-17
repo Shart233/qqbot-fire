@@ -1,4 +1,4 @@
-import { useEffect, type ReactNode } from "react";
+import { useEffect, useRef, type ReactNode } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 
 interface ModalProps {
@@ -33,10 +33,39 @@ export function Modal({
   size = "md",
   closeOnBackdrop = true,
 }: ModalProps) {
+  const panelRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
     if (!open) return;
+    const previous =
+      document.activeElement instanceof HTMLElement
+        ? document.activeElement
+        : null;
+    const panel = panelRef.current;
+    const focusable = () =>
+      Array.from(
+        panel?.querySelectorAll<HTMLElement>(
+          'button:not(:disabled),input:not(:disabled),select:not(:disabled),textarea:not(:disabled),a[href],[tabindex="0"]',
+        ) ?? [],
+      ).filter((element) => element.getClientRects().length > 0);
+    (focusable()[0] ?? panel)?.focus();
     const onKey = (e: KeyboardEvent) => {
       if (e.key === "Escape") onClose();
+      if (e.key !== "Tab") return;
+      const elements = focusable(),
+        first = elements[0],
+        last = elements[elements.length - 1];
+      if (!first) {
+        e.preventDefault();
+        panel?.focus();
+        return;
+      }
+      if (e.shiftKey && document.activeElement === first) {
+        e.preventDefault();
+        last?.focus();
+      } else if (!e.shiftKey && document.activeElement === last) {
+        e.preventDefault();
+        first.focus();
+      }
     };
     window.addEventListener("keydown", onKey);
     const prev = document.body.style.overflow;
@@ -44,6 +73,7 @@ export function Modal({
     return () => {
       window.removeEventListener("keydown", onKey);
       document.body.style.overflow = prev;
+      previous?.focus();
     };
   }, [open, onClose]);
 
@@ -65,10 +95,12 @@ export function Modal({
             aria-hidden="true"
           />
           <motion.div
+            ref={panelRef}
+            tabIndex={-1}
             role="dialog"
             aria-modal="true"
             aria-label={title}
-            className={`relative w-full ${sizeMap[size]} overflow-hidden rounded-xl border border-white/10 bg-[rgba(26,31,46,0.88)] backdrop-blur-[20px] shadow-[0_20px_60px_-20px_rgba(0,0,0,0.6)]`}
+            className={`relative w-full ${sizeMap[size]} overflow-hidden rounded-xl border border-[var(--glass-border)] bg-[var(--color-bg-elevated)] backdrop-blur-[20px] shadow-[0_20px_60px_-20px_rgba(0,0,0,0.6)]`}
             initial={{ opacity: 0, scale: 0.96, y: 8 }}
             animate={{ opacity: 1, scale: 1, y: 0 }}
             exit={{ opacity: 0, scale: 0.97, y: 4 }}
@@ -77,12 +109,14 @@ export function Modal({
             {(title || description) && (
               <div className="border-b border-white/5 px-6 pt-5 pb-4">
                 {title && (
-                  <h3 className="text-base font-semibold text-white">
+                  <h3 className="text-base font-semibold text-[var(--color-text-primary)]">
                     {title}
                   </h3>
                 )}
                 {description && (
-                  <p className="mt-1 text-sm text-neutral-400">{description}</p>
+                  <p className="mt-1 text-sm text-[var(--color-text-secondary)]">
+                    {description}
+                  </p>
                 )}
               </div>
             )}
@@ -96,7 +130,7 @@ export function Modal({
               type="button"
               onClick={onClose}
               aria-label="关闭"
-              className="absolute right-4 top-4 rounded-md p-1.5 text-neutral-400 transition hover:bg-white/5 hover:text-white"
+              className="absolute right-4 top-4 rounded-md p-1.5 text-[var(--color-text-secondary)] transition hover:bg-white/5 hover:text-[var(--color-text-primary)]"
             >
               <svg
                 width="16"

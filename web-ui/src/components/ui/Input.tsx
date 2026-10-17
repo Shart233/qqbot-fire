@@ -53,7 +53,7 @@ export const Input = forwardRef<HTMLInputElement, InputProps>(function Input(
           id={inputId}
           className={`
             w-full h-10 rounded-lg
-            bg-[rgba(0,0,0,0.25)] backdrop-blur-sm
+            bg-[var(--color-input-bg)] backdrop-blur-sm
             border transition-all duration-200 ease-[cubic-bezier(0.25,0.1,0.25,1)]
             text-sm text-[var(--color-text-primary)]
             placeholder:text-[var(--color-text-muted)]

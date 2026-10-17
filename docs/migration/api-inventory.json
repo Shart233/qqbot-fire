@@ -1,0 +1,324 @@
+[
+  {
+    "method": "GET",
+    "path": "/api/auth/status",
+    "module": "auth",
+    "status": "已实现，模拟环境验证；完整实机边界待验收",
+    "verification": "tests/auth.test.ts"
+  },
+  {
+    "method": "POST",
+    "path": "/api/auth/setup",
+    "module": "auth",
+    "status": "已实现，模拟环境验证；完整实机边界待验收",
+    "verification": "tests/auth.test.ts"
+  },
+  {
+    "method": "POST",
+    "path": "/api/auth/login",
+    "module": "auth",
+    "status": "已实现，模拟环境验证；完整实机边界待验收",
+    "verification": "tests/auth.test.ts"
+  },
+  {
+    "method": "POST",
+    "path": "/api/auth/change-password",
+    "module": "auth",
+    "status": "已实现，模拟环境验证；完整实机边界待验收",
+    "verification": "tests/auth.test.ts"
+  },
+  {
+    "method": "POST",
+    "path": "/api/auth/logout",
+    "module": "auth",
+    "status": "已实现，模拟环境验证；完整实机边界待验收",
+    "verification": "tests/auth.test.ts"
+  },
+  {
+    "method": "GET",
+    "path": "/api/bots",
+    "module": "bots",
+    "status": "已实现，模拟环境验证；完整实机边界待验收",
+    "verification": "tests/bots.test.ts、tests/scheduler-api.test.ts"
+  },
+  {
+    "method": "POST",
+    "path": "/api/bots",
+    "module": "bots",
+    "status": "已实现，模拟环境验证；完整实机边界待验收",
+    "verification": "tests/bots.test.ts、tests/scheduler-api.test.ts"
+  },
+  {
+    "method": "DELETE",
+    "path": "/api/bots/:name",
+    "module": "bots",
+    "status": "已实现，模拟环境验证；完整实机边界待验收",
+    "verification": "tests/bots.test.ts、tests/scheduler-api.test.ts"
+  },
+  {
+    "method": "PUT",
+    "path": "/api/bots/:name/rename",
+    "module": "bots",
+    "status": "已实现，模拟环境验证；完整实机边界待验收",
+    "verification": "tests/bots.test.ts、tests/scheduler-api.test.ts"
+  },
+  {
+    "method": "PUT",
+    "path": "/api/bots/:name/active",
+    "module": "bots",
+    "status": "已实现，模拟环境验证；完整实机边界待验收",
+    "verification": "tests/bots.test.ts、tests/scheduler-api.test.ts"
+  },
+  {
+    "method": "GET",
+    "path": "/api/bots/:name/config",
+    "module": "bots",
+    "status": "已实现，模拟环境验证；完整实机边界待验收",
+    "verification": "tests/bots.test.ts、tests/scheduler-api.test.ts"
+  },
+  {
+    "method": "PUT",
+    "path": "/api/bots/:name/config",
+    "module": "bots",
+    "status": "已实现，模拟环境验证；完整实机边界待验收",
+    "verification": "tests/bots.test.ts、tests/scheduler-api.test.ts"
+  },
+  {
+    "method": "POST",
+    "path": "/api/bots/:name/config/clear",
+    "module": "bots",
+    "status": "已实现，模拟环境验证；完整实机边界待验收",
+    "verification": "tests/bots.test.ts、tests/scheduler-api.test.ts"
+  },
+  {
+    "method": "POST",
+    "path": "/api/bots/:name/connect",
+    "module": "bots",
+    "status": "已实现，模拟环境验证；完整实机边界待验收",
+    "verification": "tests/bots.test.ts、tests/scheduler-api.test.ts"
+  },
+  {
+    "method": "POST",
+    "path": "/api/bots/:name/disconnect",
+    "module": "bots",
+    "status": "已实现，模拟环境验证；完整实机边界待验收",
+    "verification": "tests/bots.test.ts、tests/scheduler-api.test.ts"
+  },
+  {
+    "method": "POST",
+    "path": "/api/bots/:name/reconnect",
+    "module": "bots",
+    "status": "已实现，模拟环境验证；完整实机边界待验收",
+    "verification": "tests/bots.test.ts、tests/scheduler-api.test.ts"
+  },
+  {
+    "method": "GET",
+    "path": "/api/bots/:name/status",
+    "module": "bots",
+    "status": "已实现，模拟环境验证；完整实机边界待验收",
+    "verification": "tests/bots.test.ts、tests/scheduler-api.test.ts"
+  },
+  {
+    "method": "GET",
+    "path": "/api/bots/:name/friends",
+    "module": "bots",
+    "status": "已实现，模拟环境验证；完整实机边界待验收",
+    "verification": "tests/bots.test.ts、tests/scheduler-api.test.ts"
+  },
+  {
+    "method": "GET",
+    "path": "/api/bots/:name/groups",
+    "module": "bots",
+    "status": "已实现，模拟环境验证；完整实机边界待验收",
+    "verification": "tests/bots.test.ts、tests/scheduler-api.test.ts"
+  },
+  {
+    "method": "GET",
+    "path": "/api/bots/:name/groups/:groupId/members",
+    "module": "bots",
+    "status": "已实现，模拟环境验证；完整实机边界待验收",
+    "verification": "tests/bots.test.ts、tests/scheduler-api.test.ts"
+  },
+  {
+    "method": "POST",
+    "path": "/api/bots/:name/send",
+    "module": "bots",
+    "status": "已实现，模拟环境验证；完整实机边界待验收",
+    "verification": "tests/bots.test.ts、tests/scheduler-api.test.ts"
+  },
+  {
+    "method": "POST",
+    "path": "/api/connect-all",
+    "module": "bots",
+    "status": "已实现，模拟环境验证；完整实机边界待验收",
+    "verification": "tests/bots.test.ts、tests/scheduler-api.test.ts"
+  },
+  {
+    "method": "POST",
+    "path": "/api/disconnect-all",
+    "module": "bots",
+    "status": "已实现，模拟环境验证；完整实机边界待验收",
+    "verification": "tests/bots.test.ts、tests/scheduler-api.test.ts"
+  },
+  {
+    "method": "POST",
+    "path": "/api/config/clear",
+    "module": "bots",
+    "status": "已实现，模拟环境验证；完整实机边界待验收",
+    "verification": "tests/bots.test.ts、tests/scheduler-api.test.ts"
+  },
+  {
+    "method": "GET",
+    "path": "/api/bots/:name/schedules",
+    "module": "scheduler",
+    "status": "已实现，模拟环境验证；完整实机边界待验收",
+    "verification": "tests/scheduler.test.ts、tests/scheduler-api.test.ts"
+  },
+  {
+    "method": "POST",
+    "path": "/api/bots/:name/schedules",
+    "module": "scheduler",
+    "status": "已实现，模拟环境验证；完整实机边界待验收",
+    "verification": "tests/scheduler.test.ts、tests/scheduler-api.test.ts"
+  },
+  {
+    "method": "PUT",
+    "path": "/api/bots/:name/schedules/:taskName",
+    "module": "scheduler",
+    "status": "已实现，模拟环境验证；完整实机边界待验收",
+    "verification": "tests/scheduler.test.ts、tests/scheduler-api.test.ts"
+  },
+  {
+    "method": "DELETE",
+    "path": "/api/bots/:name/schedules/:taskName",
+    "module": "scheduler",
+    "status": "已实现，模拟环境验证；完整实机边界待验收",
+    "verification": "tests/scheduler.test.ts、tests/scheduler-api.test.ts"
+  },
+  {
+    "method": "PUT",
+    "path": "/api/bots/:name/schedules/:taskName/toggle",
+    "module": "scheduler",
+    "status": "已实现，模拟环境验证；完整实机边界待验收",
+    "verification": "tests/scheduler.test.ts、tests/scheduler-api.test.ts"
+  },
+  {
+    "method": "PUT",
+    "path": "/api/bots/:name/schedules/:taskName/autoconnect",
+    "module": "scheduler",
+    "status": "已实现，模拟环境验证；完整实机边界待验收",
+    "verification": "tests/scheduler.test.ts、tests/scheduler-api.test.ts"
+  },
+  {
+    "method": "POST",
+    "path": "/api/bots/:name/schedules/:taskName/test",
+    "module": "scheduler",
+    "status": "已实现，模拟环境验证；完整实机边界待验收",
+    "verification": "tests/scheduler.test.ts、tests/scheduler-api.test.ts"
+  },
+  {
+    "method": "GET",
+    "path": "/api/napcat/config",
+    "module": "napcat",
+    "status": "已实现，模拟环境验证；完整实机边界待验收",
+    "verification": "tests/napcat.test.ts、tests/napcat-login.test.ts、tests/shared-instance.test.ts"
+  },
+  {
+    "method": "PUT",
+    "path": "/api/napcat/config",
+    "module": "napcat",
+    "status": "已实现，模拟环境验证；完整实机边界待验收",
+    "verification": "tests/napcat.test.ts、tests/napcat-login.test.ts、tests/shared-instance.test.ts"
+  },
+  {
+    "method": "POST",
+    "path": "/api/napcat/start",
+    "module": "napcat",
+    "status": "已实现，模拟环境验证；完整实机边界待验收",
+    "verification": "tests/napcat.test.ts、tests/napcat-login.test.ts、tests/shared-instance.test.ts"
+  },
+  {
+    "method": "POST",
+    "path": "/api/napcat/stop",
+    "module": "napcat",
+    "status": "已实现，模拟环境验证；完整实机边界待验收",
+    "verification": "tests/napcat.test.ts、tests/napcat-login.test.ts、tests/shared-instance.test.ts"
+  },
+  {
+    "method": "GET",
+    "path": "/api/napcat/instances",
+    "module": "napcat",
+    "status": "已实现，模拟环境验证；完整实机边界待验收",
+    "verification": "tests/napcat.test.ts、tests/napcat-login.test.ts、tests/shared-instance.test.ts"
+  },
+  {
+    "method": "GET",
+    "path": "/api/napcat/saved",
+    "module": "napcat",
+    "status": "已实现，模拟环境验证；完整实机边界待验收",
+    "verification": "tests/napcat.test.ts、tests/napcat-login.test.ts、tests/shared-instance.test.ts"
+  },
+  {
+    "method": "PUT",
+    "path": "/api/napcat/saved",
+    "module": "napcat",
+    "status": "已实现，模拟环境验证；完整实机边界待验收",
+    "verification": "tests/napcat.test.ts、tests/napcat-login.test.ts、tests/shared-instance.test.ts"
+  },
+  {
+    "method": "POST",
+    "path": "/api/napcat/forget",
+    "module": "napcat",
+    "status": "已实现，模拟环境验证；完整实机边界待验收",
+    "verification": "tests/napcat.test.ts、tests/napcat-login.test.ts、tests/shared-instance.test.ts"
+  },
+  {
+    "method": "POST",
+    "path": "/api/napcat/discover",
+    "module": "napcat",
+    "status": "已实现，模拟环境验证；完整实机边界待验收",
+    "verification": "tests/napcat.test.ts、tests/napcat-login.test.ts、tests/shared-instance.test.ts"
+  },
+  {
+    "method": "GET",
+    "path": "/api/napcat/instances/:name/log",
+    "module": "napcat",
+    "status": "已实现，模拟环境验证；完整实机边界待验收",
+    "verification": "tests/napcat.test.ts、tests/napcat-login.test.ts、tests/shared-instance.test.ts"
+  },
+  {
+    "method": "GET",
+    "path": "/api/napcat/instances/:name/login",
+    "module": "napcat",
+    "status": "已实现，模拟环境验证；完整实机边界待验收",
+    "verification": "tests/napcat.test.ts、tests/napcat-login.test.ts、tests/shared-instance.test.ts"
+  },
+  {
+    "method": "POST",
+    "path": "/api/napcat/instances/:name/login/refresh",
+    "module": "napcat",
+    "status": "已实现，模拟环境验证；完整实机边界待验收",
+    "verification": "tests/napcat.test.ts、tests/napcat-login.test.ts、tests/shared-instance.test.ts"
+  },
+  {
+    "method": "POST",
+    "path": "/api/console/exec",
+    "module": "console",
+    "status": "已实现，模拟环境验证；完整实机边界待验收",
+    "verification": "tests/console.test.ts"
+  },
+  {
+    "method": "GET",
+    "path": "/api/logs/list",
+    "module": "logs",
+    "status": "已实现，模拟环境验证；完整实机边界待验收",
+    "verification": "tests/logs.test.ts"
+  },
+  {
+    "method": "GET",
+    "path": "/api/logs/read",
+    "module": "logs",
+    "status": "已实现，模拟环境验证；完整实机边界待验收",
+    "verification": "tests/logs.test.ts"
+  }
+]

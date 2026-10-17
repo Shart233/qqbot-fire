@@ -1,0 +1,30 @@
+# TypeScript 迁移镜像；轻量外部 NapCat 模式；Java 回退使用 Dockerfile.java。
+FROM node:24.21.0-bookworm-slim AS build
+WORKDIR /app
+COPY package.json package-lock.json tsconfig.base.json ./
+COPY server/package.json server/package.json
+COPY packages/contracts/package.json packages/contracts/package.json
+COPY packages/onebot/package.json packages/onebot/package.json
+COPY web-ui/package.json web-ui/package.json
+RUN npm ci --include=dev --no-audit --no-fund
+COPY server/ server/
+COPY packages/ packages/
+COPY web-ui/ web-ui/
+RUN npm run build:server && npm --prefix web-ui run build
+RUN npm prune --omit=dev --no-audit --no-fund
+
+FROM node:24.21.0-bookworm-slim AS runtime
+ENV NODE_ENV=production HOST=0.0.0.0 PORT=9988 DATA_DIR=/app/data STATIC_DIR=/app/web-ui/dist NAPCAT_MODE=external SCHEDULING_ENABLED=false TZ=Asia/Shanghai
+WORKDIR /app
+COPY --from=build /app/node_modules ./node_modules
+COPY --from=build /app/server/package.json ./server/package.json
+COPY --from=build /app/server/dist ./server/dist
+COPY --from=build /app/packages ./packages
+COPY --from=build /app/web-ui/package.json ./web-ui/package.json
+COPY --from=build /app/web-ui/dist ./web-ui/dist
+RUN mkdir -p /app/data && chown node:node /app/data
+USER node
+VOLUME /app/data
+EXPOSE 9988
+HEALTHCHECK --interval=30s --timeout=5s --start-period=30s CMD node -e "fetch('http://127.0.0.1:9988/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"
+CMD ["node","server/dist/main.js"]

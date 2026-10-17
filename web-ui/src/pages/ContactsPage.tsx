@@ -97,7 +97,7 @@ export default function ContactsPage() {
       />
 
       {/* Tabs */}
-      <div className="flex border-b border-white/10 mb-4">
+      <div className="flex border-b border-[var(--glass-border)] mb-4">
         <button
           type="button"
           className={tabBtnClass(tab === "friends")}
@@ -105,7 +105,7 @@ export default function ContactsPage() {
         >
           好友列表
           {tab === "friends" && (
-            <span className="absolute left-0 right-0 bottom-[-1px] h-[2px] bg-[#5a7dff] rounded-full" />
+            <span className="absolute left-0 right-0 bottom-[-1px] h-[2px] bg-[var(--color-primary-500)] rounded-full" />
           )}
         </button>
         <button
@@ -115,7 +115,7 @@ export default function ContactsPage() {
         >
           群列表
           {tab === "groups" && (
-            <span className="absolute left-0 right-0 bottom-[-1px] h-[2px] bg-[#5a7dff] rounded-full" />
+            <span className="absolute left-0 right-0 bottom-[-1px] h-[2px] bg-[var(--color-primary-500)] rounded-full" />
           )}
         </button>
       </div>
@@ -141,12 +141,12 @@ export default function ContactsPage() {
                       <span className="font-medium text-text-primary truncate">
                         {f.nickname}
                       </span>
-                      <span className="font-mono text-xs text-neutral-400 flex-shrink-0">
+                      <span className="font-mono text-xs text-[var(--color-text-secondary)] flex-shrink-0">
                         {f.userId}
                       </span>
                     </div>
                     {f.remark && (
-                      <div className="text-xs text-neutral-400 truncate">
+                      <div className="text-xs text-[var(--color-text-secondary)] truncate">
                         备注: {f.remark}
                       </div>
                     )}
@@ -161,8 +161,8 @@ export default function ContactsPage() {
                 className="overflow-hidden hidden sm:block"
               >
                 <table className="w-full text-sm">
-                  <thead className="bg-white/[0.03] border-b border-white/10">
-                    <tr className="text-left text-xs text-neutral-400 uppercase tracking-wider">
+                  <thead className="bg-white/[0.03] border-b border-[var(--glass-border)]">
+                    <tr className="text-left text-xs text-[var(--color-text-secondary)] uppercase tracking-wider">
                       <th className="px-4 py-3">QQ</th>
                       <th className="px-4 py-3">昵称</th>
                       <th className="px-4 py-3">备注</th>
@@ -214,7 +214,7 @@ export default function ContactsPage() {
                       <div className="font-medium text-text-primary truncate">
                         {g.groupName}
                       </div>
-                      <div className="font-mono text-xs text-neutral-400">
+                      <div className="font-mono text-xs text-[var(--color-text-secondary)]">
                         {g.groupId} · {g.memberCount}/{g.maxMemberCount}
                       </div>
                     </div>
@@ -237,8 +237,8 @@ export default function ContactsPage() {
                 className="overflow-hidden hidden sm:block"
               >
                 <table className="w-full text-sm">
-                  <thead className="bg-white/[0.03] border-b border-white/10">
-                    <tr className="text-left text-xs text-neutral-400 uppercase tracking-wider">
+                  <thead className="bg-white/[0.03] border-b border-[var(--glass-border)]">
+                    <tr className="text-left text-xs text-[var(--color-text-secondary)] uppercase tracking-wider">
                       <th className="px-4 py-3">群号</th>
                       <th className="px-4 py-3">群名</th>
                       <th className="px-4 py-3">成员数</th>
@@ -321,11 +321,11 @@ export default function ContactsPage() {
                                 {roleLabel(m.role)}
                               </Badge>
                             </div>
-                            <div className="font-mono text-xs text-neutral-400">
+                            <div className="font-mono text-xs text-[var(--color-text-secondary)]">
                               {m.userId}
                             </div>
                             {m.card && m.card !== m.nickname && (
-                              <div className="text-xs text-neutral-400 truncate">
+                              <div className="text-xs text-[var(--color-text-secondary)] truncate">
                                 昵称: {m.nickname}
                               </div>
                             )}
@@ -340,8 +340,8 @@ export default function ContactsPage() {
                         className="overflow-hidden hidden sm:block"
                       >
                         <table className="w-full text-sm">
-                          <thead className="bg-white/[0.03] border-b border-white/10">
-                            <tr className="text-left text-xs text-neutral-400 uppercase tracking-wider">
+                          <thead className="bg-white/[0.03] border-b border-[var(--glass-border)]">
+                            <tr className="text-left text-xs text-[var(--color-text-secondary)] uppercase tracking-wider">
                               <th className="px-4 py-3">QQ</th>
                               <th className="px-4 py-3">昵称</th>
                               <th className="px-4 py-3">群名片</th>

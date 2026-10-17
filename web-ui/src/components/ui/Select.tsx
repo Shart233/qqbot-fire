@@ -33,7 +33,7 @@ export const Select = forwardRef<HTMLSelectElement, SelectProps>(
         {label && (
           <label
             htmlFor={autoId}
-            className="mb-1.5 block text-xs font-medium text-neutral-300"
+            className="mb-1.5 block text-xs font-medium text-[var(--color-text-secondary)]"
           >
             {label}
           </label>
@@ -42,7 +42,7 @@ export const Select = forwardRef<HTMLSelectElement, SelectProps>(
           <select
             ref={ref}
             id={autoId}
-            className={`h-10 w-full appearance-none rounded-lg border bg-[rgba(0,0,0,0.25)] px-3 pr-9 text-sm text-white backdrop-blur-sm transition outline-none ${errored ? "border-[#ef4444] focus:ring-2 focus:ring-[rgba(239,68,68,0.25)]" : "border-white/10 focus:border-[#5a7dff] focus:ring-[3px] focus:ring-[rgba(90,125,255,0.25)]"} ${className}`}
+            className={`h-10 w-full appearance-none rounded-lg border bg-[var(--color-input-bg)] px-3 pr-9 text-sm text-[var(--color-text-primary)] backdrop-blur-sm transition outline-none ${errored ? "border-[#ef4444] focus:ring-2 focus:ring-[rgba(239,68,68,0.25)]" : "border-[var(--glass-border)] focus:border-[var(--color-primary-500)] focus:ring-[3px] focus:ring-[rgba(90,125,255,0.25)]"} ${className}`}
             {...rest}
           >
             {options.map((o) => (
@@ -50,14 +50,14 @@ export const Select = forwardRef<HTMLSelectElement, SelectProps>(
                 key={o.value}
                 value={o.value}
                 disabled={o.disabled}
-                className="bg-[#1a1f2e] text-white"
+                className="bg-[var(--color-bg-elevated)] text-[var(--color-text-primary)]"
               >
                 {o.label}
               </option>
             ))}
           </select>
           <svg
-            className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-neutral-400"
+            className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-[var(--color-text-secondary)]"
             width="14"
             height="14"
             viewBox="0 0 24 24"
@@ -73,7 +73,7 @@ export const Select = forwardRef<HTMLSelectElement, SelectProps>(
         {error ? (
           <p className="mt-1 text-xs text-[#fca5a5]">{error}</p>
         ) : hint ? (
-          <p className="mt-1 text-xs text-neutral-500">{hint}</p>
+          <p className="mt-1 text-xs text-[var(--color-text-muted)]">{hint}</p>
         ) : null}
       </div>
     );

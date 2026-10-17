@@ -1,0 +1,847 @@
+[
+  {
+    "signature": "OneBotClient(OneBotConnection connection)",
+    "status": "已改为 Transport 构造注入",
+    "verification": "packages/onebot/src/client.ts 的类型检查与客户端测试"
+  },
+  {
+    "signature": "OneBotClient(OneBotHttpConnection httpConnection)",
+    "status": "已改为 Transport 构造注入",
+    "verification": "packages/onebot/src/client.ts 的类型检查与客户端测试"
+  },
+  {
+    "signature": "ApiProvider getProvider()",
+    "status": "已迁移，返回模型完整实机边界待验收",
+    "verification": "Transport 实例访问与类型检查"
+  },
+  {
+    "signature": "Map<String, Object> callApi(String action, Map<String, Object> params)",
+    "status": "已迁移，返回模型完整实机边界待验收",
+    "verification": "tests/onebot-client.test.ts（实际 Java 请求签名与代表性返回值测试）"
+  },
+  {
+    "signature": "Object callApiRaw(String action, Map<String, Object> params)",
+    "status": "已迁移，返回模型完整实机边界待验收",
+    "verification": "tests/onebot-client.test.ts（实际 Java 请求签名与代表性返回值测试）"
+  },
+  {
+    "signature": "LoginInfo getLoginInfo()",
+    "status": "已迁移，返回模型完整实机边界待验收",
+    "verification": "tests/onebot-client.test.ts（实际 Java 请求签名与代表性返回值测试）"
+  },
+  {
+    "signature": "VersionInfo getVersionInfo()",
+    "status": "已迁移，返回模型完整实机边界待验收",
+    "verification": "tests/onebot-client.test.ts（实际 Java 请求签名与代表性返回值测试）"
+  },
+  {
+    "signature": "Map<String, Object> getStatus()",
+    "status": "已迁移，返回模型完整实机边界待验收",
+    "verification": "tests/onebot-client.test.ts（实际 Java 请求签名与代表性返回值测试）"
+  },
+  {
+    "signature": "boolean canSendImage()",
+    "status": "已迁移，返回模型完整实机边界待验收",
+    "verification": "tests/onebot-client.test.ts（实际 Java 请求签名与代表性返回值测试）"
+  },
+  {
+    "signature": "boolean canSendRecord()",
+    "status": "已迁移，返回模型完整实机边界待验收",
+    "verification": "tests/onebot-client.test.ts（实际 Java 请求签名与代表性返回值测试）"
+  },
+  {
+    "signature": "void cleanCache()",
+    "status": "已迁移，返回模型完整实机边界待验收",
+    "verification": "tests/onebot-client.test.ts（实际 Java 请求签名与代表性返回值测试）"
+  },
+  {
+    "signature": "long sendPrivateMsg(long userId, String text)",
+    "status": "已迁移，返回模型完整实机边界待验收",
+    "verification": "tests/onebot-client.test.ts（实际 Java 请求签名与代表性返回值测试）"
+  },
+  {
+    "signature": "long sendPrivateMsg(long userId, List<MessageSegment> message)",
+    "status": "已迁移，返回模型完整实机边界待验收",
+    "verification": "tests/onebot-client.test.ts（实际 Java 请求签名与代表性返回值测试）"
+  },
+  {
+    "signature": "long sendGroupMsg(long groupId, String text)",
+    "status": "已迁移，返回模型完整实机边界待验收",
+    "verification": "tests/onebot-client.test.ts（实际 Java 请求签名与代表性返回值测试）"
+  },
+  {
+    "signature": "long sendGroupMsg(long groupId, List<MessageSegment> message)",
+    "status": "已迁移，返回模型完整实机边界待验收",
+    "verification": "tests/onebot-client.test.ts（实际 Java 请求签名与代表性返回值测试）"
+  },
+  {
+    "signature": "long sendMsg(String messageType, Long userId, Long groupId, List<MessageSegment> message)",
+    "status": "已迁移，返回模型完整实机边界待验收",
+    "verification": "tests/onebot-client.test.ts（实际 Java 请求签名与代表性返回值测试）"
+  },
+  {
+    "signature": "void deleteMsg(long messageId)",
+    "status": "已迁移，返回模型完整实机边界待验收",
+    "verification": "tests/onebot-client.test.ts（实际 Java 请求签名与代表性返回值测试）"
+  },
+  {
+    "signature": "MessageData getMsg(long messageId)",
+    "status": "已迁移，返回模型完整实机边界待验收",
+    "verification": "tests/onebot-client.test.ts（实际 Java 请求签名与代表性返回值测试）"
+  },
+  {
+    "signature": "void markMsgAsRead(long messageId)",
+    "status": "已迁移，返回模型完整实机边界待验收",
+    "verification": "tests/onebot-client.test.ts（实际 Java 请求签名与代表性返回值测试）"
+  },
+  {
+    "signature": "void markAllAsRead()",
+    "status": "已迁移，返回模型完整实机边界待验收",
+    "verification": "tests/onebot-client.test.ts（实际 Java 请求签名与代表性返回值测试）"
+  },
+  {
+    "signature": "List<Map<String, Object>> getGroupMsgHistory(long groupId, int count)",
+    "status": "已迁移，返回模型完整实机边界待验收",
+    "verification": "tests/onebot-client.test.ts（实际 Java 请求签名与代表性返回值测试）"
+  },
+  {
+    "signature": "void sendGroupForwardMsg(long groupId, List<MessageSegment> nodes)",
+    "status": "已迁移，返回模型完整实机边界待验收",
+    "verification": "tests/onebot-client.test.ts（实际 Java 请求签名与代表性返回值测试）"
+  },
+  {
+    "signature": "void sendPrivateForwardMsg(long userId, List<MessageSegment> nodes)",
+    "status": "已迁移，返回模型完整实机边界待验收",
+    "verification": "tests/onebot-client.test.ts（实际 Java 请求签名与代表性返回值测试）"
+  },
+  {
+    "signature": "List<FriendInfo> getFriendList()",
+    "status": "已迁移，返回模型完整实机边界待验收",
+    "verification": "tests/onebot-client.test.ts（实际 Java 请求签名与代表性返回值测试）"
+  },
+  {
+    "signature": "StrangerInfo getStrangerInfo(long userId)",
+    "status": "已迁移，返回模型完整实机边界待验收",
+    "verification": "tests/onebot-client.test.ts（实际 Java 请求签名与代表性返回值测试）"
+  },
+  {
+    "signature": "void setFriendAddRequest(String flag, boolean approve, String remark)",
+    "status": "已迁移，返回模型完整实机边界待验收",
+    "verification": "tests/onebot-client.test.ts（实际 Java 请求签名与代表性返回值测试）"
+  },
+  {
+    "signature": "void setFriendRemark(long userId, String remark)",
+    "status": "已迁移，返回模型完整实机边界待验收",
+    "verification": "tests/onebot-client.test.ts（实际 Java 请求签名与代表性返回值测试）"
+  },
+  {
+    "signature": "List<GroupInfo> getGroupList()",
+    "status": "已迁移，返回模型完整实机边界待验收",
+    "verification": "tests/onebot-client.test.ts（实际 Java 请求签名与代表性返回值测试）"
+  },
+  {
+    "signature": "GroupInfo getGroupInfo(long groupId)",
+    "status": "已迁移，返回模型完整实机边界待验收",
+    "verification": "tests/onebot-client.test.ts（实际 Java 请求签名与代表性返回值测试）"
+  },
+  {
+    "signature": "List<GroupMember> getGroupMemberList(long groupId)",
+    "status": "已迁移，返回模型完整实机边界待验收",
+    "verification": "tests/onebot-client.test.ts（实际 Java 请求签名与代表性返回值测试）"
+  },
+  {
+    "signature": "GroupMember getGroupMemberInfo(long groupId, long userId)",
+    "status": "已迁移，返回模型完整实机边界待验收",
+    "verification": "tests/onebot-client.test.ts（实际 Java 请求签名与代表性返回值测试）"
+  },
+  {
+    "signature": "void setGroupName(long groupId, String groupName)",
+    "status": "已迁移，返回模型完整实机边界待验收",
+    "verification": "tests/onebot-client.test.ts（实际 Java 请求签名与代表性返回值测试）"
+  },
+  {
+    "signature": "void setGroupCard(long groupId, long userId, String card)",
+    "status": "已迁移，返回模型完整实机边界待验收",
+    "verification": "tests/onebot-client.test.ts（实际 Java 请求签名与代表性返回值测试）"
+  },
+  {
+    "signature": "void setGroupKick(long groupId, long userId, boolean rejectAddRequest)",
+    "status": "已迁移，返回模型完整实机边界待验收",
+    "verification": "tests/onebot-client.test.ts（实际 Java 请求签名与代表性返回值测试）"
+  },
+  {
+    "signature": "void setGroupBan(long groupId, long userId, int duration)",
+    "status": "已迁移，返回模型完整实机边界待验收",
+    "verification": "tests/onebot-client.test.ts（实际 Java 请求签名与代表性返回值测试）"
+  },
+  {
+    "signature": "void setGroupWholeBan(long groupId, boolean enable)",
+    "status": "已迁移，返回模型完整实机边界待验收",
+    "verification": "tests/onebot-client.test.ts（实际 Java 请求签名与代表性返回值测试）"
+  },
+  {
+    "signature": "void setGroupAdmin(long groupId, long userId, boolean enable)",
+    "status": "已迁移，返回模型完整实机边界待验收",
+    "verification": "tests/onebot-client.test.ts（实际 Java 请求签名与代表性返回值测试）"
+  },
+  {
+    "signature": "void setGroupLeave(long groupId, boolean isDismiss)",
+    "status": "已迁移，返回模型完整实机边界待验收",
+    "verification": "tests/onebot-client.test.ts（实际 Java 请求签名与代表性返回值测试）"
+  },
+  {
+    "signature": "void setGroupAddRequest(String flag, boolean approve, String reason)",
+    "status": "已迁移，返回模型完整实机边界待验收",
+    "verification": "tests/onebot-client.test.ts（实际 Java 请求签名与代表性返回值测试）"
+  },
+  {
+    "signature": "void groupPoke(long groupId, long userId)",
+    "status": "已迁移，返回模型完整实机边界待验收",
+    "verification": "tests/onebot-client.test.ts（实际 Java 请求签名与代表性返回值测试）"
+  },
+  {
+    "signature": "void friendPoke(long userId)",
+    "status": "已迁移，返回模型完整实机边界待验收",
+    "verification": "tests/onebot-client.test.ts（实际 Java 请求签名与代表性返回值测试）"
+  },
+  {
+    "signature": "void uploadGroupFile(long groupId, String file, String name, String folderId)",
+    "status": "已迁移，返回模型完整实机边界待验收",
+    "verification": "tests/onebot-client.test.ts（实际 Java 请求签名与代表性返回值测试）"
+  },
+  {
+    "signature": "void setSelfLongnick(String longNick)",
+    "status": "已迁移，返回模型完整实机边界待验收",
+    "verification": "tests/onebot-client.test.ts（实际 Java 请求签名与代表性返回值测试）"
+  },
+  {
+    "signature": "Map<String, Object> ocrImage(String image)",
+    "status": "已迁移，返回模型完整实机边界待验收",
+    "verification": "tests/onebot-client.test.ts（实际 Java 请求签名与代表性返回值测试）"
+  },
+  {
+    "signature": "void setMsgEmojiLike(long messageId, String emojiId, boolean set)",
+    "status": "已迁移，返回模型完整实机边界待验收",
+    "verification": "tests/onebot-client.test.ts（实际 Java 请求签名与代表性返回值测试）"
+  },
+  {
+    "signature": "Map<String, Object> fetchEmojiLike(long messageId, String emojiId, String emojiType)",
+    "status": "已迁移，返回模型完整实机边界待验收",
+    "verification": "tests/onebot-client.test.ts（实际 Java 请求签名与代表性返回值测试）"
+  },
+  {
+    "signature": "Map<String, Object> getEmojiLikes(long messageId)",
+    "status": "已迁移，返回模型完整实机边界待验收",
+    "verification": "tests/onebot-client.test.ts（实际 Java 请求签名与代表性返回值测试）"
+  },
+  {
+    "signature": "void sendLike(long userId, int times)",
+    "status": "已迁移，返回模型完整实机边界待验收",
+    "verification": "tests/onebot-client.test.ts（实际 Java 请求签名与代表性返回值测试）"
+  },
+  {
+    "signature": "Map<String, Object> getForwardMsg(String id)",
+    "status": "已迁移，返回模型完整实机边界待验收",
+    "verification": "tests/onebot-client.test.ts（实际 Java 请求签名与代表性返回值测试）"
+  },
+  {
+    "signature": "Map<String, Object> getImage(String file)",
+    "status": "已迁移，返回模型完整实机边界待验收",
+    "verification": "tests/onebot-client.test.ts（实际 Java 请求签名与代表性返回值测试）"
+  },
+  {
+    "signature": "Map<String, Object> getRecord(String file, String outFormat)",
+    "status": "已迁移，返回模型完整实机边界待验收",
+    "verification": "tests/onebot-client.test.ts（实际 Java 请求签名与代表性返回值测试）"
+  },
+  {
+    "signature": "Map<String, Object> getGroupHonorInfo(long groupId, String type)",
+    "status": "已迁移，返回模型完整实机边界待验收",
+    "verification": "tests/onebot-client.test.ts（实际 Java 请求签名与代表性返回值测试）"
+  },
+  {
+    "signature": "void setGroupSpecialTitle(long groupId, long userId, String specialTitle, int duration)",
+    "status": "已迁移，返回模型完整实机边界待验收",
+    "verification": "tests/onebot-client.test.ts（实际 Java 请求签名与代表性返回值测试）"
+  },
+  {
+    "signature": "void setGroupAnonymous(long groupId, boolean enable)",
+    "status": "已迁移，返回模型完整实机边界待验收",
+    "verification": "tests/onebot-client.test.ts（实际 Java 请求签名与代表性返回值测试）"
+  },
+  {
+    "signature": "void setGroupAnonymousBan(long groupId, Object anonymous, String flag, int duration)",
+    "status": "已迁移，返回模型完整实机边界待验收",
+    "verification": "tests/onebot-client.test.ts（实际 Java 请求签名与代表性返回值测试）"
+  },
+  {
+    "signature": "void setRestart(int delay)",
+    "status": "已迁移，返回模型完整实机边界待验收",
+    "verification": "tests/onebot-client.test.ts（实际 Java 请求签名与代表性返回值测试）"
+  },
+  {
+    "signature": "Map<String, Object> getCookies(String domain)",
+    "status": "已迁移，返回模型完整实机边界待验收",
+    "verification": "tests/onebot-client.test.ts（实际 Java 请求签名与代表性返回值测试）"
+  },
+  {
+    "signature": "Map<String, Object> getCsrfToken()",
+    "status": "已迁移，返回模型完整实机边界待验收",
+    "verification": "tests/onebot-client.test.ts（实际 Java 请求签名与代表性返回值测试）"
+  },
+  {
+    "signature": "Map<String, Object> getCredentials(String domain)",
+    "status": "已迁移，返回模型完整实机边界待验收",
+    "verification": "tests/onebot-client.test.ts（实际 Java 请求签名与代表性返回值测试）"
+  },
+  {
+    "signature": "List<Map<String, Object>> getFriendMsgHistory(long userId, int count)",
+    "status": "已迁移，返回模型完整实机边界待验收",
+    "verification": "tests/onebot-client.test.ts（实际 Java 请求签名与代表性返回值测试）"
+  },
+  {
+    "signature": "void sendForwardMsg(List<MessageSegment> nodes)",
+    "status": "已迁移，返回模型完整实机边界待验收",
+    "verification": "tests/onebot-client.test.ts（实际 Java 请求签名与代表性返回值测试）"
+  },
+  {
+    "signature": "void forwardFriendSingleMsg(long userId, long messageId)",
+    "status": "已迁移，返回模型完整实机边界待验收",
+    "verification": "tests/onebot-client.test.ts（实际 Java 请求签名与代表性返回值测试）"
+  },
+  {
+    "signature": "void forwardGroupSingleMsg(long groupId, long messageId)",
+    "status": "已迁移，返回模型完整实机边界待验收",
+    "verification": "tests/onebot-client.test.ts（实际 Java 请求签名与代表性返回值测试）"
+  },
+  {
+    "signature": "void markGroupMsgAsRead(long groupId)",
+    "status": "已迁移，返回模型完整实机边界待验收",
+    "verification": "tests/onebot-client.test.ts（实际 Java 请求签名与代表性返回值测试）"
+  },
+  {
+    "signature": "void markPrivateMsgAsRead(long userId)",
+    "status": "已迁移，返回模型完整实机边界待验收",
+    "verification": "tests/onebot-client.test.ts（实际 Java 请求签名与代表性返回值测试）"
+  },
+  {
+    "signature": "List<Map<String, Object>> getFriendsWithCategory()",
+    "status": "已迁移，返回模型完整实机边界待验收",
+    "verification": "tests/onebot-client.test.ts（实际 Java 请求签名与代表性返回值测试）"
+  },
+  {
+    "signature": "List<Map<String, Object>> getUnidirectionalFriendList()",
+    "status": "已迁移，返回模型完整实机边界待验收",
+    "verification": "tests/onebot-client.test.ts（实际 Java 请求签名与代表性返回值测试）"
+  },
+  {
+    "signature": "void deleteFriend(long userId)",
+    "status": "已迁移，返回模型完整实机边界待验收",
+    "verification": "tests/onebot-client.test.ts（实际 Java 请求签名与代表性返回值测试）"
+  },
+  {
+    "signature": "List<Map<String, Object>> getRecentContact(int count)",
+    "status": "已迁移，返回模型完整实机边界待验收",
+    "verification": "tests/onebot-client.test.ts（实际 Java 请求签名与代表性返回值测试）"
+  },
+  {
+    "signature": "Map<String, Object> getProfileLike(long userId)",
+    "status": "已迁移，返回模型完整实机边界待验收",
+    "verification": "tests/onebot-client.test.ts（实际 Java 请求签名与代表性返回值测试）"
+  },
+  {
+    "signature": "Map<String, Object> ncGetUserStatus(long userId)",
+    "status": "已迁移，返回模型完整实机边界待验收",
+    "verification": "tests/onebot-client.test.ts（实际 Java 请求签名与代表性返回值测试）"
+  },
+  {
+    "signature": "Map<String, Object> getDoubtFriendsAddRequest()",
+    "status": "已迁移，返回模型完整实机边界待验收",
+    "verification": "tests/onebot-client.test.ts（实际 Java 请求签名与代表性返回值测试）"
+  },
+  {
+    "signature": "void setDoubtFriendsAddRequest(String flag, boolean approve, String remark)",
+    "status": "已迁移，返回模型完整实机边界待验收",
+    "verification": "tests/onebot-client.test.ts（实际 Java 请求签名与代表性返回值测试）"
+  },
+  {
+    "signature": "Map<String, Object> getGroupDetailInfo(long groupId)",
+    "status": "已迁移，返回模型完整实机边界待验收",
+    "verification": "tests/onebot-client.test.ts（实际 Java 请求签名与代表性返回值测试）"
+  },
+  {
+    "signature": "Map<String, Object> getGroupInfoEx(long groupId)",
+    "status": "已迁移，返回模型完整实机边界待验收",
+    "verification": "tests/onebot-client.test.ts（实际 Java 请求签名与代表性返回值测试）"
+  },
+  {
+    "signature": "void setGroupKickMembers(long groupId, List<String> userIds, boolean rejectAddRequest)",
+    "status": "已迁移，返回模型完整实机边界待验收",
+    "verification": "tests/onebot-client.test.ts（实际 Java 请求签名与代表性返回值测试）"
+  },
+  {
+    "signature": "void setGroupPortrait(long groupId, String file)",
+    "status": "已迁移，返回模型完整实机边界待验收",
+    "verification": "tests/onebot-client.test.ts（实际 Java 请求签名与代表性返回值测试）"
+  },
+  {
+    "signature": "void setGroupRemark(long groupId, String remark)",
+    "status": "已迁移，返回模型完整实机边界待验收",
+    "verification": "tests/onebot-client.test.ts（实际 Java 请求签名与代表性返回值测试）"
+  },
+  {
+    "signature": "void sendGroupSign(long groupId)",
+    "status": "已迁移，返回模型完整实机边界待验收",
+    "verification": "tests/onebot-client.test.ts（实际 Java 请求签名与代表性返回值测试）"
+  },
+  {
+    "signature": "void setGroupSign(long groupId)",
+    "status": "已迁移，返回模型完整实机边界待验收",
+    "verification": "tests/onebot-client.test.ts（实际 Java 请求签名与代表性返回值测试）"
+  },
+  {
+    "signature": "List<Map<String, Object>> getGroupShutList(long groupId)",
+    "status": "已迁移，返回模型完整实机边界待验收",
+    "verification": "tests/onebot-client.test.ts（实际 Java 请求签名与代表性返回值测试）"
+  },
+  {
+    "signature": "Map<String, Object> getGroupAtAllRemain(long groupId)",
+    "status": "已迁移，返回模型完整实机边界待验收",
+    "verification": "tests/onebot-client.test.ts（实际 Java 请求签名与代表性返回值测试）"
+  },
+  {
+    "signature": "void setGroupTodo(long groupId, long messageId)",
+    "status": "已迁移，返回模型完整实机边界待验收",
+    "verification": "tests/onebot-client.test.ts（实际 Java 请求签名与代表性返回值测试）"
+  },
+  {
+    "signature": "Map<String, Object> getGroupIgnoredNotifies(long groupId)",
+    "status": "已迁移，返回模型完整实机边界待验收",
+    "verification": "tests/onebot-client.test.ts（实际 Java 请求签名与代表性返回值测试）"
+  },
+  {
+    "signature": "Map<String, Object> getGroupIgnoreAddRequest(long groupId)",
+    "status": "已迁移，返回模型完整实机边界待验收",
+    "verification": "tests/onebot-client.test.ts（实际 Java 请求签名与代表性返回值测试）"
+  },
+  {
+    "signature": "void setGroupAddOption(long groupId, int addOption)",
+    "status": "已迁移，返回模型完整实机边界待验收",
+    "verification": "tests/onebot-client.test.ts（实际 Java 请求签名与代表性返回值测试）"
+  },
+  {
+    "signature": "void setGroupRobotAddOption(long groupId, int addOption)",
+    "status": "已迁移，返回模型完整实机边界待验收",
+    "verification": "tests/onebot-client.test.ts（实际 Java 请求签名与代表性返回值测试）"
+  },
+  {
+    "signature": "void setGroupSearch(long groupId, boolean enable)",
+    "status": "已迁移，返回模型完整实机边界待验收",
+    "verification": "tests/onebot-client.test.ts（实际 Java 请求签名与代表性返回值测试）"
+  },
+  {
+    "signature": "Map<String, Object> getGroupSystemMsg()",
+    "status": "已迁移，返回模型完整实机边界待验收",
+    "verification": "tests/onebot-client.test.ts（实际 Java 请求签名与代表性返回值测试）"
+  },
+  {
+    "signature": "List<Map<String, Object>> getGroupNotice(long groupId)",
+    "status": "已迁移，返回模型完整实机边界待验收",
+    "verification": "tests/onebot-client.test.ts（实际 Java 请求签名与代表性返回值测试）"
+  },
+  {
+    "signature": "void sendGroupNotice(long groupId, String content, String image)",
+    "status": "已迁移，返回模型完整实机边界待验收",
+    "verification": "tests/onebot-client.test.ts（实际 Java 请求签名与代表性返回值测试）"
+  },
+  {
+    "signature": "void delGroupNotice(long groupId, String noticeId)",
+    "status": "已迁移，返回模型完整实机边界待验收",
+    "verification": "tests/onebot-client.test.ts（实际 Java 请求签名与代表性返回值测试）"
+  },
+  {
+    "signature": "List<Map<String, Object>> getEssenceMsgList(long groupId)",
+    "status": "已迁移，返回模型完整实机边界待验收",
+    "verification": "tests/onebot-client.test.ts（实际 Java 请求签名与代表性返回值测试）"
+  },
+  {
+    "signature": "void setEssenceMsg(long messageId)",
+    "status": "已迁移，返回模型完整实机边界待验收",
+    "verification": "tests/onebot-client.test.ts（实际 Java 请求签名与代表性返回值测试）"
+  },
+  {
+    "signature": "void deleteEssenceMsg(long messageId)",
+    "status": "已迁移，返回模型完整实机边界待验收",
+    "verification": "tests/onebot-client.test.ts（实际 Java 请求签名与代表性返回值测试）"
+  },
+  {
+    "signature": "void uploadPrivateFile(long userId, String file, String name)",
+    "status": "已迁移，返回模型完整实机边界待验收",
+    "verification": "tests/onebot-client.test.ts（实际 Java 请求签名与代表性返回值测试）"
+  },
+  {
+    "signature": "Map<String, Object> getGroupFileSystemInfo(long groupId)",
+    "status": "已迁移，返回模型完整实机边界待验收",
+    "verification": "tests/onebot-client.test.ts（实际 Java 请求签名与代表性返回值测试）"
+  },
+  {
+    "signature": "Map<String, Object> getGroupRootFiles(long groupId)",
+    "status": "已迁移，返回模型完整实机边界待验收",
+    "verification": "tests/onebot-client.test.ts（实际 Java 请求签名与代表性返回值测试）"
+  },
+  {
+    "signature": "Map<String, Object> getGroupFilesByFolder(long groupId, String folderId)",
+    "status": "已迁移，返回模型完整实机边界待验收",
+    "verification": "tests/onebot-client.test.ts（实际 Java 请求签名与代表性返回值测试）"
+  },
+  {
+    "signature": "Map<String, Object> getGroupFileUrl(long groupId, String fileId, int busid)",
+    "status": "已迁移，返回模型完整实机边界待验收",
+    "verification": "tests/onebot-client.test.ts（实际 Java 请求签名与代表性返回值测试）"
+  },
+  {
+    "signature": "void createGroupFileFolder(long groupId, String name, String parentId)",
+    "status": "已迁移，返回模型完整实机边界待验收",
+    "verification": "tests/onebot-client.test.ts（实际 Java 请求签名与代表性返回值测试）"
+  },
+  {
+    "signature": "void deleteGroupFile(long groupId, String fileId, int busid)",
+    "status": "已迁移，返回模型完整实机边界待验收",
+    "verification": "tests/onebot-client.test.ts（实际 Java 请求签名与代表性返回值测试）"
+  },
+  {
+    "signature": "void deleteGroupFolder(long groupId, String folderId)",
+    "status": "已迁移，返回模型完整实机边界待验收",
+    "verification": "tests/onebot-client.test.ts（实际 Java 请求签名与代表性返回值测试）"
+  },
+  {
+    "signature": "void renameGroupFile(long groupId, String fileId, int busid, String newName)",
+    "status": "已迁移，返回模型完整实机边界待验收",
+    "verification": "tests/onebot-client.test.ts（实际 Java 请求签名与代表性返回值测试）"
+  },
+  {
+    "signature": "void moveGroupFile(long groupId, String fileId, int busid, String parentId)",
+    "status": "已迁移，返回模型完整实机边界待验收",
+    "verification": "tests/onebot-client.test.ts（实际 Java 请求签名与代表性返回值测试）"
+  },
+  {
+    "signature": "void transGroupFile(long groupId, String fileId, int busid)",
+    "status": "已迁移，返回模型完整实机边界待验收",
+    "verification": "tests/onebot-client.test.ts（实际 Java 请求签名与代表性返回值测试）"
+  },
+  {
+    "signature": "Map<String, Object> getPrivateFileUrl(long userId, String fileId)",
+    "status": "已迁移，返回模型完整实机边界待验收",
+    "verification": "tests/onebot-client.test.ts（实际 Java 请求签名与代表性返回值测试）"
+  },
+  {
+    "signature": "Map<String, Object> downloadFile(String url, String base64, int threadCount, Map<String, String> headers)",
+    "status": "已迁移，返回模型完整实机边界待验收",
+    "verification": "tests/onebot-client.test.ts（实际 Java 请求签名与代表性返回值测试）"
+  },
+  {
+    "signature": "Map<String, Object> getFile(String fileId)",
+    "status": "已迁移，返回模型完整实机边界待验收",
+    "verification": "tests/onebot-client.test.ts（实际 Java 请求签名与代表性返回值测试）"
+  },
+  {
+    "signature": "Map<String, Object> getQunAlbumList(long groupId, String attachInfo)",
+    "status": "已迁移，返回模型完整实机边界待验收",
+    "verification": "tests/onebot-client.test.ts（实际 Java 请求签名与代表性返回值测试）"
+  },
+  {
+    "signature": "Map<String, Object> getGroupAlbumMediaList(long groupId, String albumId, String attachInfo)",
+    "status": "已迁移，返回模型完整实机边界待验收",
+    "verification": "tests/onebot-client.test.ts（实际 Java 请求签名与代表性返回值测试）"
+  },
+  {
+    "signature": "Map<String, Object> uploadImageToQunAlbum(long groupId, String albumId, String albumName, String file)",
+    "status": "已迁移，返回模型完整实机边界待验收",
+    "verification": "tests/onebot-client.test.ts（实际 Java 请求签名与代表性返回值测试）"
+  },
+  {
+    "signature": "Map<String, Object> delGroupAlbumMedia(long groupId, String albumId, String lloc)",
+    "status": "已迁移，返回模型完整实机边界待验收",
+    "verification": "tests/onebot-client.test.ts（实际 Java 请求签名与代表性返回值测试）"
+  },
+  {
+    "signature": "Map<String, Object> setGroupAlbumMediaLike(long groupId, String albumId, String lloc, String id, boolean set)",
+    "status": "已迁移，返回模型完整实机边界待验收",
+    "verification": "tests/onebot-client.test.ts（实际 Java 请求签名与代表性返回值测试）"
+  },
+  {
+    "signature": "Map<String, Object> doGroupAlbumComment(long groupId, String albumId, String lloc, String content)",
+    "status": "已迁移，返回模型完整实机边界待验收",
+    "verification": "tests/onebot-client.test.ts（实际 Java 请求签名与代表性返回值测试）"
+  },
+  {
+    "signature": "Map<String, Object> setQqAvatar(String file)",
+    "status": "已迁移，返回模型完整实机边界待验收",
+    "verification": "tests/onebot-client.test.ts（实际 Java 请求签名与代表性返回值测试）"
+  },
+  {
+    "signature": "Map<String, Object> setQqProfile(String nickname, String personalNote, Integer sex)",
+    "status": "已迁移，返回模型完整实机边界待验收",
+    "verification": "tests/onebot-client.test.ts（实际 Java 请求签名与代表性返回值测试）"
+  },
+  {
+    "signature": "Map<String, Object> setOnlineStatus(int status, int extStatus, int batteryStatus)",
+    "status": "已迁移，返回模型完整实机边界待验收",
+    "verification": "tests/onebot-client.test.ts（实际 Java 请求签名与代表性返回值测试）"
+  },
+  {
+    "signature": "Map<String, Object> setDiyOnlineStatus(int faceId, int faceType, String wording)",
+    "status": "已迁移，返回模型完整实机边界待验收",
+    "verification": "tests/onebot-client.test.ts（实际 Java 请求签名与代表性返回值测试）"
+  },
+  {
+    "signature": "List<Map<String, Object>> getOnlineClients(boolean noCache)",
+    "status": "已迁移，返回模型完整实机边界待验收",
+    "verification": "tests/onebot-client.test.ts（实际 Java 请求签名与代表性返回值测试）"
+  },
+  {
+    "signature": "Map<String, Object> setInputStatus(long userId, int eventType)",
+    "status": "已迁移，返回模型完整实机边界待验收",
+    "verification": "tests/onebot-client.test.ts（实际 Java 请求签名与代表性返回值测试）"
+  },
+  {
+    "signature": "Map<String, Object> translateEn2Zh(List<String> words)",
+    "status": "已迁移，返回模型完整实机边界待验收",
+    "verification": "tests/onebot-client.test.ts（实际 Java 请求签名与代表性返回值测试）"
+  },
+  {
+    "signature": "List<Map<String, Object>> getAiCharacters(long groupId, int chatType)",
+    "status": "已迁移，返回模型完整实机边界待验收",
+    "verification": "tests/onebot-client.test.ts（实际 Java 请求签名与代表性返回值测试）"
+  },
+  {
+    "signature": "Map<String, Object> getAiRecord(String character, long groupId, String text)",
+    "status": "已迁移，返回模型完整实机边界待验收",
+    "verification": "tests/onebot-client.test.ts（实际 Java 请求签名与代表性返回值测试）"
+  },
+  {
+    "signature": "Map<String, Object> sendGroupAiRecord(String character, long groupId, String text)",
+    "status": "已迁移，返回模型完整实机边界待验收",
+    "verification": "tests/onebot-client.test.ts（实际 Java 请求签名与代表性返回值测试）"
+  },
+  {
+    "signature": "Map<String, Object> arkShareGroup(long groupId)",
+    "status": "已迁移，返回模型完整实机边界待验收",
+    "verification": "tests/onebot-client.test.ts（实际 Java 请求签名与代表性返回值测试）"
+  },
+  {
+    "signature": "Map<String, Object> arkSharePeer(Long userId, Long groupId, String phoneNumber)",
+    "status": "已迁移，返回模型完整实机边界待验收",
+    "verification": "tests/onebot-client.test.ts（实际 Java 请求签名与代表性返回值测试）"
+  },
+  {
+    "signature": "Map<String, Object> sendGroupArkShare(long groupId)",
+    "status": "已迁移，返回模型完整实机边界待验收",
+    "verification": "tests/onebot-client.test.ts（实际 Java 请求签名与代表性返回值测试）"
+  },
+  {
+    "signature": "Map<String, Object> sendArkShare(Long userId, Long groupId, String phoneNumber)",
+    "status": "已迁移，返回模型完整实机边界待验收",
+    "verification": "tests/onebot-client.test.ts（实际 Java 请求签名与代表性返回值测试）"
+  },
+  {
+    "signature": "Map<String, Object> getMiniAppArk(String type, String title, String desc, String picUrl, String jumpUrl, String webUrl, String rawArkData)",
+    "status": "已迁移，返回模型完整实机边界待验收",
+    "verification": "tests/onebot-client.test.ts（实际 Java 请求签名与代表性返回值测试）"
+  },
+  {
+    "signature": "List<Map<String, Object>> getRkey()",
+    "status": "已迁移，返回模型完整实机边界待验收",
+    "verification": "tests/onebot-client.test.ts（实际 Java 请求签名与代表性返回值测试）"
+  },
+  {
+    "signature": "Map<String, Object> getRkeyServer()",
+    "status": "已迁移，返回模型完整实机边界待验收",
+    "verification": "tests/onebot-client.test.ts（实际 Java 请求签名与代表性返回值测试）"
+  },
+  {
+    "signature": "List<Map<String, Object>> ncGetRkey()",
+    "status": "已迁移，返回模型完整实机边界待验收",
+    "verification": "tests/onebot-client.test.ts（实际 Java 请求签名与代表性返回值测试）"
+  },
+  {
+    "signature": "Map<String, Object> getClientkey()",
+    "status": "已迁移，返回模型完整实机边界待验收",
+    "verification": "tests/onebot-client.test.ts（实际 Java 请求签名与代表性返回值测试）"
+  },
+  {
+    "signature": "Map<String, Object> checkUrlSafely(String url)",
+    "status": "已迁移，返回模型完整实机边界待验收",
+    "verification": "tests/onebot-client.test.ts（实际 Java 请求签名与代表性返回值测试）"
+  },
+  {
+    "signature": "List<Map<String, Object>> getRobotUinRange()",
+    "status": "已迁移，返回模型完整实机边界待验收",
+    "verification": "tests/onebot-client.test.ts（实际 Java 请求签名与代表性返回值测试）"
+  },
+  {
+    "signature": "Map<String, Object> ncGetPacketStatus()",
+    "status": "已迁移，返回模型完整实机边界待验收",
+    "verification": "tests/onebot-client.test.ts（实际 Java 请求签名与代表性返回值测试）"
+  },
+  {
+    "signature": "Map<String, Object> botExit()",
+    "status": "已迁移，返回模型完整实机边界待验收",
+    "verification": "tests/onebot-client.test.ts（实际 Java 请求签名与代表性返回值测试）"
+  },
+  {
+    "signature": "Map<String, Object> sendPoke(long userId, Long groupId)",
+    "status": "已迁移，返回模型完整实机边界待验收",
+    "verification": "tests/onebot-client.test.ts（实际 Java 请求签名与代表性返回值测试）"
+  },
+  {
+    "signature": "Map<String, Object> sendPacket(String cmd, String data, boolean rsp)",
+    "status": "已迁移，返回模型完整实机边界待验收",
+    "verification": "tests/onebot-client.test.ts（实际 Java 请求签名与代表性返回值测试）"
+  },
+  {
+    "signature": "Map<String, Object> clickInlineKeyboardButton(long groupId, String botAppid, String buttonId, String callbackData, String msgSeq)",
+    "status": "已迁移，返回模型完整实机边界待验收",
+    "verification": "tests/onebot-client.test.ts（实际 Java 请求签名与代表性返回值测试）"
+  },
+  {
+    "signature": "List<String> fetchCustomFace(int count)",
+    "status": "已迁移，返回模型完整实机边界待验收",
+    "verification": "tests/onebot-client.test.ts（实际 Java 请求签名与代表性返回值测试）"
+  },
+  {
+    "signature": "List<Map<String, Object>> getModelShow(String model)",
+    "status": "已迁移，返回模型完整实机边界待验收",
+    "verification": "tests/onebot-client.test.ts（实际 Java 请求签名与代表性返回值测试）"
+  },
+  {
+    "signature": "Map<String, Object> setModelShow(String model, String modelShow)",
+    "status": "已迁移，返回模型完整实机边界待验收",
+    "verification": "tests/onebot-client.test.ts（实际 Java 请求签名与代表性返回值测试）"
+  },
+  {
+    "signature": "Map<String, Object> handleQuickOperation(Map<String, Object> context, Map<String, Object> operation)",
+    "status": "已迁移，返回模型完整实机边界待验收",
+    "verification": "tests/onebot-client.test.ts（实际 Java 请求签名与代表性返回值测试）"
+  },
+  {
+    "signature": "Map<String, Object> createCollection(String rawData, String brief)",
+    "status": "已迁移，返回模型完整实机边界待验收",
+    "verification": "tests/onebot-client.test.ts（实际 Java 请求签名与代表性返回值测试）"
+  },
+  {
+    "signature": "Map<String, Object> getCollectionList(String category, int count)",
+    "status": "已迁移，返回模型完整实机边界待验收",
+    "verification": "tests/onebot-client.test.ts（实际 Java 请求签名与代表性返回值测试）"
+  },
+  {
+    "signature": "Map<String, Object> createFlashTask(Object files, String name, String thumbPath)",
+    "status": "已迁移，返回模型完整实机边界待验收",
+    "verification": "tests/onebot-client.test.ts（实际 Java 请求签名与代表性返回值测试）"
+  },
+  {
+    "signature": "Map<String, Object> getFlashFileList(String filesetId)",
+    "status": "已迁移，返回模型完整实机边界待验收",
+    "verification": "tests/onebot-client.test.ts（实际 Java 请求签名与代表性返回值测试）"
+  },
+  {
+    "signature": "Map<String, Object> getFlashFileUrl(String filesetId, String fileName, Integer fileIndex)",
+    "status": "已迁移，返回模型完整实机边界待验收",
+    "verification": "tests/onebot-client.test.ts（实际 Java 请求签名与代表性返回值测试）"
+  },
+  {
+    "signature": "Map<String, Object> sendFlashMsg(String filesetId, Long userId, Long groupId)",
+    "status": "已迁移，返回模型完整实机边界待验收",
+    "verification": "tests/onebot-client.test.ts（实际 Java 请求签名与代表性返回值测试）"
+  },
+  {
+    "signature": "Map<String, Object> getShareLink(String filesetId)",
+    "status": "已迁移，返回模型完整实机边界待验收",
+    "verification": "tests/onebot-client.test.ts（实际 Java 请求签名与代表性返回值测试）"
+  },
+  {
+    "signature": "Map<String, Object> getFilesetInfo(String filesetId)",
+    "status": "已迁移，返回模型完整实机边界待验收",
+    "verification": "tests/onebot-client.test.ts（实际 Java 请求签名与代表性返回值测试）"
+  },
+  {
+    "signature": "Map<String, Object> getFilesetId(String shareCode)",
+    "status": "已迁移，返回模型完整实机边界待验收",
+    "verification": "tests/onebot-client.test.ts（实际 Java 请求签名与代表性返回值测试）"
+  },
+  {
+    "signature": "Map<String, Object> downloadFileset(String filesetId)",
+    "status": "已迁移，返回模型完整实机边界待验收",
+    "verification": "tests/onebot-client.test.ts（实际 Java 请求签名与代表性返回值测试）"
+  },
+  {
+    "signature": "Map<String, Object> getOnlineFileMsg(long userId)",
+    "status": "已迁移，返回模型完整实机边界待验收",
+    "verification": "tests/onebot-client.test.ts（实际 Java 请求签名与代表性返回值测试）"
+  },
+  {
+    "signature": "Map<String, Object> sendOnlineFile(long userId, String filePath, String fileName)",
+    "status": "已迁移，返回模型完整实机边界待验收",
+    "verification": "tests/onebot-client.test.ts（实际 Java 请求签名与代表性返回值测试）"
+  },
+  {
+    "signature": "Map<String, Object> sendOnlineFolder(long userId, String folderPath, String folderName)",
+    "status": "已迁移，返回模型完整实机边界待验收",
+    "verification": "tests/onebot-client.test.ts（实际 Java 请求签名与代表性返回值测试）"
+  },
+  {
+    "signature": "Map<String, Object> receiveOnlineFile(long userId, String msgId, String elementId)",
+    "status": "已迁移，返回模型完整实机边界待验收",
+    "verification": "tests/onebot-client.test.ts（实际 Java 请求签名与代表性返回值测试）"
+  },
+  {
+    "signature": "Map<String, Object> refuseOnlineFile(long userId, String msgId, String elementId)",
+    "status": "已迁移，返回模型完整实机边界待验收",
+    "verification": "tests/onebot-client.test.ts（实际 Java 请求签名与代表性返回值测试）"
+  },
+  {
+    "signature": "Map<String, Object> cancelOnlineFile(long userId, String msgId)",
+    "status": "已迁移，返回模型完整实机边界待验收",
+    "verification": "tests/onebot-client.test.ts（实际 Java 请求签名与代表性返回值测试）"
+  },
+  {
+    "signature": "Map<String, Object> downloadFileStream(String file, String fileId, Integer chunkSize)",
+    "status": "已迁移，返回模型完整实机边界待验收",
+    "verification": "tests/onebot-client.test.ts（实际 Java 请求签名与代表性返回值测试）"
+  },
+  {
+    "signature": "Map<String, Object> downloadFileRecordStream(String file, String fileId, Integer chunkSize, String outFormat)",
+    "status": "已迁移，返回模型完整实机边界待验收",
+    "verification": "tests/onebot-client.test.ts（实际 Java 请求签名与代表性返回值测试）"
+  },
+  {
+    "signature": "Map<String, Object> downloadFileImageStream(String file, String fileId, Integer chunkSize)",
+    "status": "已迁移，返回模型完整实机边界待验收",
+    "verification": "tests/onebot-client.test.ts（实际 Java 请求签名与代表性返回值测试）"
+  },
+  {
+    "signature": "Map<String, Object> uploadFileStream(String streamId, String chunkData, Integer chunkIndex, Integer totalChunks, Long fileSize, String expectedSha256, Boolean isComplete, String filename, Boolean reset, Boolean verifyOnly, Long fileRetention)",
+    "status": "已迁移，返回模型完整实机边界待验收",
+    "verification": "tests/onebot-client.test.ts（实际 Java 请求签名与代表性返回值测试）"
+  },
+  {
+    "signature": "Map<String, Object> testDownloadStream(boolean error)",
+    "status": "已迁移，返回模型完整实机边界待验收",
+    "verification": "tests/onebot-client.test.ts（实际 Java 请求签名与代表性返回值测试）"
+  },
+  {
+    "signature": "Map<String, Object> cleanStreamTempFile()",
+    "status": "已迁移，返回模型完整实机边界待验收",
+    "verification": "tests/onebot-client.test.ts（实际 Java 请求签名与代表性返回值测试）"
+  },
+  {
+    "signature": "List<Map<String, Object>> getGuildList()",
+    "status": "已迁移，返回模型完整实机边界待验收",
+    "verification": "tests/onebot-client.test.ts（实际 Java 请求签名与代表性返回值测试）"
+  },
+  {
+    "signature": "Map<String, Object> getGuildServiceProfile()",
+    "status": "已迁移，返回模型完整实机边界待验收",
+    "verification": "tests/onebot-client.test.ts（实际 Java 请求签名与代表性返回值测试）"
+  }
+]

@@ -119,7 +119,7 @@ export default function ConsolePage() {
         <motion.div
           ref={outputRef}
           onClick={focusInput}
-          className="flex-1 rounded-t-xl border border-white/10 bg-[rgba(0,0,0,0.35)] backdrop-blur-sm overflow-y-auto"
+          className="flex-1 rounded-t-xl border border-[var(--glass-border)] bg-[rgba(0,0,0,0.35)] backdrop-blur-sm overflow-y-auto"
           initial={{ opacity: 0, y: 8 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.35, ease: EASE }}
@@ -129,12 +129,12 @@ export default function ConsolePage() {
           </pre>
         </motion.div>
         <motion.div
-          className="flex items-center rounded-b-xl border border-t-0 border-white/10 bg-[rgba(0,0,0,0.35)] px-3.5 py-2"
+          className="flex items-center rounded-b-xl border border-t-0 border-[var(--glass-border)] bg-[rgba(0,0,0,0.35)] px-3.5 py-2"
           initial={{ opacity: 0, y: 8 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.35, delay: 0.1, ease: EASE }}
         >
-          <span className="font-mono text-[0.82rem] text-[#a2bdff] mr-2 select-none whitespace-nowrap">
+          <span className="font-mono text-[0.82rem] text-[var(--color-primary-400)] mr-2 select-none whitespace-nowrap">
             {prompt}
           </span>
           <input
@@ -143,7 +143,7 @@ export default function ConsolePage() {
             onChange={(e) => setCommand(e.target.value)}
             onKeyDown={handleKeyDown}
             placeholder="输入命令，Enter 执行"
-            className="flex-1 bg-transparent border-none outline-none font-mono text-[0.82rem] text-white placeholder:text-neutral-500"
+            className="flex-1 bg-transparent border-none outline-none font-mono text-[0.82rem] text-[var(--color-text-primary)] placeholder:text-[var(--color-text-muted)]"
           />
         </motion.div>
       </div>

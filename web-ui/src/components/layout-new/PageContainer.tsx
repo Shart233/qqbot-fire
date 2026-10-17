@@ -32,11 +32,13 @@ export function PageHeader({ title, description, actions }: PageHeaderProps) {
   return (
     <div className="mb-8 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between sm:gap-4">
       <div className="min-w-0 flex-1">
-        <h1 className="text-2xl font-semibold tracking-tight text-white">
+        <h1 className="text-2xl font-semibold tracking-tight text-[var(--color-text-primary)]">
           {title}
         </h1>
         {description && (
-          <p className="mt-1.5 text-sm text-neutral-400">{description}</p>
+          <p className="mt-1.5 text-sm text-[var(--color-text-secondary)]">
+            {description}
+          </p>
         )}
       </div>
       {actions && (

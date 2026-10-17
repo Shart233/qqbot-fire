@@ -2,6 +2,10 @@
 
 本文件为 Claude Code (claude.ai/code) 在此仓库中工作时提供指导。
 
+## 当前默认入口（2026-10-18）
+
+新后端位于 `server/`，共享包位于 `packages/`，Node 固定为 24.21.0。默认 Dockerfile 与 Compose 已包含项目、NapCat 和 Linux QQ。完整验证使用 `npm run verify`，本机启动使用 `npm run start:server`。Java 回退使用 `Dockerfile.java` / `compose.java.yml`；后文 Java 构建与结构说明作为回退维护参考，当前部署说明以 README 和 `docs/migration/` 为准。
+
 ## 项目概述
 
 基于 NapCat/OneBot 11 的 QQ Bot 客户端。同一仓库包含两个独立代码库：Java 后端和 React Web UI。项目语言以中文为主（注释、UI 文案、文档）。
@@ -37,11 +41,11 @@ Vite 代理仅转发 `/api` 前缀的请求，所有 REST 端点必须在此前�
 ### Docker
 
 ```bash
-docker compose up -d              # 启动 napcat + qqbot-fire
+docker compose up -d              # 在同一个容器中启动项目和 NapCat
 docker compose up -d --build qqbot-fire  # 代码修改后重新构建
 ```
 
-容器间通过内部网络 `qqbot-fire-net` 通信，qqbot-fire 连接 NapCat 使用容器名作为主机名（如 `ws://napcat:3000`），而非 localhost。
+默认同容器的 NapCat 使用回环地址，后台自动分配端口和连接参数。仅外部模式需要填写其他容器或主机的实际地址。
 
 ## 架构
 

@@ -1,3 +1,4 @@
+import { useAppStore } from "../stores/app-store";
 import { apiCall } from "./client";
 import type {
   BotListResponse,
@@ -8,6 +9,7 @@ import type {
   GroupMember,
   ScheduleTask,
   NapCatConfig,
+  ExternalNapCat,
   NapCatInstance,
   NapCatLoginStatus,
   LogReadResponse,
@@ -19,16 +21,49 @@ import type {
 const enc = encodeURIComponent;
 
 // Bot CRUD
-export const listBots = (opts?: { silent?: boolean }) =>
-  apiCall<BotListResponse>("GET", "/api/bots", undefined, opts);
+export const listBots = async (opts?: { silent?: boolean }) => {
+  const snapshot = useAppStore.getState();
+  const result = await apiCall<BotListResponse>(
+    "GET",
+    "/api/bots",
+    undefined,
+    opts,
+  );
+  const current = useAppStore.getState();
+  if (
+    result &&
+    (snapshot.botSwitchPending ||
+      current.botSwitchPending ||
+      snapshot.botContextVersion !== current.botContextVersion)
+  )
+    result.activeBot = current.activeBotName;
+  return result;
+};
 export const addBot = (name: string) =>
   apiCall<BotInfo>("POST", "/api/bots", { name });
 export const deleteBot = (name: string) =>
   apiCall<{ deleted: string }>("DELETE", `/api/bots/${enc(name)}`);
 export const renameBot = (name: string, newName: string) =>
   apiCall<BotInfo>("PUT", `/api/bots/${enc(name)}/rename`, { newName });
-export const setActiveBot = (name: string) =>
-  apiCall<{ activeBot: string }>("PUT", `/api/bots/${enc(name)}/active`);
+export const setActiveBot = async (name: string) => {
+  const previous = useAppStore.getState().activeBotName;
+  const version = useAppStore.getState().botContextVersion + 1;
+  useAppStore.setState({
+    activeBotName: name,
+    botSwitchPending: true,
+    botContextVersion: version,
+  });
+  const result = await apiCall<{ activeBot: string }>(
+    "PUT",
+    `/api/bots/${enc(name)}/active`,
+  );
+  if (useAppStore.getState().botContextVersion === version)
+    useAppStore.setState({
+      botSwitchPending: false,
+      activeBotName: result?.activeBot ?? previous,
+    });
+  return result;
+};
 
 // Config
 export const getBotConfig = (name: string) =>
@@ -77,8 +112,13 @@ export const sendMessage = (
   });
 
 // Schedules
-export const listSchedules = (name: string) =>
-  apiCall<ScheduleTask[]>("GET", `/api/bots/${enc(name)}/schedules`);
+export const listSchedules = (name: string, opts?: { silent?: boolean }) =>
+  apiCall<ScheduleTask[]>(
+    "GET",
+    `/api/bots/${enc(name)}/schedules`,
+    undefined,
+    opts,
+  );
 export const addSchedule = (
   name: string,
   task: {
@@ -179,9 +219,17 @@ export const getNapCatLog = (name: string, opts?: { silent?: boolean }) =>
 export const discoverNapCat = () =>
   apiCall<DiscoverResponse>("POST", "/api/napcat/discover");
 export const getNapCatLogin = (name: string) =>
-  apiCall<NapCatLoginStatus>("GET", `/api/napcat/instances/${enc(name)}/login`, undefined, { silent: true });
+  apiCall<NapCatLoginStatus>(
+    "GET",
+    `/api/napcat/instances/${enc(name)}/login`,
+    undefined,
+    { silent: true },
+  );
 export const refreshNapCatLogin = (name: string) =>
-  apiCall<{ message: string }>("POST", `/api/napcat/instances/${enc(name)}/login/refresh`);
+  apiCall<{ message: string }>(
+    "POST",
+    `/api/napcat/instances/${enc(name)}/login/refresh`,
+  );
 export const forgetNapCat = (name: string) =>
   apiCall<{ forgotten: string | number }>("POST", "/api/napcat/forget", {
     name,
@@ -214,4 +262,11 @@ export const readLog = (
     `/api/logs/read?file=${enc(file)}&lines=${lines}`,
     undefined,
     opts,
+  );
+
+export const registerExternalNapCat = (input: ExternalNapCat) =>
+  apiCall<{ name: string; botName: string }>(
+    "PUT",
+    "/api/napcat/external",
+    input,
   );

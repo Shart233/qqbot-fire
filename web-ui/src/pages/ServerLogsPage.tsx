@@ -72,10 +72,10 @@ export default function ServerLogsPage() {
               placeholder="行数"
               className="w-[110px]"
             />
-            <label className="flex h-10 items-center gap-2 cursor-pointer rounded-lg border border-white/10 bg-white/[0.04] px-3 text-sm text-text-primary">
+            <label className="flex h-10 items-center gap-2 cursor-pointer rounded-lg border border-[var(--glass-border)] bg-white/[0.04] px-3 text-sm text-text-primary">
               <input
                 type="checkbox"
-                className="accent-[#5a7dff] h-4 w-4"
+                className="accent-[var(--color-primary-500)] h-4 w-4"
                 checked={autoRefresh}
                 onChange={(e) => setAutoRefresh(e.target.checked)}
               />

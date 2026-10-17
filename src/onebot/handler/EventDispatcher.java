@@ -28,6 +28,11 @@ public class EventDispatcher {
         handlers.remove(handler);
     }
 
+    /** 是否注册了事件处理器 */
+    public boolean hasHandlers() {
+        return !handlers.isEmpty();
+    }
+
     /** 分发事件到所有 handler */
     public void dispatch(OneBotEvent event) {
         for (var handler : handlers) {

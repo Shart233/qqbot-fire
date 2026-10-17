@@ -22,16 +22,16 @@ const variantClasses: Record<Variant, string> = {
   default:
     "bg-[rgba(255,255,255,0.08)] text-[var(--color-text-secondary)] border-[var(--glass-border)]",
   primary:
-    "bg-[rgba(90,125,255,0.15)] text-[#a2bdff] border-[rgba(90,125,255,0.3)]",
+    "bg-[rgba(90,125,255,0.15)] text-[var(--color-primary-500)] border-[rgba(90,125,255,0.3)]",
   accent:
-    "bg-[rgba(236,72,153,0.15)] text-[#f8b4dd] border-[rgba(236,72,153,0.3)]",
+    "bg-[rgba(236,72,153,0.15)] text-[var(--color-primary-500)] border-[rgba(236,72,153,0.3)]",
   success:
-    "bg-[rgba(16,185,129,0.15)] text-[#6ee7b7] border-[rgba(16,185,129,0.3)]",
+    "bg-[rgba(16,185,129,0.15)] text-[var(--color-success)] border-[rgba(16,185,129,0.3)]",
   warning:
-    "bg-[rgba(245,158,11,0.15)] text-[#fcd34d] border-[rgba(245,158,11,0.3)]",
+    "bg-[rgba(245,158,11,0.15)] text-[var(--color-warning)] border-[rgba(245,158,11,0.3)]",
   error:
-    "bg-[rgba(239,68,68,0.15)] text-[#fca5a5] border-[rgba(239,68,68,0.3)]",
-  info: "bg-[rgba(59,130,246,0.15)] text-[#93c5fd] border-[rgba(59,130,246,0.3)]",
+    "bg-[rgba(239,68,68,0.15)] text-[var(--color-error)] border-[rgba(239,68,68,0.3)]",
+  info: "bg-[rgba(59,130,246,0.15)] text-[var(--color-info)] border-[rgba(59,130,246,0.3)]",
 };
 
 const dotClasses: Record<Variant, string> = {

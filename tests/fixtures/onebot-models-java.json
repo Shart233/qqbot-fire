@@ -1,0 +1,581 @@
+[
+  {
+    "model": "FriendInfo",
+    "input": {},
+    "expected": {
+      "user_id": 0,
+      "nickname": null,
+      "remark": null,
+      "sex": null,
+      "level": 0,
+      "age": 0,
+      "qid": null
+    }
+  },
+  {
+    "model": "FriendInfo",
+    "input": null,
+    "expected": null
+  },
+  {
+    "model": "FriendInfo",
+    "input": {
+      "user_id": "42",
+      "nickname": 17,
+      "remark": 17,
+      "sex": 17,
+      "level": "42",
+      "age": "42",
+      "qid": 17
+    },
+    "expected": {
+      "user_id": 42,
+      "nickname": "17",
+      "remark": "17",
+      "sex": "17",
+      "level": 42,
+      "age": 42,
+      "qid": "17"
+    }
+  },
+  {
+    "model": "FriendInfo",
+    "input": {
+      "user_id": null,
+      "nickname": null,
+      "remark": null,
+      "sex": null,
+      "level": null,
+      "age": null,
+      "qid": null
+    },
+    "expected": {
+      "user_id": 0,
+      "nickname": null,
+      "remark": null,
+      "sex": null,
+      "level": 0,
+      "age": 0,
+      "qid": null
+    }
+  },
+  {
+    "model": "GroupInfo",
+    "input": {},
+    "expected": {
+      "group_id": 0,
+      "group_name": null,
+      "group_remark": null,
+      "member_count": 0,
+      "max_member_count": 0,
+      "group_all_shut": false
+    }
+  },
+  {
+    "model": "GroupInfo",
+    "input": null,
+    "expected": null
+  },
+  {
+    "model": "GroupInfo",
+    "input": {
+      "group_id": "42",
+      "group_name": 17,
+      "group_remark": 17,
+      "member_count": "42",
+      "max_member_count": "42",
+      "group_all_shut": "1"
+    },
+    "expected": {
+      "group_id": 42,
+      "group_name": "17",
+      "group_remark": "17",
+      "member_count": 42,
+      "max_member_count": 42,
+      "group_all_shut": true
+    }
+  },
+  {
+    "model": "GroupInfo",
+    "input": {
+      "group_id": null,
+      "group_name": null,
+      "group_remark": null,
+      "member_count": null,
+      "max_member_count": null,
+      "group_all_shut": null
+    },
+    "expected": {
+      "group_id": 0,
+      "group_name": null,
+      "group_remark": null,
+      "member_count": 0,
+      "max_member_count": 0,
+      "group_all_shut": false
+    }
+  },
+  {
+    "model": "GroupInfo",
+    "input": {
+      "member_count": 2.9,
+      "group_all_shut": [
+        true
+      ]
+    },
+    "expected": {
+      "group_id": 0,
+      "group_name": null,
+      "group_remark": null,
+      "member_count": 2,
+      "max_member_count": 0,
+      "group_all_shut": false
+    }
+  },
+  {
+    "model": "GroupInfo",
+    "input": {
+      "group_name": true,
+      "group_id": "8",
+      "unused": "忽略"
+    },
+    "expected": {
+      "group_id": 8,
+      "group_name": "true",
+      "group_remark": null,
+      "member_count": 0,
+      "max_member_count": 0,
+      "group_all_shut": false
+    }
+  },
+  {
+    "model": "GroupMember",
+    "input": {},
+    "expected": {
+      "group_id": 0,
+      "user_id": 0,
+      "nickname": null,
+      "card": null,
+      "sex": null,
+      "age": 0,
+      "area": null,
+      "join_time": 0,
+      "last_sent_time": 0,
+      "level": null,
+      "qq_level": 0,
+      "role": null,
+      "title": null,
+      "shut_up_timestamp": 0,
+      "is_robot": false
+    }
+  },
+  {
+    "model": "GroupMember",
+    "input": null,
+    "expected": null
+  },
+  {
+    "model": "GroupMember",
+    "input": {
+      "group_id": "42",
+      "user_id": "42",
+      "nickname": 17,
+      "card": 17,
+      "sex": 17,
+      "age": "42",
+      "area": 17,
+      "join_time": "42",
+      "last_sent_time": "42",
+      "level": 17,
+      "qq_level": "42",
+      "role": 17,
+      "title": 17,
+      "shut_up_timestamp": "42",
+      "is_robot": "1"
+    },
+    "expected": {
+      "group_id": 42,
+      "user_id": 42,
+      "nickname": "17",
+      "card": "17",
+      "sex": "17",
+      "age": 42,
+      "area": "17",
+      "join_time": 42,
+      "last_sent_time": 42,
+      "level": "17",
+      "qq_level": 42,
+      "role": "17",
+      "title": "17",
+      "shut_up_timestamp": 42,
+      "is_robot": true
+    }
+  },
+  {
+    "model": "GroupMember",
+    "input": {
+      "group_id": null,
+      "user_id": null,
+      "nickname": null,
+      "card": null,
+      "sex": null,
+      "age": null,
+      "area": null,
+      "join_time": null,
+      "last_sent_time": null,
+      "level": null,
+      "qq_level": null,
+      "role": null,
+      "title": null,
+      "shut_up_timestamp": null,
+      "is_robot": null
+    },
+    "expected": {
+      "group_id": 0,
+      "user_id": 0,
+      "nickname": null,
+      "card": null,
+      "sex": null,
+      "age": 0,
+      "area": null,
+      "join_time": 0,
+      "last_sent_time": 0,
+      "level": null,
+      "qq_level": 0,
+      "role": null,
+      "title": null,
+      "shut_up_timestamp": 0,
+      "is_robot": false
+    }
+  },
+  {
+    "model": "GroupMember",
+    "input": {
+      "age": "非法",
+      "is_robot": {
+        "bad": true
+      }
+    },
+    "error": true
+  },
+  {
+    "model": "LoginInfo",
+    "input": {},
+    "expected": {
+      "user_id": 0,
+      "nickname": null
+    }
+  },
+  {
+    "model": "LoginInfo",
+    "input": null,
+    "expected": null
+  },
+  {
+    "model": "LoginInfo",
+    "input": {
+      "user_id": "42",
+      "nickname": 17
+    },
+    "expected": {
+      "user_id": 42,
+      "nickname": "17"
+    }
+  },
+  {
+    "model": "LoginInfo",
+    "input": {
+      "user_id": null,
+      "nickname": null
+    },
+    "expected": {
+      "user_id": 0,
+      "nickname": null
+    }
+  },
+  {
+    "model": "MessageData",
+    "input": {},
+    "expected": {
+      "time": 0,
+      "message_id": 0,
+      "message_seq": 0,
+      "real_id": 0,
+      "user_id": 0,
+      "group_id": 0,
+      "message_type": null,
+      "sender": null,
+      "message": null,
+      "raw_message": null,
+      "font": 0,
+      "sub_type": null,
+      "group_name": null
+    }
+  },
+  {
+    "model": "MessageData",
+    "input": null,
+    "expected": null
+  },
+  {
+    "model": "MessageData",
+    "input": {
+      "time": "42",
+      "message_id": "42",
+      "message_seq": "42",
+      "real_id": "42",
+      "user_id": "42",
+      "group_id": "42",
+      "message_type": 17,
+      "sender": {
+        "user_id": "7"
+      },
+      "message": [
+        {
+          "data": {
+            "text": "中文"
+          },
+          "type": "text"
+        }
+      ],
+      "raw_message": 17,
+      "font": "42",
+      "sub_type": 17,
+      "group_name": 17
+    },
+    "expected": {
+      "time": 42,
+      "message_id": 42,
+      "message_seq": 42,
+      "real_id": 42,
+      "user_id": 42,
+      "group_id": 42,
+      "message_type": "17",
+      "sender": {
+        "user_id": 7,
+        "nickname": null,
+        "card": null,
+        "role": null,
+        "sex": null,
+        "age": 0,
+        "area": null,
+        "level": null,
+        "title": null
+      },
+      "message": [
+        {
+          "data": {
+            "text": "中文"
+          },
+          "type": "text"
+        }
+      ],
+      "raw_message": "17",
+      "font": 42,
+      "sub_type": "17",
+      "group_name": "17"
+    }
+  },
+  {
+    "model": "MessageData",
+    "input": {
+      "time": null,
+      "message_id": null,
+      "message_seq": null,
+      "real_id": null,
+      "user_id": null,
+      "group_id": null,
+      "message_type": null,
+      "sender": null,
+      "message": null,
+      "raw_message": null,
+      "font": null,
+      "sub_type": null,
+      "group_name": null
+    },
+    "expected": {
+      "time": 0,
+      "message_id": 0,
+      "message_seq": 0,
+      "real_id": 0,
+      "user_id": 0,
+      "group_id": 0,
+      "message_type": null,
+      "sender": null,
+      "message": null,
+      "raw_message": null,
+      "font": 0,
+      "sub_type": null,
+      "group_name": null
+    }
+  },
+  {
+    "model": "Sender",
+    "input": {},
+    "expected": {
+      "user_id": 0,
+      "nickname": null,
+      "card": null,
+      "role": null,
+      "sex": null,
+      "age": 0,
+      "area": null,
+      "level": null,
+      "title": null
+    }
+  },
+  {
+    "model": "Sender",
+    "input": null,
+    "expected": null
+  },
+  {
+    "model": "Sender",
+    "input": {
+      "user_id": "42",
+      "nickname": 17,
+      "card": 17,
+      "role": 17,
+      "sex": 17,
+      "age": "42",
+      "area": 17,
+      "level": 17,
+      "title": 17
+    },
+    "expected": {
+      "user_id": 42,
+      "nickname": "17",
+      "card": "17",
+      "role": "17",
+      "sex": "17",
+      "age": 42,
+      "area": "17",
+      "level": "17",
+      "title": "17"
+    }
+  },
+  {
+    "model": "Sender",
+    "input": {
+      "user_id": null,
+      "nickname": null,
+      "card": null,
+      "role": null,
+      "sex": null,
+      "age": null,
+      "area": null,
+      "level": null,
+      "title": null
+    },
+    "expected": {
+      "user_id": 0,
+      "nickname": null,
+      "card": null,
+      "role": null,
+      "sex": null,
+      "age": 0,
+      "area": null,
+      "level": null,
+      "title": null
+    }
+  },
+  {
+    "model": "StrangerInfo",
+    "input": {},
+    "expected": {
+      "user_id": 0,
+      "nickname": null,
+      "sex": null,
+      "age": 0,
+      "qid": null,
+      "level": 0,
+      "login_days": 0
+    }
+  },
+  {
+    "model": "StrangerInfo",
+    "input": null,
+    "expected": null
+  },
+  {
+    "model": "StrangerInfo",
+    "input": {
+      "user_id": "42",
+      "nickname": 17,
+      "sex": 17,
+      "age": "42",
+      "qid": 17,
+      "level": "42",
+      "login_days": "42"
+    },
+    "expected": {
+      "user_id": 42,
+      "nickname": "17",
+      "sex": "17",
+      "age": 42,
+      "qid": "17",
+      "level": 42,
+      "login_days": 42
+    }
+  },
+  {
+    "model": "StrangerInfo",
+    "input": {
+      "user_id": null,
+      "nickname": null,
+      "sex": null,
+      "age": null,
+      "qid": null,
+      "level": null,
+      "login_days": null
+    },
+    "expected": {
+      "user_id": 0,
+      "nickname": null,
+      "sex": null,
+      "age": 0,
+      "qid": null,
+      "level": 0,
+      "login_days": 0
+    }
+  },
+  {
+    "model": "VersionInfo",
+    "input": {},
+    "expected": {
+      "app_name": null,
+      "app_version": null,
+      "protocol_version": null
+    }
+  },
+  {
+    "model": "VersionInfo",
+    "input": null,
+    "expected": null
+  },
+  {
+    "model": "VersionInfo",
+    "input": {
+      "app_name": 17,
+      "app_version": 17,
+      "protocol_version": 17
+    },
+    "expected": {
+      "app_name": "17",
+      "app_version": "17",
+      "protocol_version": "17"
+    }
+  },
+  {
+    "model": "VersionInfo",
+    "input": {
+      "app_name": null,
+      "app_version": null,
+      "protocol_version": null
+    },
+    "expected": {
+      "app_name": null,
+      "app_version": null,
+      "protocol_version": null
+    }
+  }
+]

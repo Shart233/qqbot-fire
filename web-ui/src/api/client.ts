@@ -13,6 +13,7 @@ export function getAdminToken(): string | null {
 export function setAdminToken(token: string) {
   try {
     localStorage.setItem(TOKEN_KEY, token);
+    window.dispatchEvent(new Event("qqbot-auth-changed"));
   } catch {
     /* ignore */
   }
@@ -41,14 +42,13 @@ export async function apiCall<T>(
 ): Promise<T | null> {
   const silent = opts?.silent === true;
   try {
-    const headers: Record<string, string> = {
-      "Content-Type": "application/json",
-    };
+    const headers: Record<string, string> = {};
+    if (body !== undefined) headers["Content-Type"] = "application/json";
     const token = getAdminToken();
     if (token) headers["Authorization"] = `Bearer ${token}`;
 
     const reqOpts: RequestInit = { method, headers };
-    if (body) reqOpts.body = JSON.stringify(body);
+    if (body !== undefined) reqOpts.body = JSON.stringify(body);
     const res = await fetch(path, reqOpts);
 
     if (res.status === 401) {
@@ -63,7 +63,12 @@ export async function apiCall<T>(
     const json = await res.json();
     if (!json.ok) {
       if (!silent) {
-        toast.danger("请求失败", { description: json.error || "未知错误" });
+        if (res.status === 504)
+          toast.warning("操作结果未决", {
+            description: json.error || "请先核对实际结果，再决定是否重试",
+          });
+        else
+          toast.danger("请求失败", { description: json.error || "未知错误" });
       }
       return null;
     }

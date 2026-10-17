@@ -71,8 +71,10 @@ public class WebConsoleServer {
      * 启动 HTTP 服务器
      */
     public void start() throws IOException {
-        // 仅监听回环地址：远程访问应通过反向代理（nginx/Caddy 等），避免 9988 直接暴露
-        server = HttpServer.create(new InetSocketAddress("127.0.0.1", port), 0);
+        // 本机默认监听回环地址，容器回退入口显式指定容器网卡。
+        String bindHost = System.getenv("FIRE_WEB_HOST");
+        if (bindHost == null || bindHost.isBlank()) bindHost = "127.0.0.1";
+        server = HttpServer.create(new InetSocketAddress(bindHost, port), 0);
         server.setExecutor(Executors.newVirtualThreadPerTaskExecutor());
 
         // REST API
@@ -82,7 +84,7 @@ public class WebConsoleServer {
         server.createContext("/", new CorsHandler(this::handleStaticFile));
 
         server.start();
-        logger.info("Web 控制台已启动: http://127.0.0.1:{}", port);
+        logger.info("Web 控制台已启动: http://{}:{}", bindHost, server.getAddress().getPort());
         logger.info("静态文件目录: {}", staticDir != null ? staticDir : "classpath:/web/");
     }
 

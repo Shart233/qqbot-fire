@@ -340,6 +340,9 @@ public class OneBotConnection implements ApiProvider {
             }
 
             // 无 echo -> 事件
+            if (!dispatcher.hasHandlers()) {
+                return;
+            }
             var event = new OneBotEvent(data);
 
             if (event.isMetaEvent()) {

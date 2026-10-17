@@ -1,0 +1,37 @@
+{
+  "name": "qqbot-fire",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "workspaces": [
+    "server",
+    "packages/*",
+    "web-ui"
+  ],
+  "engines": {
+    "node": ">=24.21.0 <25"
+  },
+  "scripts": {
+    "dev:server": "tsx watch server/src/main.ts",
+    "start:server": "node server/dist/main.js",
+    "build:server": "npm run build -w @qqbot/contracts && npm run build -w @qqbot/onebot && npm run build -w @qqbot/server",
+    "typecheck:server": "npm run build -w @qqbot/contracts && npm run build -w @qqbot/onebot && npm run typecheck -w @qqbot/contracts && npm run typecheck -w @qqbot/onebot && npm run typecheck -w @qqbot/server && tsc -p tsconfig.tests.json",
+    "test": "tsx --test tests/*.test.ts",
+    "import:legacy": "tsx server/src/import-cli.ts",
+    "verify:server": "npm run typecheck:server && npm test && npm run build:server",
+    "pretest": "npm run build:server",
+    "build": "npm run build:server && npm --prefix web-ui run build",
+    "test:ui": "playwright test",
+    "export:rollback": "tsx server/src/rollback-cli.ts",
+    "verify": "npm run verify:server && npm --prefix web-ui run lint && npm --prefix web-ui run deploy:full",
+    "backup:data": "tsx server/src/backup-cli.ts",
+    "restore:data": "tsx server/src/backup-cli.ts --restore"
+  },
+  "devDependencies": {
+    "@playwright/test": "1.64.1",
+    "@types/node": "24.12.2",
+    "@types/ws": "8.18.1",
+    "tsx": "4.23.15",
+    "typescript": "6.0.2"
+  }
+}

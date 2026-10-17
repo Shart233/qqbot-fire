@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { motion } from "framer-motion";
 import { toast } from "@heroui/react";
 import { useAppStore } from "../stores/app-store";
@@ -25,6 +25,7 @@ export default function SchedulesPage() {
   const { setCachedBots } = useAppStore();
   const [bot, setBot] = useState("");
   const [schedules, setSchedules] = useState<ScheduleTask[]>([]);
+  const requestVersion = useRef(0);
   const [loading, setLoading] = useState(false);
 
   // Add form
@@ -54,18 +55,22 @@ export default function SchedulesPage() {
   }, [setCachedBots]);
 
   const loadScheduleList = useCallback(async () => {
+    const version = ++requestVersion.current;
     if (!bot) {
       setSchedules([]);
       return;
     }
     setLoading(true);
     const data = await listSchedules(bot);
+    if (version !== requestVersion.current) return;
     setSchedules(data || []);
     setLoading(false);
   }, [bot]);
 
   useEffect(() => {
     loadScheduleList(); // eslint-disable-line react-hooks/set-state-in-effect
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- 此引用记录请求序号，卸载时使未完成请求失效
+    return () => { requestVersion.current++; };
   }, [loadScheduleList]);
 
   const handleAdd = async () => {
@@ -169,8 +174,8 @@ export default function SchedulesPage() {
   const pillClass = (active: boolean) =>
     `h-9 px-4 rounded-md text-xs border transition-colors ${
       active
-        ? "bg-[rgba(90,125,255,0.15)] text-[#a2bdff] border-[rgba(90,125,255,0.4)]"
-        : "bg-white/[0.04] text-neutral-300 border-white/10 hover:bg-white/[0.08]"
+        ? "bg-[rgba(90,125,255,0.15)] text-[var(--color-primary-400)] border-[rgba(90,125,255,0.4)]"
+        : "bg-white/[0.04] text-[var(--color-text-secondary)] border-[var(--glass-border)] hover:bg-white/[0.08]"
     }`;
 
   return (
@@ -218,19 +223,19 @@ export default function SchedulesPage() {
                       </div>
                       <input
                         type="checkbox"
-                        className="accent-[#5a7dff] w-4 h-4 cursor-pointer flex-shrink-0 mt-1"
+                        className="accent-[var(--color-primary-500)] w-4 h-4 cursor-pointer flex-shrink-0 mt-1"
                         checked={t.enabled}
                         onChange={(e) => handleToggle(t.name, e.target.checked)}
                       />
                     </div>
                     <div className="grid grid-cols-[56px_1fr] gap-y-1.5 text-xs mb-3">
-                      <span className="text-neutral-400">时间</span>
+                      <span className="text-[var(--color-text-secondary)]">时间</span>
                       <span className="text-text-primary">{t.time}</span>
-                      <span className="text-neutral-400">目标</span>
+                      <span className="text-[var(--color-text-secondary)]">目标</span>
                       <span className="text-text-primary truncate">
                         {(t.targets || []).join(", ")}
                       </span>
-                      <span className="text-neutral-400">消息</span>
+                      <span className="text-[var(--color-text-secondary)]">消息</span>
                       <span className="text-text-primary line-clamp-2 break-all">
                         {t.message}
                       </span>
@@ -273,8 +278,8 @@ export default function SchedulesPage() {
               >
                 <div className="overflow-x-auto">
                   <table className="w-full min-w-[520px] text-sm">
-                    <thead className="bg-white/[0.03] border-b border-white/10">
-                      <tr className="text-left text-xs text-neutral-400 uppercase tracking-wider">
+                    <thead className="bg-white/[0.03] border-b border-[var(--glass-border)]">
+                      <tr className="text-left text-xs text-[var(--color-text-secondary)] uppercase tracking-wider">
                         <th className="px-4 py-3">任务名</th>
                         <th className="px-4 py-3">时间</th>
                         <th className="px-4 py-3 hidden md:table-cell">目标</th>
@@ -296,7 +301,7 @@ export default function SchedulesPage() {
                                 <span className="sm:hidden">
                                   <input
                                     type="checkbox"
-                                    className="accent-[#5a7dff] w-4 h-4 cursor-pointer align-middle"
+                                    className="accent-[var(--color-primary-500)] w-4 h-4 cursor-pointer align-middle"
                                     checked={t.enabled}
                                     onChange={(e) =>
                                       handleToggle(t.name, e.target.checked)
@@ -304,7 +309,7 @@ export default function SchedulesPage() {
                                   />
                                 </span>
                               </div>
-                              <div className="flex items-center gap-2 md:hidden text-xs text-neutral-400">
+                              <div className="flex items-center gap-2 md:hidden text-xs text-[var(--color-text-secondary)]">
                                 <Badge
                                   variant={
                                     t.targetType === "group" ? "info" : "accent"
@@ -342,7 +347,7 @@ export default function SchedulesPage() {
                           <td className="px-4 py-3 hidden sm:table-cell">
                             <input
                               type="checkbox"
-                              className="accent-[#5a7dff] w-4 h-4 cursor-pointer"
+                              className="accent-[var(--color-primary-500)] w-4 h-4 cursor-pointer"
                               checked={t.enabled}
                               onChange={(e) =>
                                 handleToggle(t.name, e.target.checked)
@@ -446,7 +451,7 @@ export default function SchedulesPage() {
                 <label className="flex items-center gap-2 cursor-pointer self-end pb-2">
                   <input
                     type="checkbox"
-                    className="accent-[#5a7dff] w-4 h-4"
+                    className="accent-[var(--color-primary-500)] w-4 h-4"
                     checked={autoConnect}
                     onChange={(e) => setAutoConnect(e.target.checked)}
                   />
@@ -529,7 +534,7 @@ export default function SchedulesPage() {
           <label className="flex items-center gap-2 cursor-pointer">
             <input
               type="checkbox"
-              className="accent-[#5a7dff] w-4 h-4"
+              className="accent-[var(--color-primary-500)] w-4 h-4"
               checked={editAutoConnect}
               onChange={(e) => setEditAutoConnect(e.target.checked)}
             />
@@ -540,7 +545,7 @@ export default function SchedulesPage() {
           <label className="flex items-center gap-2 cursor-pointer">
             <input
               type="checkbox"
-              className="accent-[#5a7dff] w-4 h-4"
+              className="accent-[var(--color-primary-500)] w-4 h-4"
               checked={editAutoStopAfterSend}
               onChange={(e) => setEditAutoStopAfterSend(e.target.checked)}
             />

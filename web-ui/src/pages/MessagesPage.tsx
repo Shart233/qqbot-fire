@@ -25,13 +25,20 @@ export default function MessagesPage() {
     });
   }, [setCachedBots]);
 
+  useEffect(() => {
+    // 显式切换发送对象时清空上一个 Bot 的目标与正文。
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setTarget("");
+    setMessage("");
+  }, [bot]);
+
   const handleSend = async () => {
     if (!bot) {
       toast.warning("请选择 Bot");
       return;
     }
-    const targetNum = parseInt(target, 10);
-    if (!Number.isFinite(targetNum) || targetNum <= 0) {
+    const targetNum = Number(target);
+    if (!/^\d+$/.test(target) || !Number.isSafeInteger(targetNum) || targetNum <= 0) {
       toast.warning("请输入有效的目标号码");
       return;
     }
@@ -61,9 +68,9 @@ export default function MessagesPage() {
   const pillBase =
     "h-9 px-4 rounded-md text-xs border transition-colors cursor-pointer";
   const pillActive =
-    "bg-[rgba(90,125,255,0.15)] text-[#a2bdff] border-[rgba(90,125,255,0.4)]";
+    "bg-[rgba(90,125,255,0.15)] text-[var(--color-primary-400)] border-[rgba(90,125,255,0.4)]";
   const pillIdle =
-    "bg-white/[0.04] text-neutral-300 border-white/10 hover:bg-white/[0.08]";
+    "bg-white/[0.04] text-[var(--color-text-secondary)] border-[var(--glass-border)] hover:bg-white/[0.08]";
 
   return (
     <PageContainer>
@@ -81,7 +88,7 @@ export default function MessagesPage() {
           <div className="space-y-5">
             {/* Bot 选择 */}
             <div>
-              <label className="text-xs text-neutral-400 mb-1.5 block">
+              <label className="text-xs text-[var(--color-text-secondary)] mb-1.5 block">
                 选择 Bot
               </label>
               <BotSelect
@@ -94,7 +101,7 @@ export default function MessagesPage() {
 
             {/* 消息类型 */}
             <div>
-              <label className="text-xs text-neutral-400 mb-1.5 block">
+              <label className="text-xs text-[var(--color-text-secondary)] mb-1.5 block">
                 消息类型
               </label>
               <div className="flex gap-2">
@@ -117,9 +124,9 @@ export default function MessagesPage() {
 
             {/* 目标 */}
             <div>
-              <label className="text-xs text-neutral-400 mb-1.5 block">
+              <label className="text-xs text-[var(--color-text-secondary)] mb-1.5 block">
                 目标{" "}
-                <span className="text-neutral-500">
+                <span className="text-[var(--color-text-muted)]">
                   {msgType === "group" ? "(群号)" : "(QQ号)"}
                 </span>
               </label>
@@ -133,11 +140,11 @@ export default function MessagesPage() {
 
             {/* 消息内容 */}
             <div>
-              <label className="text-xs text-neutral-400 mb-1.5 block">
+              <label className="text-xs text-[var(--color-text-secondary)] mb-1.5 block">
                 消息内容
               </label>
               <textarea
-                className="w-full min-h-[88px] rounded-lg border border-white/10 bg-[rgba(0,0,0,0.25)] px-3 py-2 text-sm text-white placeholder:text-neutral-500 focus:border-[#5a7dff] focus:outline-none resize-y transition"
+                className="w-full min-h-[88px] rounded-lg border border-[var(--glass-border)] bg-[var(--color-input-bg)] px-3 py-2 text-sm text-[var(--color-text-primary)] placeholder:text-[var(--color-text-muted)] focus:border-[var(--color-primary-500)] focus:outline-none resize-y transition"
                 value={message}
                 onChange={(e) => setMessage(e.target.value)}
                 placeholder="输入消息内容..."

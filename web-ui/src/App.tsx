@@ -1,13 +1,13 @@
 /* eslint-disable react-refresh/only-export-components */
-import { useEffect, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useState, type ReactNode } from "react";
 import {
   createHashRouter,
   Navigate,
   Outlet,
   useLocation,
-  useNavigate,
+  useOutlet,
 } from "react-router-dom";
-import { AnimatePresence, motion } from "framer-motion";
+import { motion } from "framer-motion";
 import AppLayout from "./components/layout-new/AppLayout";
 import DashboardPage from "./pages/DashboardPage";
 import BotsPage from "./pages/BotsPage";
@@ -40,19 +40,17 @@ const pageTransition = {
 
 function AnimatedOutlet() {
   const location = useLocation();
+  const outlet = useOutlet();
   return (
-    <AnimatePresence mode="wait">
-      <motion.div
-        key={location.pathname}
-        variants={pageTransition}
-        initial="initial"
-        animate="animate"
-        exit="exit"
-        className="h-full"
-      >
-        <Outlet />
-      </motion.div>
-    </AnimatePresence>
+    <motion.div
+      key={location.pathname}
+      variants={pageTransition}
+      initial="initial"
+      animate="animate"
+      className="h-full"
+    >
+      {outlet}
+    </motion.div>
   );
 }
 
@@ -68,43 +66,68 @@ interface AuthStatus {
  *  - 其它情况原样渲染 children
  */
 function AuthGate({ children }: { children: ReactNode }) {
-  const navigate = useNavigate();
   const location = useLocation();
-  const [checked, setChecked] = useState(false);
-
+  const [status, setStatus] = useState<AuthStatus | null>(null);
+  const [failed, setFailed] = useState(false);
+  const load = useCallback(async () => {
+    setStatus(null);
+    setFailed(false);
+    const data = await apiCall<AuthStatus>(
+      "GET",
+      "/api/auth/status",
+      undefined,
+      { silent: true },
+    );
+    if (data) setStatus(data);
+    else setFailed(true);
+  }, []);
   useEffect(() => {
     let cancelled = false;
-    (async () => {
-      const data = await apiCall<AuthStatus>("GET", "/api/auth/status");
+    void apiCall<AuthStatus>("GET", "/api/auth/status", undefined, {
+      silent: true,
+    }).then((data) => {
       if (cancelled) return;
-      const initialized = data?.initialized ?? false;
-      const token = getAdminToken();
-      const path = location.pathname;
-      if (!initialized) {
-        if (path !== "/setup") navigate("/setup", { replace: true });
-      } else if (!token) {
-        if (path !== "/login" && path !== "/setup")
-          navigate("/login", { replace: true });
-      } else {
-        // 已登录却停留在 /login 或 /setup → 回仪表盘
-        if (path === "/login" || path === "/setup")
-          navigate("/dashboard", { replace: true });
-      }
-      setChecked(true);
-    })();
+      if (data) setStatus(data);
+      else setFailed(true);
+    });
+    const changed = () => {
+      void load();
+    };
+    window.addEventListener("qqbot-auth-changed", changed);
     return () => {
       cancelled = true;
+      window.removeEventListener("qqbot-auth-changed", changed);
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  if (!checked) {
+  }, [load]);
+  if (!status)
     return (
-      <div className="min-h-screen flex items-center justify-center text-sm text-[var(--color-text-muted)]">
-        加载中…
+      <div className="min-h-screen flex flex-col gap-4 items-center justify-center text-sm text-[var(--color-text-secondary)]">
+        {failed ? (
+          <>
+            暂时无法连接服务。
+            <button
+              onClick={() => {
+                void load();
+              }}
+              className="underline"
+            >
+              重试连接
+            </button>
+          </>
+        ) : (
+          "加载中…"
+        )}
       </div>
     );
-  }
+  const token = getAdminToken();
+  const path = location.pathname;
+  // 先决定鉴权路由，再挂载页面，避免未初始化时页面请求的 401 抢先跳到登录页。
+  if (!status.initialized && path !== "/setup")
+    return <Navigate to="/setup" replace />;
+  if (status.initialized && !token && path !== "/login")
+    return <Navigate to="/login" replace />;
+  if (status.initialized && token && (path === "/login" || path === "/setup"))
+    return <Navigate to="/dashboard" replace />;
   return <>{children}</>;
 }
 

@@ -13,3 +13,24 @@ web-ui/dist/
 .vscode/
 .DS_Store
 *.bat
+
+# 新服务依赖、构建缓存与本地数据
+node_modules/
+server/dist/
+packages/*/dist/
+data/
+napcat_instances.json
+.git/
+.codex-remote-attachments/
+.playwright-cli/
+.playwright-mcp/
+test-results/
+playwright-report/
+output/
+
+# 本机凭据与临时命令不进入构建上下文
+.env
+.env.*
+*.cmd
+NUL
+lib/

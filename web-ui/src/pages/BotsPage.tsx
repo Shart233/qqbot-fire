@@ -402,7 +402,7 @@ export default function BotsPage() {
             <Select
               label="连接模式"
               value={configData.mode}
-              onChange={(e) => updateCfg({ mode: e.target.value })}
+              onChange={(e) => updateCfg({ mode: e.target.value === "http" ? "http" : "ws" })}
               options={[
                 { value: "ws", label: "WebSocket" },
                 { value: "http", label: "HTTP" },

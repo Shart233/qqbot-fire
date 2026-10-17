@@ -1,0 +1,22 @@
+# 独立预演部署。正式切换前停止 Java 并核对最终数据副本，禁止双重调度。
+services:
+  qqbot-typescript:
+    build:
+      context: .
+      dockerfile: Dockerfile.typescript
+    init: true
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:${TS_PORT:-9989}:9988"
+    environment:
+      HOST: 0.0.0.0
+      PORT: 9988
+      DATA_DIR: /app/data
+      NAPCAT_MODE: external
+      SCHEDULING_ENABLED: "${SCHEDULING_ENABLED:-false}"
+      TZ: Asia/Shanghai
+    volumes:
+      - typescript-data:/app/data
+    stop_grace_period: 60s
+volumes:
+  typescript-data:

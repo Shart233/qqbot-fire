@@ -17,7 +17,7 @@ function colorize(line: string): string {
   if (/ WARN /.test(line))
     return `<span class="text-yellow-400">${escaped}</span>`;
   if (/ DEBUG /.test(line))
-    return `<span class="text-neutral-500">${escaped}</span>`;
+    return `<span class="text-[var(--color-text-muted)]">${escaped}</span>`;
   return escaped;
 }
 
@@ -55,11 +55,11 @@ export default function LogViewer({
         duration: 0.35,
         ease: [0.25, 0.1, 0.25, 1] as [number, number, number, number],
       }}
-      className={`rounded-xl border border-white/10 bg-[rgba(0,0,0,0.3)] backdrop-blur-sm ${height} overflow-y-auto mt-2`}
+      className={`rounded-xl border border-[var(--glass-border)] bg-[rgba(0,0,0,0.3)] backdrop-blur-sm ${height} overflow-y-auto mt-2`}
     >
-      <pre className="font-mono text-[0.82rem] leading-relaxed p-3.5 m-0 whitespace-pre-wrap break-all text-neutral-300">
+      <pre className="font-mono text-[0.82rem] leading-relaxed p-3.5 m-0 whitespace-pre-wrap break-all text-[var(--color-text-secondary)]">
         {lines.length === 0 ? (
-          <span className="block text-center text-neutral-500 text-sm">
+          <span className="block text-center text-[var(--color-text-muted)] text-sm">
             {emptyMessage}
           </span>
         ) : colorized ? (

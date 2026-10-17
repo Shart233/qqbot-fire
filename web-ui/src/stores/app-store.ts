@@ -2,6 +2,8 @@ import { create } from "zustand";
 import type { BotInfo } from "../api/types";
 
 interface AppState {
+  botContextVersion: number;
+  botSwitchPending: boolean;
   cachedBots: BotInfo[];
   activeBotName: string | null;
   setCachedBots: (bots: BotInfo[], active: string | null) => void;
@@ -12,10 +14,15 @@ interface AppState {
 }
 
 export const useAppStore = create<AppState>((set) => ({
+  botContextVersion: 0,
+  botSwitchPending: false,
   cachedBots: [],
   activeBotName: null,
   setCachedBots: (bots, active) =>
-    set({ cachedBots: bots, activeBotName: active }),
+    set((state) => ({
+      cachedBots: bots,
+      activeBotName: state.botSwitchPending ? state.activeBotName : active,
+    })),
 
   operationLogs: [],
   appendLog: (msg) =>

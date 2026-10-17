@@ -19,11 +19,11 @@ export default function EmptyState({ message, icon, action }: Props) {
       className="py-16 text-center"
     >
       {icon && (
-        <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full border border-white/10 bg-white/5 text-neutral-400">
+        <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full border border-[var(--glass-border)] bg-white/5 text-[var(--color-text-secondary)]">
           {icon}
         </div>
       )}
-      <div className="text-sm text-neutral-400">{message}</div>
+      <div className="text-sm text-[var(--color-text-secondary)]">{message}</div>
       {action && <div className="mt-5 flex justify-center">{action}</div>}
     </motion.div>
   );

@@ -1041,6 +1041,13 @@ public class WebApiHandler implements HttpHandler {
 
             // 自动创建 BotInstance
             String botName = "qq" + qq;
+            // 优先复用已关联此实例的 Bot，保留原名称及定时任务。
+            for (var existing : console.getBots().values()) {
+                if (name.equals(existing.getNapCatInstanceName()) && qq.equals(existing.getQqUin())) {
+                    botName = existing.getName();
+                    break;
+                }
+            }
             var inst = console.getBots().get(botName);
             if (inst == null) {
                 inst = new BotInstance(botName);

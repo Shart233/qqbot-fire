@@ -2,9 +2,7 @@ package onebot.console;
 
 import onebot.client.*;
 import onebot.config.ConfigManager;
-import onebot.handler.CommandHandler;
 import onebot.handler.EventDispatcher;
-import onebot.handler.LogHandler;
 import onebot.napcat.NapCatConfigDiscovery;
 import onebot.napcat.NapCatLauncher;
 import org.apache.logging.log4j.LogManager;
@@ -43,7 +41,6 @@ public class BotConsole {
     // 多实例管理
     private final Map<String, BotInstance> bots = new LinkedHashMap<>();
     private String activeBotName = null;
-    private final String commandPrefix = "/";
 
     // 管理员密码哈希 (bcrypt)，null/空 表示尚未初始化
     private volatile String adminPasswordHash;
@@ -711,7 +708,6 @@ public class BotConsole {
         System.out.println("[" + inst.getName() + "] 正在通过 WebSocket 连接...");
 
         var dispatcher = new EventDispatcher();
-        dispatcher.addHandler(new LogHandler());
 
         var wsConn = inst.getWsToken().isEmpty()
                 ? new OneBotConnection(inst.getWsUrl(), dispatcher)
@@ -727,8 +723,6 @@ public class BotConsole {
 
         var client = new OneBotClient(wsConn);
         inst.setClient(client);
-
-        dispatcher.addHandler(new CommandHandler(client, commandPrefix));
 
         tryPrintLoginInfo(inst);
         inst.getScheduler().setBot(client);
@@ -1217,6 +1211,13 @@ public class BotConsole {
 
                     // 自动创建/更新对应的 BotInstance
                     String botName = "qq" + qqUin;
+                    // 优先复用已关联此实例的 Bot，保留原名称及定时任务。
+                    for (var existing : bots.values()) {
+                        if (name.equals(existing.getNapCatInstanceName()) && qqUin.equals(existing.getQqUin())) {
+                            botName = existing.getName();
+                            break;
+                        }
+                    }
                     var inst = bots.get(botName);
                     if (inst == null) {
                         inst = new BotInstance(botName);

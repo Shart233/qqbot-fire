@@ -7,14 +7,18 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 import java.io.IOException;
+import java.nio.file.AtomicMoveNotSupportedException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.StandardCopyOption;
 import java.time.Duration;
+import java.time.LocalDate;
 import java.time.LocalTime;
 import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;
 import java.time.temporal.ChronoUnit;
 import java.util.*;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Supplier;
@@ -36,10 +40,17 @@ public class ScheduleManager {
 
     private static final Logger logger = LogManager.getLogger(ScheduleManager.class);
     private static final String SCHEDULE_FILE_PREFIX = "schedules";
+    private static final String EXECUTION_FILE_PREFIX = "schedules_state";
     private static final DateTimeFormatter TIME_FMT = DateTimeFormatter.ofPattern("HH:mm");
     private static final long NTP_RESYNC_INTERVAL_MS = 3600_000; // 每小时重新同步 NTP
     private static final long RETRY_DELAY_MS = 3 * 60_000; // 连接失败后重试间隔：3 分钟
     private static final int MAX_RETRIES = 2; // 连接失败最大重试次数
+    private static final long CATCH_UP_MAX_DELAY_MS = 23 * 3600_000L; // 启动后只补发同一天内错过的任务
+    private static final int EXECUTION_STATE_RETENTION_DAYS = 14;
+    private static final String TARGET_SENDING = "SENDING";
+    private static final String TARGET_SUCCESS = "SUCCESS";
+    private static final String TARGET_FAILED = "FAILED";
+    private static final String TARGET_UNKNOWN = "UNKNOWN";
     /**
      * 单目标发送失败后的内联补发配置。
      * 冷启动/QQ 链路未热时，首批 send_private_msg 可能撞穿超时墙漏发个别目标（连接是好的，只是慢）。
@@ -49,13 +60,12 @@ public class ScheduleManager {
     private static final int TARGET_RESEND_ROUNDS = 2;
     private static final long TARGET_RESEND_GAP_MS = 3_000;
     /**
-     * 预热提前量：秒。
+     * 预热提前量：毫秒。
      * 触发前 N 秒就提前拉起 NapCat + 登录 QQ，等真正触发时端口早开、账号在线，秒发不迟到。
-     * NapCat 冷启动到「消息通道真正可用」波动极大：快时 10 余秒，慢时实测达 11 分钟
-     * （WS 端口早开、get_login_info 秒回，但 send_private_msg 一直排队不响应），
-     * 故提前量取 20 分钟覆盖最坏情况。仅对 autoConnect=true 的任务生效。
+     * 提前量设置为 4 分钟，给 NapCat 和 QQ 登录留出必要启动时间，避免过早登录。
+     * 仅对 autoConnect=true 的任务生效。
      */
-    private static final long PREWARM_LEAD_MS = 20 * 60_000;
+    private static final long PREWARM_LEAD_MS = 4 * 60_000;
     /**
      * 存在「超时未决」目标时，autoStop 前的滞留时长。
      * 超时不代表 NapCat 死了，多半只是消息通道还在排队；此刻立刻 pkill NapCat
@@ -82,6 +92,12 @@ public class ScheduleManager {
      * 加锁后两者互斥，杜绝并发置空导致的空指针。
      */
     private final Object executeLock = new Object();
+    /** 每日目标级执行账本；发送前先落盘，进程崩溃后按“结果未决”处理，优先避免重复发送。 */
+    private final Object executionStateLock = new Object();
+    private ExecutionLedger executionLedger = new ExecutionLedger();
+    private volatile boolean executionLedgerReadable = true;
+    /** 当前待重试计划。真实次数与时间同时写入账本，本 Map 只用于调度线程快速计算唤醒点。 */
+    private final Map<String, RetryPlan> retryPlans = new ConcurrentHashMap<>();
 
     /**
      * Bot 自动连接回调。
@@ -139,6 +155,7 @@ public class ScheduleManager {
     public ScheduleManager(String botName) {
         this.botName = botName;
         loadTasks();
+        loadExecutionLedger();
     }
 
     public void setBot(OneBotClient bot) {
@@ -318,7 +335,12 @@ public class ScheduleManager {
     public void triggerNow(String name) {
         var task = getTask(name);
         if (task != null) {
-            executeTask(task);
+            String occurrenceDate = NtpUtil.now().toLocalDate().toString();
+            handleOutcome(task, executeTask(task, occurrenceDate), occurrenceDate);
+            var t = schedulerThread;
+            if (t != null && t != Thread.currentThread()) {
+                t.interrupt();
+            }
         }
     }
 
@@ -328,18 +350,17 @@ public class ScheduleManager {
      */
     private void schedulerLoop() {
         long lastNtpSync = NtpUtil.getLastSyncTime();
-        // 记录今天已执行的任务，避免重复
+        // 内存集合只用于快速判断；真实状态来自持久化执行账本。
         Set<String> executedToday = new HashSet<>();
-        // 连接失败重试计划：任务名 -> 下次重试的 epoch ms
-        Map<String, Long> retryAt = new HashMap<>();
-        // 已重试次数：任务名 -> 次数
-        Map<String, Integer> retryCount = new HashMap<>();
         // 已预热的 occurrence 标记（值为 "任务名@目标日期"），避免同一次触发前反复拉起 NapCat。
-        // 用目标日期而非"今天"标记，因为 00:01 任务的预热落在前一天 23:41（= 触发时刻 −
+        // 用目标日期而非"今天"标记，因为 00:01 任务的预热落在前一天 23:57（= 触发时刻 −
         // PREWARM_LEAD_MS，改常量时这个钟点跟着变），跨午夜后 executedToday
         // 会被清空但预热标记要延续到触发那一刻，故独立维护、按 occurrence 日期去重。
         Set<String> prewarmed = new HashSet<>();
         String lastDate = NtpUtil.now().toLocalDate().toString();
+        restorePendingRetryPlans();
+        restoreExecutionStateForDate(lastDate, executedToday);
+        boolean catchUpRequired = true;
 
         while (running.get()) {
             try {
@@ -355,44 +376,39 @@ public class ScheduleManager {
                 String today = NtpUtil.now().toLocalDate().toString();
                 if (!today.equals(lastDate)) {
                     executedToday.clear();
-                    retryAt.clear();
-                    retryCount.clear();
                     // 清理已过期的预热标记（目标日期早于今天的），避免集合无限增长。
-                    // 今天及以后的标记保留：00:01 任务在前一天 23:41 打的标记，key 日期是今天，必须留住
+                    // 今天及以后的标记保留：00:01 任务在前一天 23:57 打的标记，key 日期是今天，必须留住
                     // 直到 00:01 触发，否则 calcSleepMs 会重新为它算预热点、重复拉起 NapCat。
                     prewarmed.removeIf(k -> {
                         int at = k.lastIndexOf('@');
                         return at >= 0 && k.substring(at + 1).compareTo(today) < 0;
                     });
                     lastDate = today;
+                    restorePendingRetryPlans();
+                    restoreExecutionStateForDate(today, executedToday);
+                    catchUpRequired = true;
                     logger.debug("日期切换: {}", today);
-
-                    // 补执行：日期切换时若已过某任务的触发窗口（NTP 同步/sleep 抖动导致晚醒），立即补发
-                    ZonedDateTime nowAfterSwitch = NtpUtil.now();
-                    LocalTime nowAfterSwitchLocal = nowAfterSwitch.toLocalTime();
-                    for (var task : tasks) {
-                        if (!task.enabled || executedToday.contains(task.name)) continue;
-                        LocalTime target = LocalTime.parse(task.time, TIME_FMT);
-                        long missedSeconds = Duration.between(target, nowAfterSwitchLocal).getSeconds();
-                        if (missedSeconds >= 60) {
-                            executedToday.add(task.name);
-                            logger.info("日期切换补执行: 任务 {} (计划 {}, 当前 {}, 延迟 {}s)",
-                                    task.name, task.time, NtpUtil.nowHHmmss(), missedSeconds);
-                            handleOutcome(task, executeTask(task), retryAt, retryCount);
-                        }
-                    }
                 }
 
                 ZonedDateTime now = NtpUtil.now();
                 LocalTime nowLocal = now.toLocalTime();
                 long nowMs = System.currentTimeMillis();
+                syncExecutedToday(today, executedToday);
+
+                if (catchUpRequired) {
+                    catchUpRequired = false;
+                    runCatchUp(today, now, executedToday);
+                    now = NtpUtil.now();
+                    nowLocal = now.toLocalTime();
+                    nowMs = System.currentTimeMillis();
+                }
 
                 // 预热：触发前 PREWARM_LEAD_MS 内提前拉起 NapCat 登录，使真正触发时端口早开、账号在线，秒发不迟到。
                 // 仅对 autoConnect 任务生效；bot 已连着则跳过（无需重复拉起）。
                 for (var task : tasks) {
                     if (!task.enabled || !task.autoConnect) continue;
                     // 去重用 occurrence 粒度（prewarmed: 任务名@目标日期），不能用 executedToday.contains(name)：
-                    // 00:01 跨午夜任务的预热窗口落在前一天 23:41，此刻 executedToday 仍含当天已执行的
+                    // 00:01 跨午夜任务的预热窗口落在前一天 23:57，此刻 executedToday 仍含当天已执行的
                     // 同名任务（要到 00:00 才 clear），若用它做守卫会把「明天那次」的预热误杀 →
                     // 睡到 00:01 现场冷启动 → 冷启动竞速漏发。改由 nextTargetDateTime 定位下一次
                     // occurrence，prewarmed 按其目标日期去重，跨午夜也不会漏预热或重复拉起。
@@ -420,20 +436,21 @@ public class ScheduleManager {
                     if (diffSeconds >= 0 && diffSeconds < 60) {
                         executedToday.add(task.name);
                         logger.info("NTP 时间 {} 触发任务: {}", NtpUtil.nowHHmmss(), task.name);
-                        handleOutcome(task, executeTask(task), retryAt, retryCount);
+                        handleOutcome(task, executeTask(task, today), today);
                     }
                 }
 
                 // 到点的连接失败重试（独立于整点窗口，不受 60s 限制）
-                if (!retryAt.isEmpty()) {
+                if (!retryPlans.isEmpty()) {
                     for (var task : tasks) {
-                        Long at = retryAt.get(task.name);
-                        if (at == null || nowMs < at) continue;
-                        retryAt.remove(task.name);
+                        RetryPlan plan = retryPlans.get(task.name);
+                        if (plan == null || nowMs < plan.at) continue;
+                        retryPlans.remove(task.name);
                         if (!task.enabled) continue;
-                        int n = retryCount.getOrDefault(task.name, 0);
-                        logger.info("重试任务 [{}]（第 {}/{} 次）", task.name, n, MAX_RETRIES);
-                        handleOutcome(task, executeTask(task), retryAt, retryCount);
+                        int n = getRetryCount(task, plan.occurrenceDate);
+                        logger.info("重试任务 [{}]（第 {}/{} 次，目标日期 {}）",
+                                task.name, n, MAX_RETRIES, plan.occurrenceDate);
+                        handleOutcome(task, executeTask(task, plan.occurrenceDate), plan.occurrenceDate);
                     }
                 }
 
@@ -443,7 +460,7 @@ public class ScheduleManager {
                 // 顺延同样的时长 —— 次日唤醒落到 60 秒触发窗口之外，该任务整天不触发。
                 // （00:01 任务侥幸有「日期切换补执行」兜底，非跨午夜的任务没有。）
                 ZonedDateTime sleepNow = NtpUtil.now();
-                long sleepMs = calcSleepMs(sleepNow, executedToday, retryAt, prewarmed);
+                long sleepMs = calcSleepMs(sleepNow, executedToday, prewarmed);
                 if (sleepMs > 0) {
                     // 防御：sleepMs 过小意味着刚好踩到窗口边界，强制抬到 100ms 避免忙等
                     if (sleepMs < 100) {
@@ -491,8 +508,7 @@ public class ScheduleManager {
      * 计算到下一个最近触发时刻的毫秒数（含整点任务与待重试任务）
      * @return 毫秒数, 0 表示今天没有更多任务也没有待重试
      */
-    private long calcSleepMs(ZonedDateTime now, Set<String> executedToday, Map<String, Long> retryAt,
-                             Set<String> prewarmed) {
+    private long calcSleepMs(ZonedDateTime now, Set<String> executedToday, Set<String> prewarmed) {
         long minSleep = Long.MAX_VALUE;
 
         for (var task : tasks) {
@@ -520,7 +536,7 @@ public class ScheduleManager {
         // 纳入预热唤醒点：autoConnect 任务在「下次触发 - 预热提前量」时刻必须醒来拉起 NapCat。
         // 否则调度器会一觉睡到触发时刻，来不及预热就退化成 00:01 现连（又迟到）。
         // 去重同样用 occurrence 粒度的 prewarmed，不能用 executedToday.contains(name)——理由见
-        // schedulerLoop 预热循环处注释：跨午夜任务 23:41 唤醒点会被当天的 executedToday 误杀。
+        // schedulerLoop 预热循环处注释：跨午夜任务 23:57 唤醒点会被当天的 executedToday 误杀。
         for (var task : tasks) {
             if (!task.enabled || !task.autoConnect) continue;
             // 同样用 upcomingOccurrence：刚触发完时 nextTargetDateTime 因 60s 容差仍返回
@@ -535,10 +551,10 @@ public class ScheduleManager {
         }
 
         // 纳入待重试时刻：避免明明有 pending 重试却 sleep 到明天而错过
-        if (!retryAt.isEmpty()) {
+        if (!retryPlans.isEmpty()) {
             long nowMs = System.currentTimeMillis();
-            for (long at : retryAt.values()) {
-                long diffMs = Math.max(at - nowMs, 50);
+            for (var plan : retryPlans.values()) {
+                long diffMs = Math.max(plan.at - nowMs, 50);
                 if (diffMs < minSleep) {
                     minSleep = diffMs;
                 }
@@ -551,7 +567,7 @@ public class ScheduleManager {
     /**
      * 计算任务从 now 起「下一次」触发的绝对时刻。
      * 若今天的触发点已过（now 晚于今天 target），则返回明天的 target。
-     * 用于预热窗口判断——跨午夜任务（如 00:01）在前一天 23:41 时，其下一次触发是"今天+1天"的 00:01。
+     * 用于预热窗口判断——跨午夜任务（如 00:01）在前一天 23:57 时，其下一次触发是"今天+1天"的 00:01。
      */
     private ZonedDateTime nextTargetDateTime(ScheduleTask task, ZonedDateTime now) {
         LocalTime target = LocalTime.parse(task.time, TIME_FMT);
@@ -577,6 +593,72 @@ public class ScheduleManager {
             next = next.plusDays(1);
         }
         return next;
+    }
+
+    /** 从持久化账本恢复当天已完成任务和待重试计划。 */
+    private void restoreExecutionStateForDate(String date, Set<String> executedToday) {
+        for (var task : tasks) {
+            ExecutionRecord record = getExecutionRecord(task, date);
+            if (record == null) continue;
+            if (isOccurrenceSettled(task, date)) {
+                executedToday.add(task.name);
+                continue;
+            }
+            if (record.nextRetryAt > 0 && record.retryCount <= MAX_RETRIES) {
+                executedToday.add(task.name);
+                retryPlans.put(task.name, new RetryPlan(date, record.nextRetryAt));
+            }
+        }
+    }
+
+    /** 恢复今天或昨天尚未到点的重试，覆盖进程重启及重试跨午夜场景。 */
+    private void restorePendingRetryPlans() {
+        LocalDate oldest = NtpUtil.now().toLocalDate().minusDays(1);
+        synchronized (executionStateLock) {
+            for (var record : executionLedger.records.values()) {
+                if (record.nextRetryAt <= 0 || record.retryCount > MAX_RETRIES) continue;
+                try {
+                    if (LocalDate.parse(record.date).isBefore(oldest)) continue;
+                } catch (Exception e) {
+                    continue;
+                }
+                if (tasks.stream().noneMatch(task -> task.name.equals(record.taskName))) continue;
+                var candidate = new RetryPlan(record.date, record.nextRetryAt);
+                retryPlans.merge(record.taskName, candidate,
+                        (oldPlan, newPlan) -> oldPlan.at <= newPlan.at ? oldPlan : newPlan);
+            }
+        }
+    }
+
+    /** 同步手动触发刚写入的账本状态，避免到达自动触发时再次发送。 */
+    private void syncExecutedToday(String date, Set<String> executedToday) {
+        for (var task : tasks) {
+            RetryPlan plan = retryPlans.get(task.name);
+            if (isOccurrenceSettled(task, date)
+                    || (plan != null && date.equals(plan.occurrenceDate))) {
+                executedToday.add(task.name);
+            }
+        }
+    }
+
+    /**
+     * 启动/日期切换后的补执行。
+     * 仅处理同一自然日内已经错过至少 60 秒、且延迟不超过 23 小时的任务。
+     * 已成功、超时未决或发送中崩溃的目标由账本过滤，绝不重复投递。
+     */
+    private void runCatchUp(String date, ZonedDateTime now, Set<String> executedToday) {
+        LocalTime nowLocal = now.toLocalTime();
+        for (var task : tasks) {
+            if (!task.enabled || executedToday.contains(task.name)) continue;
+            LocalTime target = LocalTime.parse(task.time, TIME_FMT);
+            long missedMs = Duration.between(target, nowLocal).toMillis();
+            if (missedMs < 60_000 || missedMs > CATCH_UP_MAX_DELAY_MS) continue;
+
+            executedToday.add(task.name);
+            logger.info("启动补执行: 任务 {} (计划 {}, 当前 {}, 延迟 {}s)",
+                    task.name, task.time, NtpUtil.nowHHmmss(), missedMs / 1000);
+            handleOutcome(task, executeTask(task, date), date);
+        }
     }
 
     /**
@@ -606,25 +688,27 @@ public class ScheduleManager {
 
     /**
      * 处理任务执行结果，决定是否安排重试。
-     * 仅 RETRY（连接不可用）且未超次数时排入重试计划；DONE 一律不重试。
+     * RETRY（连接不可用或仍有明确失败目标）且未超次数时排入持久化重试计划；
+     * DONE 表示所有目标均已成功或结果未决，不再自动重投。
      */
-    private void handleOutcome(ScheduleTask task, ExecOutcome outcome,
-                               Map<String, Long> retryAt, Map<String, Integer> retryCount) {
+    private void handleOutcome(ScheduleTask task, ExecOutcome outcome, String occurrenceDate) {
         if (outcome != ExecOutcome.RETRY) {
-            // 成功或已发送：清理可能残留的重试状态
-            retryAt.remove(task.name);
-            retryCount.remove(task.name);
+            clearRetryPlan(task, occurrenceDate);
             return;
         }
-        int n = retryCount.getOrDefault(task.name, 0);
+
+        int n = getRetryCount(task, occurrenceDate);
         if (n >= MAX_RETRIES) {
-            logger.warn("任务 [{}] 连接失败已达最大重试次数 {}，今日放弃", task.name, MAX_RETRIES);
-            retryCount.remove(task.name);
+            logger.warn("任务 [{}] 连接或明确失败目标已达最大重试次数 {}，本次 occurrence 收尾",
+                    task.name, MAX_RETRIES);
+            clearRetryPlan(task, occurrenceDate);
+            finishAfterRetriesExhausted(task, occurrenceDate);
             return;
         }
-        retryCount.put(task.name, n + 1);
-        retryAt.put(task.name, System.currentTimeMillis() + RETRY_DELAY_MS);
-        logger.info("任务 [{}] 连接失败，将在 {} 分钟后重试（已安排第 {}/{} 次）",
+
+        long retryAt = System.currentTimeMillis() + RETRY_DELAY_MS;
+        updateRetryPlan(task, occurrenceDate, n + 1, retryAt);
+        logger.info("任务 [{}] 尚有明确失败目标，将在 {} 分钟后重试（已安排第 {}/{} 次）",
                 task.name, RETRY_DELAY_MS / 60_000, n + 1, MAX_RETRIES);
     }
 
@@ -632,9 +716,9 @@ public class ScheduleManager {
 
     /**
      * 任务执行结果。
-     * DONE  — 已进入发送流程（无论成功/部分失败），不应重试，避免重复发送。
-     * RETRY — 因 Bot 连接不可用（autoConnect 失败/账号未上线）根本没发出去，
-     *         值得稍后重试。仅对开启 autoConnect 的任务返回。
+     * DONE  — 没有明确失败目标；成功和超时未决都已进入终态，不应重试。
+     * RETRY — Bot 连接不可用，或仍有“明确失败”的目标，值得稍后安全重试。
+     *         成功和超时未决目标已写入账本，后续执行会自动跳过。
      */
     private enum ExecOutcome { DONE, RETRY }
 
@@ -643,13 +727,23 @@ public class ScheduleManager {
      * 通过 executeLock 串行化，杜绝自动调度与手动触发并发跑同一任务时
      * 一方置空 bot、另一方 NPE 的竞态。实现见 {@link #doExecuteTask}。
      */
-    private ExecOutcome executeTask(ScheduleTask task) {
+    private ExecOutcome executeTask(ScheduleTask task, String occurrenceDate) {
         synchronized (executeLock) {
-            return doExecuteTask(task);
+            return doExecuteTask(task, occurrenceDate);
         }
     }
 
-    private ExecOutcome doExecuteTask(ScheduleTask task) {
+    private ExecOutcome doExecuteTask(ScheduleTask task, String occurrenceDate) {
+        if (!executionLedgerReadable) {
+            logger.error("任务执行账本不可读，为避免重复发送，拒绝执行任务 [{}]", task.name);
+            return ExecOutcome.DONE;
+        }
+        List<Long> pendingTargets = getPendingTargets(task, occurrenceDate);
+        if (pendingTargets.isEmpty()) {
+            logger.info("任务 [{}] 日期 {} 的所有目标均已有终态，跳过重复执行", task.name, occurrenceDate);
+            return ExecOutcome.DONE;
+        }
+
         // 僵尸引用清理：bot 非空但底层 WS 已断（onClose 清了 wsRef 但 scheduler.bot 没同步）
         if (bot != null && !isBotAlive()) {
             logger.info("检测到 Bot 连接已失效，清理僵尸引用，任务: {}", task.name);
@@ -682,14 +776,14 @@ public class ScheduleManager {
         // 本次发送也只会得到可控的 API 异常，而不是 NPE。
         final OneBotClient client = this.bot;
 
-        logger.info("执行定时任务: {} -> 发送到 {} 个目标 (NTP时间: {})",
-                task.name, task.targets.size(), NtpUtil.nowHHmmss());
+        logger.info("执行定时任务: {} -> 本次待发送 {} 个目标，共 {} 个 (目标日期: {}, NTP时间: {})",
+                task.name, pendingTargets.size(), task.targets.size(), occurrenceDate, NtpUtil.nowHHmmss());
 
         boolean isGroup = "group".equals(task.targetType);
 
-        // 首轮发送全部目标。传入快照副本，避免 subList 视图逃逸后被 updateTask 换引用影响。
-        int total = task.targets.size();
-        SendResult result = sendToTargets(task, new ArrayList<>(task.targets), client, isGroup);
+        // 只发送账本中尚未成功/未决的目标，进程重启后也不会重投已尝试目标。
+        int total = pendingTargets.size();
+        SendResult result = sendToTargets(task, pendingTargets, client, isGroup, occurrenceDate);
         List<Long> failed = result.failed();
         // 超时未决目标全程累积、绝不重投，理由见 SendResult 注释。
         List<Long> unknown = new ArrayList<>(result.unknown());
@@ -707,7 +801,7 @@ public class ScheduleManager {
                 Thread.currentThread().interrupt();
                 break; // 被中断（任务变更/停止）：放弃补发，走收尾
             }
-            result = sendToTargets(task, failed, client, isGroup);
+            result = sendToTargets(task, failed, client, isGroup, occurrenceDate);
             failed = result.failed();
             unknown.addAll(result.unknown());
         }
@@ -724,16 +818,16 @@ public class ScheduleManager {
                     task.name, success, failed.size(), failed, unknown);
         }
 
+        List<Long> occurrenceUnknown = getTargetsWithStatus(task, occurrenceDate, TARGET_UNKNOWN, TARGET_SENDING);
+
         // 发送完自动停止 NapCat + 断开连接。
         if (task.autoStopAfterSend && afterSendStopper != null) {
-            if (!unknown.isEmpty()) {
+            if (!failed.isEmpty()) {
+                logger.info("任务 [{}] 仍有 {} 个明确失败目标，保留连接等待延迟重试", task.name, failed.size());
+            } else if (!occurrenceUnknown.isEmpty()) {
                 // 有未决目标：NapCat 多半只是消息通道排队慢（实测可达 11 分钟），此刻 pkill
                 // 会把排队中的消息一并杀掉。推迟停止，让积压请求自然投递完再收工。
-                scheduleLingeringStop(task, unknown, client);
-            } else if (success == 0) {
-                // 全部「明确失败」才判定 NapCat 异常：保留连接便于排查/手动重发。
-                logger.warn("任务 [{}] 全部发送失败（成功=0），疑似 NapCat 异常，跳过自动停止以保留连接便于排查/重发",
-                        task.name);
+                scheduleLingeringStop(task, occurrenceUnknown, client);
             } else {
                 logger.info("任务 [{}] 发送完成，正在自动停止 NapCat 并断开连接...", task.name);
                 try {
@@ -745,7 +839,7 @@ public class ScheduleManager {
             }
         }
 
-        return ExecOutcome.DONE;
+        return failed.isEmpty() ? ExecOutcome.DONE : ExecOutcome.RETRY;
     }
 
     /**
@@ -823,7 +917,8 @@ public class ScheduleManager {
      * 发送前探活：连接僵死则放弃剩余目标并全部计入失败（连接已废，硬等超时无意义）。
      * 单目标异常仅归类记录，不中断其余目标。
      */
-    private SendResult sendToTargets(ScheduleTask task, List<Long> targets, OneBotClient client, boolean isGroup) {
+    private SendResult sendToTargets(ScheduleTask task, List<Long> targets, OneBotClient client,
+                                     boolean isGroup, String occurrenceDate) {
         List<Long> failed = new ArrayList<>();
         List<Long> unknown = new ArrayList<>();
         for (int i = 0; i < targets.size(); i++) {
@@ -835,35 +930,263 @@ public class ScheduleManager {
                 logger.warn("Bot 连接已失效，放弃任务 [{}] 剩余 {} 个目标", task.name, remaining.size());
                 this.bot = null;
                 failed.addAll(remaining);
+                markTargetsState(task, occurrenceDate, remaining, TARGET_FAILED);
                 break;
             }
+            // 必须在调用 OneBot API 前落盘。若进程在请求期间崩溃，SENDING 会在下次启动时
+            // 转为 UNKNOWN，从而避免实际已投递但来不及记录响应时重复发送。
+            markTargetState(task, occurrenceDate, targetId, TARGET_SENDING);
             try {
                 if (isGroup) {
                     client.sendGroupMsg(targetId, task.message);
                 } else {
                     client.sendPrivateMsg(targetId, task.message);
                 }
+                markTargetState(task, occurrenceDate, targetId, TARGET_SUCCESS);
                 logger.debug("定时消息已发送: {} -> {} ({})", task.name, targetId, task.targetType);
                 Thread.sleep(1000); // 间隔 1 秒，避免频率限制
             } catch (InterruptedException e) {
                 Thread.currentThread().interrupt();
-                // 已开始发送，中断则把当前及剩余目标计入失败并停止（不重复发已成功的）
-                failed.addAll(targets.subList(i, targets.size()));
+                // 这里只会来自成功后的限频 sleep；当前目标已经成功，仅把后续尚未调用的目标记为失败。
+                if (i + 1 < targets.size()) {
+                    List<Long> remaining = targets.subList(i + 1, targets.size());
+                    failed.addAll(remaining);
+                    markTargetsState(task, occurrenceDate, remaining, TARGET_FAILED);
+                }
                 break;
             } catch (onebot.client.OneBotTimeoutException e) {
                 // 结果未决，不进重投队列：NapCat 很可能只是慢，稍后仍会把这条真正发出去。
                 unknown.add(targetId);
+                markTargetState(task, occurrenceDate, targetId, TARGET_UNKNOWN);
                 logger.warn("定时消息发送超时（结果未决，不重投以免重复投递）: {} -> {} ({})",
                         task.name, targetId, e.getMessage());
             } catch (Exception e) {
                 failed.add(targetId);
+                markTargetState(task, occurrenceDate, targetId, TARGET_FAILED);
                 logger.error("定时消息发送失败: {} -> {}", task.name, targetId, e);
             }
         }
         return new SendResult(failed, unknown);
     }
 
-    // ==================== 持久化 ====================
+    // ==================== 执行状态持久化 ====================
+
+    /** 获取当前 Bot 对应的执行账本文件路径。文件名沿用 schedules* 前缀，可复用现有 gitignore/数据卷规则。 */
+    private String getExecutionFile() {
+        if (botName == null || botName.isEmpty() || "default".equals(botName)) {
+            return EXECUTION_FILE_PREFIX + ".json";
+        }
+        return EXECUTION_FILE_PREFIX + "_" + botName + ".json";
+    }
+
+    private String occurrenceKey(ScheduleTask task, String date) {
+        return date + "|" + task.name;
+    }
+
+    private void loadExecutionLedger() {
+        synchronized (executionStateLock) {
+            Path path = Path.of(getExecutionFile());
+            if (!Files.exists(path)) return;
+            try {
+                ExecutionLedger loaded = GsonFactory.gson().fromJson(Files.readString(path), ExecutionLedger.class);
+                if (loaded != null) {
+                    if (loaded.records == null) loaded.records = new LinkedHashMap<>();
+                    executionLedger = loaded;
+                }
+
+                boolean changed = false;
+                for (var record : executionLedger.records.values()) {
+                    if (record.targetStates == null) {
+                        record.targetStates = new LinkedHashMap<>();
+                        changed = true;
+                    }
+                    // 崩溃时停在 API 调用中的目标结果无法确认，按 UNKNOWN 处理，绝不自动重投。
+                    for (var entry : record.targetStates.entrySet()) {
+                        if (TARGET_SENDING.equals(entry.getValue())) {
+                            entry.setValue(TARGET_UNKNOWN);
+                            changed = true;
+                        }
+                    }
+                }
+                changed |= pruneExecutionLedgerLocked();
+                if (changed) saveExecutionLedgerLocked();
+                logger.debug("已加载 {} 条任务执行记录", executionLedger.records.size());
+            } catch (Exception e) {
+                logger.warn("加载任务执行账本失败，保留原文件且不覆盖: {}", e.getMessage());
+                executionLedger = new ExecutionLedger();
+                executionLedgerReadable = false;
+            }
+        }
+    }
+
+    /** 清理过期记录，避免账本无限增长。 */
+    private boolean pruneExecutionLedgerLocked() {
+        LocalDate oldest = LocalDate.now().minusDays(EXECUTION_STATE_RETENTION_DAYS);
+        return executionLedger.records.entrySet().removeIf(entry -> {
+            try {
+                return LocalDate.parse(entry.getValue().date).isBefore(oldest);
+            } catch (Exception e) {
+                return true;
+            }
+        });
+    }
+
+    private void saveExecutionLedgerLocked() {
+        Path path = Path.of(getExecutionFile());
+        Path temp = path.resolveSibling(path.getFileName() + ".tmp");
+        try {
+            Files.writeString(temp, GsonFactory.gson().toJson(executionLedger));
+            try {
+                Files.move(temp, path, StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE);
+            } catch (AtomicMoveNotSupportedException e) {
+                Files.move(temp, path, StandardCopyOption.REPLACE_EXISTING);
+            }
+        } catch (IOException e) {
+            executionLedgerReadable = false;
+            logger.error("保存任务执行账本失败；为避免重复发送，本次任务将停止", e);
+            throw new IllegalStateException("无法持久化任务执行状态", e);
+        }
+    }
+
+    private ExecutionRecord getOrCreateRecordLocked(ScheduleTask task, String date) {
+        String key = occurrenceKey(task, date);
+        ExecutionRecord record = executionLedger.records.get(key);
+        if (record == null) {
+            record = new ExecutionRecord();
+            record.date = date;
+            record.taskName = task.name;
+            executionLedger.records.put(key, record);
+        }
+        if (record.targetStates == null) record.targetStates = new LinkedHashMap<>();
+        return record;
+    }
+
+    private ExecutionRecord getExecutionRecord(ScheduleTask task, String date) {
+        synchronized (executionStateLock) {
+            ExecutionRecord record = executionLedger.records.get(occurrenceKey(task, date));
+            return record == null ? null : record.copy();
+        }
+    }
+
+    /** 返回仍可安全发送的目标：未尝试或明确失败；成功、未决和崩溃前发送中的目标全部跳过。 */
+    private List<Long> getPendingTargets(ScheduleTask task, String date) {
+        synchronized (executionStateLock) {
+            ExecutionRecord record = executionLedger.records.get(occurrenceKey(task, date));
+            var pending = new LinkedHashSet<Long>();
+            for (long target : task.targets) {
+                String status = record == null ? null : record.targetStates.get(String.valueOf(target));
+                if (status == null || TARGET_FAILED.equals(status)) {
+                    pending.add(target);
+                }
+            }
+            return new ArrayList<>(pending);
+        }
+    }
+
+    private List<Long> getTargetsWithStatus(ScheduleTask task, String date, String... statuses) {
+        Set<String> expected = Set.of(statuses);
+        synchronized (executionStateLock) {
+            ExecutionRecord record = executionLedger.records.get(occurrenceKey(task, date));
+            if (record == null) return List.of();
+            var matched = new ArrayList<Long>();
+            for (long target : task.targets) {
+                if (expected.contains(record.targetStates.get(String.valueOf(target)))) {
+                    matched.add(target);
+                }
+            }
+            return matched;
+        }
+    }
+
+    private boolean isOccurrenceSettled(ScheduleTask task, String date) {
+        synchronized (executionStateLock) {
+            ExecutionRecord record = executionLedger.records.get(occurrenceKey(task, date));
+            if (record == null) return false;
+            // 达到重试上限后，即使仍有明确失败，也视为当天已收尾，避免重启绕过上限。
+            if (record.retryCount >= MAX_RETRIES && record.nextRetryAt == 0) return true;
+            for (long target : task.targets) {
+                String status = record.targetStates.get(String.valueOf(target));
+                if (!TARGET_SUCCESS.equals(status)
+                        && !TARGET_UNKNOWN.equals(status)
+                        && !TARGET_SENDING.equals(status)) {
+                    return false;
+                }
+            }
+            return true;
+        }
+    }
+
+    private void markTargetState(ScheduleTask task, String date, long target, String status) {
+        synchronized (executionStateLock) {
+            ExecutionRecord record = getOrCreateRecordLocked(task, date);
+            record.targetStates.put(String.valueOf(target), status);
+            record.updatedAt = System.currentTimeMillis();
+            saveExecutionLedgerLocked();
+        }
+    }
+
+    private void markTargetsState(ScheduleTask task, String date, Collection<Long> targets, String status) {
+        if (targets.isEmpty()) return;
+        synchronized (executionStateLock) {
+            ExecutionRecord record = getOrCreateRecordLocked(task, date);
+            for (long target : targets) {
+                record.targetStates.put(String.valueOf(target), status);
+            }
+            record.updatedAt = System.currentTimeMillis();
+            saveExecutionLedgerLocked();
+        }
+    }
+
+    private int getRetryCount(ScheduleTask task, String date) {
+        synchronized (executionStateLock) {
+            ExecutionRecord record = executionLedger.records.get(occurrenceKey(task, date));
+            return record == null ? 0 : record.retryCount;
+        }
+    }
+
+    private void updateRetryPlan(ScheduleTask task, String date, int retryCount, long retryAt) {
+        synchronized (executionStateLock) {
+            ExecutionRecord record = getOrCreateRecordLocked(task, date);
+            record.retryCount = retryCount;
+            record.nextRetryAt = retryAt;
+            record.updatedAt = System.currentTimeMillis();
+            saveExecutionLedgerLocked();
+        }
+        retryPlans.put(task.name, new RetryPlan(date, retryAt));
+    }
+
+    private void clearRetryPlan(ScheduleTask task, String date) {
+        retryPlans.computeIfPresent(task.name,
+                (name, plan) -> date.equals(plan.occurrenceDate) ? null : plan);
+        synchronized (executionStateLock) {
+            ExecutionRecord record = executionLedger.records.get(occurrenceKey(task, date));
+            if (record == null || record.nextRetryAt == 0) return;
+            record.nextRetryAt = 0;
+            record.updatedAt = System.currentTimeMillis();
+            saveExecutionLedgerLocked();
+        }
+    }
+
+    /** 重试耗尽后执行最终收尾；有超时未决目标时仍保留 15 分钟投递窗口。 */
+    private void finishAfterRetriesExhausted(ScheduleTask task, String date) {
+        if (!task.autoStopAfterSend || afterSendStopper == null) return;
+        OneBotClient client = this.bot;
+        if (client == null) return;
+        List<Long> unknown = getTargetsWithStatus(task, date, TARGET_UNKNOWN, TARGET_SENDING);
+        if (!unknown.isEmpty()) {
+            scheduleLingeringStop(task, unknown, client);
+            return;
+        }
+        try {
+            logger.info("任务 [{}] 重试已耗尽，执行发送后自动停止", task.name);
+            afterSendStopper.run();
+            this.bot = null;
+        } catch (Exception e) {
+            logger.error("任务 [{}] 重试耗尽后的自动停止失败", task.name, e);
+        }
+    }
+
+    // ==================== 任务配置持久化 ====================
 
     /** 获取当前 Bot 对应的定时任务文件路径 */
     private String getScheduleFile() {
@@ -905,7 +1228,34 @@ public class ScheduleManager {
         }
     }
 
-    // ==================== 任务数据类 ====================
+    // ==================== 数据类 ====================
+
+    private record RetryPlan(String occurrenceDate, long at) {}
+
+    private static class ExecutionLedger {
+        int version = 1;
+        Map<String, ExecutionRecord> records = new LinkedHashMap<>();
+    }
+
+    private static class ExecutionRecord {
+        String date = "";
+        String taskName = "";
+        Map<String, String> targetStates = new LinkedHashMap<>();
+        int retryCount;
+        long nextRetryAt;
+        long updatedAt;
+
+        ExecutionRecord copy() {
+            var copy = new ExecutionRecord();
+            copy.date = date;
+            copy.taskName = taskName;
+            copy.targetStates = new LinkedHashMap<>(targetStates);
+            copy.retryCount = retryCount;
+            copy.nextRetryAt = nextRetryAt;
+            copy.updatedAt = updatedAt;
+            return copy;
+        }
+    }
 
     public static class ScheduleTask {
         public String name = "";

@@ -70,12 +70,12 @@ export default function NcLogsPage() {
                 fullWidth
               />
             </div>
-            <label className="flex items-center gap-2 text-xs text-neutral-400 select-none">
+            <label className="flex items-center gap-2 text-xs text-[var(--color-text-secondary)] select-none">
               <input
                 type="checkbox"
                 checked={autoRefresh}
                 onChange={(e) => setAutoRefresh(e.target.checked)}
-                className="accent-[#5a7dff]"
+                className="accent-[var(--color-primary-500)]"
               />
               <span>自动刷新</span>
             </label>
@@ -92,7 +92,7 @@ export default function NcLogsPage() {
         </div>
       ) : (
         <>
-          <Link to={`/nc-login${selected ? `?instance=${encodeURIComponent(selected)}` : ""}`} className="mb-4 flex flex-wrap items-center justify-between gap-2 rounded-xl border border-[#5a7dff]/25 bg-[#5a7dff]/10 px-4 py-3 text-sm text-[#b8c7ff]">
+          <Link to={`/nc-login${selected ? `?instance=${encodeURIComponent(selected)}` : ""}`} className="mb-4 flex flex-wrap items-center justify-between gap-2 rounded-xl border border-[var(--color-primary-500)]/25 bg-[var(--color-primary-500)]/10 px-4 py-3 text-sm text-[#b8c7ff]">
             <span>日志里的二维码扫不出来？使用清晰图片扫码登录。</span><span>打开扫码页面 →</span>
           </Link>
           <LogViewer lines={lines} tall emptyMessage="无日志" />

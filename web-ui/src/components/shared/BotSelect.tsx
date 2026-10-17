@@ -1,6 +1,7 @@
 import { useEffect, useMemo } from "react";
 import { useLocalStorage } from "../../hooks/useLocalStorage";
 import { useAppStore } from "../../stores/app-store";
+import { setActiveBot } from "../../api/endpoints";
 import { Select } from "../ui";
 
 interface Props {
@@ -20,19 +21,20 @@ export default function BotSelect({
   onChange,
 }: Props) {
   const cachedBots = useAppStore((s) => s.cachedBots);
-  const [saved, setSaved] = useLocalStorage(storageKey, "");
+  const [, setSaved] = useLocalStorage(storageKey, "");
 
   const filteredBots = useMemo(
     () => (connectedOnly ? cachedBots.filter((b) => b.connected) : cachedBots),
     [cachedBots, connectedOnly],
   );
 
-  // 挂载时恢复上次选择
+  const activeBotName = useAppStore((s) => s.activeBotName);
+  const setCachedBots = useAppStore((s) => s.setCachedBots);
   useEffect(() => {
-    if (!value && saved && filteredBots.some((b) => b.name === saved)) {
-      onChange(saved);
-    }
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+    const active = filteredBots.find((bot) => bot.name === activeBotName)?.name;
+    const next = active ?? "";
+    if (next !== value) onChange(next);
+  }, [activeBotName, filteredBots, value, onChange]);
 
   const options = useMemo(
     () => [
@@ -45,15 +47,24 @@ export default function BotSelect({
     [filteredBots],
   );
 
-  const handleChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
-    const v = e.target.value;
-    onChange(v);
-    setSaved(v);
+  const handleChange = async (e: React.ChangeEvent<HTMLSelectElement>) => {
+    const next = e.target.value;
+    if (!next) {
+      onChange("");
+      return;
+    }
+    const result = await setActiveBot(next);
+    if (result) {
+      setCachedBots(cachedBots, result.activeBot);
+      onChange(next);
+      setSaved(next);
+    }
   };
 
   return (
     <div className="min-w-[180px]">
       <Select
+        aria-label="选择 Bot"
         options={options}
         value={value}
         onChange={handleChange}

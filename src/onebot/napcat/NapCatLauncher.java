@@ -292,7 +292,7 @@ public class NapCatLauncher {
     private void killProcessesByWorkdir(String workDir, String qqUin) {
         if (qqUin != null && !qqUin.isEmpty()) {
             // 精确到 QQ 号，避免误杀其他实例
-            killProcess("pkill", "-f", "-q " + qqUin);
+            killProcess("pkill", "-f", "--", "-q " + qqUin);
         }
         if (workDir != null && !workDir.isEmpty()) {
             killProcess("pkill", "-f", workDir);

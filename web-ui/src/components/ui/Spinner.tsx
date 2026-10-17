@@ -17,7 +17,7 @@ export function Spinner({ size = "md", className = "" }: SpinnerProps) {
     <div
       role="status"
       aria-label="加载中"
-      className={`inline-block animate-spin rounded-full border-white/15 border-t-[#5a7dff] ${sizeMap[size]} ${className}`}
+      className={`inline-block animate-spin rounded-full border-white/15 border-t-[var(--color-primary-500)] ${sizeMap[size]} ${className}`}
     />
   );
 }

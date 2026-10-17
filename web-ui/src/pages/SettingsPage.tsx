@@ -44,7 +44,7 @@ export default function SettingsPage() {
 
   return (
     <div className="p-6 max-w-xl mx-auto">
-      <div className="rounded-xl p-6 bg-[rgba(15,20,25,0.72)] backdrop-blur-[20px] border border-[var(--glass-border)] space-y-5">
+      <div className="rounded-xl p-6 bg-[var(--color-bg-elevated)] backdrop-blur-[20px] border border-[var(--glass-border)] space-y-5">
         <div>
           <h1 className="text-lg font-semibold text-[var(--color-text-primary)]">
             修改管理员密码

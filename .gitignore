@@ -57,3 +57,24 @@ tmp/
 tmp_*.js
 memory/
 plan-*.md
+
+# TypeScript 迁移运行产物
+/node_modules/
+/server/dist/
+/packages/*/dist/
+/data/
+!server/src/modules/logs/
+!server/src/modules/logs/**
+
+# 浏览器测试临时报告
+/test-results/
+/playwright-report/
+
+# 本轮平台验证使用的临时运行时和隔离安装目录
+/output/toolchain/
+/output/windows-smoke/
+/output/rollback-java-*/
+
+# 新服务的运行锁
+.writer.lock
+.writer.guard

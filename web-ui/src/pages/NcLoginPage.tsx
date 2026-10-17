@@ -30,10 +30,10 @@ export default function NcLoginPage() {
   return (
     <PageContainer>
       <PageHeader title="QQ 扫码登录" description="打开手机 QQ，扫描下方二维码完成登录。" actions={
-        <Link to="/napcat" className="text-sm text-neutral-400 hover:text-white">管理 NapCat →</Link>
+        <Link to="/napcat" className="text-sm text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)]">管理 NapCat →</Link>
       } />
       <div className="mb-6 max-w-sm">
-        <label htmlFor="login-instance" className="mb-2 block text-xs text-neutral-400">选择登录实例</label>
+        <label htmlFor="login-instance" className="mb-2 block text-xs text-[var(--color-text-secondary)]">选择登录实例</label>
         <Select id="login-instance" fullWidth value={selected}
           options={[{ value: "", label: "请选择实例" }, ...instances.map((item) => ({
             value: item.name, label: `${item.name} · QQ ${item.qqUin || "未设置"}`,
@@ -43,8 +43,8 @@ export default function NcLoginPage() {
       {loading ? <div className="py-20 flex justify-center"><Spinner size="lg" /></div>
         : listError ? <p role="alert" className="text-amber-300">实例列表加载失败，请刷新页面重试。</p>
         : selected ? <LoginPanel key={selected} name={selected} />
-        : <div className="rounded-2xl border border-white/10 p-10 text-center">
-          <p className="text-neutral-300">还没有 NapCat 实例</p>
+        : <div className="rounded-2xl border border-[var(--glass-border)] p-10 text-center">
+          <p className="text-[var(--color-text-secondary)]">还没有 NapCat 实例</p>
           <Link to="/napcat" className="mt-3 inline-block text-sm text-[#8da5ff]">前往创建实例 →</Link>
         </div>}
     </PageContainer>
@@ -125,10 +125,10 @@ function LoginPanel({ name }: { name: string }) {
 
   return (
     <div className="grid gap-8 lg:grid-cols-[minmax(300px,440px)_1fr] lg:gap-12">
-      <section className="min-w-0 overflow-hidden rounded-2xl border border-white/10 bg-[rgba(15,20,25,0.6)]">
-        <div className="flex items-center justify-between gap-3 border-b border-white/10 px-5 py-4">
-          <span className="truncate text-sm font-medium text-white">{name}</span>
-          <span className={`flex shrink-0 items-center gap-2 text-xs ${loggedIn ? "text-emerald-300" : "text-neutral-400"}`}>
+      <section className="min-w-0 overflow-hidden rounded-2xl border border-[var(--glass-border)] bg-[var(--color-bg-elevated)]">
+        <div className="flex items-center justify-between gap-3 border-b border-[var(--glass-border)] px-5 py-4">
+          <span className="truncate text-sm font-medium text-[var(--color-text-primary)]">{name}</span>
+          <span className={`flex shrink-0 items-center gap-2 text-xs ${loggedIn ? "text-emerald-300" : "text-[var(--color-text-secondary)]"}`}>
             <span className={`h-1.5 w-1.5 rounded-full ${loggedIn ? "bg-emerald-400" : "bg-amber-300"}`} />{title}
           </span>
         </div>
@@ -141,7 +141,7 @@ function LoginPanel({ name }: { name: string }) {
                 <span className="text-sm font-medium">{error ? "暂时无法显示二维码" : title}</span>
               </div>}
           </div>
-          <div aria-live="polite" className="mt-5 min-h-12 text-center text-sm leading-6 text-neutral-400">
+          <div aria-live="polite" className="mt-5 min-h-12 text-center text-sm leading-6 text-[var(--color-text-secondary)]">
             {refreshing ? "刷新请求已发出，等待 NapCat 返回新图片…" : status?.message || "正在读取登录信息…"}
           </div>
           {error && <p role="alert" className="mt-3 text-sm leading-6 text-amber-300">{error}</p>}
@@ -150,28 +150,28 @@ function LoginPanel({ name }: { name: string }) {
               : loggedIn ? <Link to="/bots" className="rounded-lg bg-emerald-500/15 px-5 py-3 text-sm text-emerald-300">查看 Bot 连接 →</Link>
               : <>
                 <Button onClick={refresh} loading={busy || refreshing} disabled={!status?.canRefresh}>刷新二维码</Button>
-                {qrImage && <a href={qrImage} download={`qq-login-${name}.png`} className="inline-flex h-10 items-center rounded-lg border border-white/10 px-4 text-sm text-white hover:bg-white/5">保存二维码</a>}
+                {qrImage && <a href={qrImage} download={`qq-login-${name}.png`} className="inline-flex h-10 items-center rounded-lg border border-[var(--glass-border)] px-4 text-sm text-[var(--color-text-primary)] hover:bg-white/5">保存二维码</a>}
               </>}
           </div>
         </div>
-        <div className="border-t border-white/10 px-5 py-3 text-center text-xs text-neutral-500">每 2.5 秒自动检测 · 登录后自动隐藏二维码</div>
+        <div className="border-t border-[var(--glass-border)] px-5 py-3 text-center text-xs text-[var(--color-text-muted)]">每 2.5 秒自动检测 · 登录后自动隐藏二维码</div>
       </section>
       <aside className="py-2 lg:py-8">
         <p className="mb-3 text-xs tracking-[0.2em] text-[#8da5ff]">手机 QQ 登录</p>
-        <h2 className="text-2xl font-semibold tracking-tight text-white">扫码，确认，即可登录。</h2>
+        <h2 className="text-2xl font-semibold tracking-tight text-[var(--color-text-primary)]">扫码，确认，即可登录。</h2>
         <ol className="mt-8 space-y-7">
           {[
             ["打开扫一扫", "在手机 QQ 右上角点击「+」，选择「扫一扫」。"],
             ["扫描清晰二维码", "用另一部手机扫描左侧图片。如果正在本机浏览，保存二维码后，从 QQ 扫一扫的相册中选择图片。"],
             ["在 QQ 中确认登录", "按手机提示完成确认或安全验证。此页面会自动显示登录结果，无需反复刷新网页。"],
           ].map(([heading, detail], index) => <li key={heading} className="flex gap-4">
-            <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full border border-white/15 text-xs text-neutral-400">{index + 1}</span>
-            <div><h3 className="text-sm font-medium text-neutral-200">{heading}</h3><p className="mt-1.5 max-w-md text-sm leading-6 text-neutral-400">{detail}</p></div>
+            <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full border border-white/15 text-xs text-[var(--color-text-secondary)]">{index + 1}</span>
+            <div><h3 className="text-sm font-medium text-neutral-200">{heading}</h3><p className="mt-1.5 max-w-md text-sm leading-6 text-[var(--color-text-secondary)]">{detail}</p></div>
           </li>)}
         </ol>
-        <div className="mt-9 border-t border-white/10 pt-5 text-sm leading-6 text-neutral-400">
+        <div className="mt-9 border-t border-[var(--glass-border)] pt-5 text-sm leading-6 text-[var(--color-text-secondary)]">
           <p>提示二维码失效时，点击「刷新二维码」再扫描。手机浏览器也可以长按图片保存。</p>
-          <Link to={`/nc-logs?instance=${encodeURIComponent(name)}`} className="mt-3 inline-block text-[#8da5ff] hover:text-white">查看此实例日志 →</Link>
+          <Link to={`/nc-logs?instance=${encodeURIComponent(name)}`} className="mt-3 inline-block text-[#8da5ff] hover:text-[var(--color-text-primary)]">查看此实例日志 →</Link>
         </div>
       </aside>
     </div>

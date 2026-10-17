@@ -6,6 +6,7 @@ import { useAppStore } from "../stores/app-store";
 import { runAction } from "../api/client";
 import {
   getNapCatConfig,
+  registerExternalNapCat,
   setNapCatConfig,
   listNapCatInstances,
   startNapCat,
@@ -32,6 +33,38 @@ export default function NapCatPage() {
     },
   );
   const [instances, setInstances] = useState<NapCatInstance[]>([]);
+  const [externalOpen, setExternalOpen] = useState(false);
+  const [externalBusy, setExternalBusy] = useState(false);
+  const emptyExternal = {
+    name: "",
+    qqUin: "",
+    webuiUrl: "",
+    webuiToken: "",
+    wsUrl: "",
+    httpUrl: "",
+    wsToken: "",
+    httpToken: "",
+  };
+  const [externalForm, setExternalForm] = useState(emptyExternal);
+  const saveExternal = async () => {
+    setExternalBusy(true);
+    try {
+      const result = await runAction("外部实例已保存", () =>
+        registerExternalNapCat({
+          ...externalForm,
+          wsToken: externalForm.wsToken || undefined,
+          httpToken: externalForm.httpToken || undefined,
+        }),
+      );
+      if (result) {
+        setExternalOpen(false);
+        setExternalForm(emptyExternal);
+        await loadPage();
+      }
+    } finally {
+      setExternalBusy(false);
+    }
+  };
   const [loading, setLoading] = useState(true);
 
   const [ncName, setNcName] = useState("");
@@ -64,7 +97,7 @@ export default function NapCatPage() {
   }, []);
 
   useEffect(() => {
-    loadPage(); // eslint-disable-line react-hooks/set-state-in-effect
+    loadPage();
   }, [loadPage]);
 
   const runningInstances = useMemo(
@@ -72,7 +105,7 @@ export default function NapCatPage() {
     [instances],
   );
   const savedOnlyInstances = useMemo(
-    () => instances.filter((i) => !i.alive && i.saved),
+    () => instances.filter((i) => !i.alive && i.saved && !i.external),
     [instances],
   );
 
@@ -215,9 +248,18 @@ export default function NapCatPage() {
         title="NapCat 管理"
         description="NapCat 进程与配置管理"
         actions={
-          <Button size="sm" variant="secondary" onClick={handleDiscover}>
-            自动发现
-          </Button>
+          <div className="flex flex-wrap gap-2">
+            <Button
+              size="sm"
+              variant="secondary"
+              onClick={() => setExternalOpen(true)}
+            >
+              添加外部实例
+            </Button>
+            <Button size="sm" variant="secondary" onClick={handleDiscover}>
+              自动发现
+            </Button>
+          </div>
         }
       />
 
@@ -227,6 +269,67 @@ export default function NapCatPage() {
         </div>
       ) : (
         <div className="space-y-6">
+          {instances.some((i) => i.external) && (
+            <Card variant="glass" padding="lg">
+              <h3 className="mb-3 text-base font-semibold">外部实例</h3>
+              <p className="mb-4 text-sm text-[var(--color-text-secondary)]">
+                可在这里扫码；进程启停由实例所在环境管理。
+              </p>
+              <div className="space-y-3">
+                {instances
+                  .filter((i) => i.external)
+                  .map((i) => (
+                    <div
+                      key={i.name}
+                      className="flex flex-wrap items-center justify-between gap-3 border-t border-white/5 pt-3"
+                    >
+                      <div className="min-w-0">
+                        <p className="font-medium">{i.name}</p>
+                        <p className="break-all text-xs text-[var(--color-text-secondary)]">
+                          QQ {i.qqUin} · {i.webuiUrl}
+                        </p>
+                      </div>
+                      <div className="flex gap-2">
+                        <Button
+                          size="sm"
+                          variant="primary"
+                          aria-label={`扫码登录 ${i.name}`}
+                          onClick={() =>
+                            navigate(
+                              `/nc-login?instance=${encodeURIComponent(i.name)}`,
+                            )
+                          }
+                        >
+                          扫码登录
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="secondary"
+                          onClick={() => {
+                            setExternalForm({
+                              ...emptyExternal,
+                              name: i.name,
+                              qqUin: i.qqUin,
+                              webuiUrl: i.webuiUrl ?? "",
+                            });
+                            setExternalOpen(true);
+                          }}
+                        >
+                          更新凭据
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="danger"
+                          onClick={() => handleForget(i.name)}
+                        >
+                          移除
+                        </Button>
+                      </div>
+                    </div>
+                  ))}
+              </div>
+            </Card>
+          )}
           <motion.div
             initial={{ opacity: 0, y: 16 }}
             animate={{ opacity: 1, y: 0 }}
@@ -310,17 +413,35 @@ export default function NapCatPage() {
                           </Badge>
                         </div>
                         <div className="grid grid-cols-[72px_1fr] gap-y-1.5 text-xs mb-3">
-                          <span className="text-neutral-400">QQ</span>
+                          <span className="text-[var(--color-text-secondary)]">
+                            QQ
+                          </span>
                           <span className="text-neutral-200">{i.qqUin}</span>
-                          <span className="text-neutral-400">WS 端口</span>
+                          <span className="text-[var(--color-text-secondary)]">
+                            WS 端口
+                          </span>
                           <span className="text-neutral-200">{i.wsPort}</span>
-                          <span className="text-neutral-400">HTTP 端口</span>
+                          <span className="text-[var(--color-text-secondary)]">
+                            HTTP 端口
+                          </span>
                           <span className="text-neutral-200">{i.httpPort}</span>
-                          <span className="text-neutral-400">PID</span>
+                          <span className="text-[var(--color-text-secondary)]">
+                            PID
+                          </span>
                           <span className="text-neutral-200">{i.pid}</span>
                         </div>
                         <div className="grid grid-cols-2 gap-2 pt-3 border-t border-white/5">
-                          <Button size="sm" variant="primary" onClick={() => navigate(`/nc-login?instance=${encodeURIComponent(i.name)}`)}>扫码登录</Button>
+                          <Button
+                            size="sm"
+                            variant="primary"
+                            onClick={() =>
+                              navigate(
+                                `/nc-login?instance=${encodeURIComponent(i.name)}`,
+                              )
+                            }
+                          >
+                            扫码登录
+                          </Button>
                           <Button
                             size="sm"
                             variant="ghost"
@@ -362,7 +483,7 @@ export default function NapCatPage() {
                   >
                     <div className="overflow-x-auto">
                       <table className="w-full min-w-[720px] text-sm">
-                        <thead className="bg-white/[0.03] text-xs uppercase tracking-wider text-neutral-400">
+                        <thead className="bg-white/[0.03] text-xs uppercase tracking-wider text-[var(--color-text-secondary)]">
                           <tr>
                             <th className="px-4 py-3 text-left font-medium">
                               名称
@@ -411,14 +532,24 @@ export default function NapCatPage() {
                                     已记忆
                                   </Badge>
                                 ) : (
-                                  <span className="text-xs text-neutral-500">
+                                  <span className="text-xs text-[var(--color-text-muted)]">
                                     未记忆
                                   </span>
                                 )}
                               </td>
                               <td className="px-4 py-3 text-neutral-200">
                                 <div className="flex items-center gap-1.5">
-                                  <Button size="sm" variant="primary" onClick={() => navigate(`/nc-login?instance=${encodeURIComponent(i.name)}`)}>扫码登录</Button>
+                                  <Button
+                                    size="sm"
+                                    variant="primary"
+                                    onClick={() =>
+                                      navigate(
+                                        `/nc-login?instance=${encodeURIComponent(i.name)}`,
+                                      )
+                                    }
+                                  >
+                                    扫码登录
+                                  </Button>
                                   <Button
                                     size="sm"
                                     variant="ghost"
@@ -498,9 +629,13 @@ export default function NapCatPage() {
                         </Badge>
                       </div>
                       <div className="grid grid-cols-[80px_1fr] gap-y-1.5 text-xs mb-3">
-                        <span className="text-neutral-400">QQ</span>
+                        <span className="text-[var(--color-text-secondary)]">
+                          QQ
+                        </span>
                         <span className="text-neutral-200">{i.qqUin}</span>
-                        <span className="text-neutral-400">WebUI 端口</span>
+                        <span className="text-[var(--color-text-secondary)]">
+                          WebUI 端口
+                        </span>
                         <span className="text-neutral-200">{i.webuiPort}</span>
                       </div>
                       <div className="flex gap-2 pt-3 border-t border-white/5">
@@ -541,7 +676,7 @@ export default function NapCatPage() {
                 >
                   <div className="overflow-x-auto">
                     <table className="w-full min-w-[560px] text-sm">
-                      <thead className="bg-white/[0.03] text-xs uppercase tracking-wider text-neutral-400">
+                      <thead className="bg-white/[0.03] text-xs uppercase tracking-wider text-[var(--color-text-secondary)]">
                         <tr>
                           <th className="px-4 py-3 text-left font-medium">
                             名称
@@ -614,7 +749,7 @@ export default function NapCatPage() {
                 启动新实例
               </h3>
               {matchedSaved && (
-                <div className="mb-4 px-3 py-2 rounded-lg border border-[rgba(90,125,255,0.3)] bg-[rgba(90,125,255,0.08)] text-sm text-[#a2bdff]">
+                <div className="mb-4 px-3 py-2 rounded-lg border border-[rgba(90,125,255,0.3)] bg-[rgba(90,125,255,0.08)] text-sm text-[var(--color-primary-400)]">
                   匹配到记忆实例: QQ {matchedSaved.qqUin}, WebUI 端口{" "}
                   {matchedSaved.webuiPort} — 点击启动将直接从记忆恢复
                 </div>
@@ -627,10 +762,12 @@ export default function NapCatPage() {
                   onChange={(e) => setNcName(e.target.value)}
                 />
                 <div>
-                  <label className="text-xs font-medium text-neutral-300 mb-1.5 block">
+                  <label className="text-xs font-medium text-[var(--color-text-secondary)] mb-1.5 block">
                     QQ 号{" "}
                     {matchedSaved && (
-                      <span className="text-[#a2bdff] ml-1">(自动填充)</span>
+                      <span className="text-[var(--color-primary-400)] ml-1">
+                        (自动填充)
+                      </span>
                     )}
                   </label>
                   <QQHistoryInput
@@ -658,6 +795,53 @@ export default function NapCatPage() {
       )}
 
       <Modal
+        open={externalOpen}
+        onClose={() => setExternalOpen(false)}
+        title="添加或更新外部实例"
+        size="lg"
+        description="填写服务器能访问的 NapCat WebUI 地址和凭据，无需共享目录。"
+        footer={
+          <>
+            <Button variant="ghost" onClick={() => setExternalOpen(false)}>
+              取消
+            </Button>
+            <Button
+              variant="primary"
+              loading={externalBusy}
+              onClick={saveExternal}
+            >
+              保存外部实例
+            </Button>
+          </>
+        }
+      >
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+          {(
+            [
+              ["name", "实例名称", "remote"],
+              ["qqUin", "QQ 号", "QQ 号"],
+              ["webuiUrl", "WebUI 地址", "http://napcat:6099"],
+              ["webuiToken", "WebUI Token", "WebUI 登录凭据"],
+              ["wsUrl", "OneBot WS 地址", "ws://napcat:3000"],
+              ["wsToken", "OneBot WS Token", "留空表示保持原值"],
+              ["httpUrl", "OneBot HTTP 地址", "http://napcat:3001"],
+              ["httpToken", "OneBot HTTP Token", "留空表示保持原值"],
+            ] as const
+          ).map(([key, label, placeholder]) => (
+            <Input
+              key={key}
+              label={label}
+              placeholder={placeholder}
+              type={key.toLowerCase().endsWith("token") ? "password" : "text"}
+              value={externalForm[key]}
+              onChange={(e) =>
+                setExternalForm((form) => ({ ...form, [key]: e.target.value }))
+              }
+            />
+          ))}
+        </div>
+      </Modal>
+      <Modal
         open={editName !== null}
         onClose={() => setEditName(null)}
         title={`编辑实例 - ${editName}`}
@@ -681,7 +865,7 @@ export default function NapCatPage() {
         <div className="space-y-4">
           <Input label="实例名称" value={editName || ""} disabled />
           <div>
-            <label className="text-xs font-medium text-neutral-300 mb-1.5 block">
+            <label className="text-xs font-medium text-[var(--color-text-secondary)] mb-1.5 block">
               QQ 号
             </label>
             <QQHistoryInput

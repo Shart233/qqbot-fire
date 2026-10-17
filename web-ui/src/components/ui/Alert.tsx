@@ -18,7 +18,7 @@ const variantStyles: Record<
     bg: "bg-[rgba(90,125,255,0.08)]",
     border: "border-[rgba(90,125,255,0.3)]",
     text: "text-[#93b3ff]",
-    icon: "#5a7dff",
+    icon: "var(--color-primary-500)",
   },
   success: {
     bg: "bg-[rgba(34,197,94,0.08)]",
@@ -71,7 +71,7 @@ export function Alert({
           type="button"
           onClick={onClose}
           aria-label="关闭"
-          className="flex-shrink-0 rounded-md p-1 text-neutral-400 transition hover:bg-white/5 hover:text-white"
+          className="flex-shrink-0 rounded-md p-1 text-[var(--color-text-secondary)] transition hover:bg-white/5 hover:text-[var(--color-text-primary)]"
         >
           <svg
             width="14"

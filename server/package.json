@@ -1,0 +1,23 @@
+{
+  "name": "@qqbot/server",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit"
+  },
+  "dependencies": {
+    "@fastify/static": "10.1.6",
+    "@qqbot/contracts": "0.1.0",
+    "@qqbot/onebot": "0.1.0",
+    "@sinclair/typebox": "0.34.52",
+    "bcryptjs": "3.0.3",
+    "fastify": "5.12.5",
+    "jose": "6.2.12",
+    "qrcode": "1.5.4"
+  },
+  "devDependencies": {
+    "@types/qrcode": "1.5.6"
+  }
+}

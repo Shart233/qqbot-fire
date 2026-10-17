@@ -1,0 +1,33 @@
+[Unit]
+Description=QQBot-Fire 管理服务
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=qqbot
+Group=qqbot
+WorkingDirectory=/opt/qqbot-fire
+Environment=NODE_ENV=production
+Environment=HOST=127.0.0.1
+Environment=PORT=9988
+Environment=DATA_DIR=/var/lib/qqbot-fire
+Environment=NAPCAT_MODE=managed
+Environment=NAPCAT_DIR=/opt/napcat
+Environment=NAPCAT_WORK_ROOT=/var/lib/qqbot-fire/napcat-instances
+Environment=NAPCAT_AUTOSTART=true
+Environment=SCHEDULING_ENABLED=false
+Environment=CONSOLE_ENABLED=false
+Environment=TZ=Asia/Shanghai
+EnvironmentFile=-/etc/qqbot-fire.env
+ExecStart=/usr/local/bin/node /opt/qqbot-fire/server/dist/main.js
+Restart=on-failure
+RestartSec=5
+TimeoutStopSec=60
+KillMode=mixed
+StateDirectory=qqbot-fire
+UMask=0077
+NoNewPrivileges=true
+
+[Install]
+WantedBy=multi-user.target

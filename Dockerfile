@@ -21,6 +21,8 @@ RUN sed -i 's|http://|https://|g' /etc/apt/sources.list && apt-get update && apt
 COPY --from=build /usr/local/bin/node /usr/local/bin/node
 # 上游把运行包留在压缩文件中；构建时解包，启动时无需下载或联网升级。
 RUN mkdir -p /opt/napcat /opt/qqbot /app/data && unzip -q /app/NapCat.Shell.zip -d /opt/napcat && test -f /opt/napcat/napcat.mjs
+COPY docker/patch-napcat-login.cjs /opt/qqbot/docker/patch-napcat-login.cjs
+RUN node /opt/qqbot/docker/patch-napcat-login.cjs /opt/napcat/napcat.mjs
 COPY docker/napcat-run.sh /opt/napcat/napcat-run.sh
 COPY docker/load-napcat.cjs /opt/QQ/resources/app/loadNapCat.js
 RUN chmod +x /opt/napcat/napcat-run.sh && chown -R napcat:napcat /app/data

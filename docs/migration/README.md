@@ -4,7 +4,7 @@
 
 ## 兼容盘点
 
-- `onebot-methods.json`：当前 Java OneBotClient 公开签名逐项登记，状态为待迁移，不能用通用 call 方法冒充全部类型化 API 完成。
+- `onebot-methods.json`：当前 Java OneBotClient 公开签名逐项登记；具名方法已迁移，请求签名和返回模型经过 Java 夹具对照，完整实机边界仍需验收。
 - `console-commands.json`：当前控制台顶层命令和子命令分派清单。
 - `api-inventory.json`：逐端点方法、路径、模块及实现状态。
 - `working-tree-baseline.txt`：实施前已有改动记录；不包含真实配置、密钥和日志。
@@ -21,4 +21,8 @@
 
 ## 仍需外部验收
 
-尚未对正式账号执行连接或发送。真实账号测试、Java 调度误差基线、旧 UI 基线截图、NapCat 实测版本及共享实例关系、Windows 原生/Docker 验收、两日调度观察和七天回退窗口必须单独留存证据。
+2026-10-18 已在独立 Docker 测试卷中使用真实账号完成登录、OneBot 连接、好友和群列表读取，以及指定好友的单条私聊发送和回复接收。自动调度保持关闭，原业务数据没有切换。
+
+重新扫码后，真实好友消息已通过 WebSocket 进入 BotService / EventDispatcher / EventHandler；HTTP 账号和联系人读取也已验证，随后恢复 WebSocket 连接。
+
+重启丢失登录态的问题已通过对照实验定位到 QQ 内核未开启保存凭据；默认镜像构建加入兼容修复，开启后重新扫码，已验证容器重启免扫码恢复。此前已失效的凭据需重新扫码一次，QQ 服务端撤销登录态仍可能要求重新登录。真实群收发、Windows QQ 注入、arm64、跨日与休眠、多日调度及七天回退窗口仍需单独留存证据。详细进展以「验证记录」为准。
